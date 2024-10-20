@@ -1,4 +1,4 @@
-name: sar_snowmelt_timing
+name: global_snowmelt_runoff_onset
 channels:
   - conda-forge
   - defaults
@@ -441,7 +441,6 @@ dependencies:
       - defusedxml==0.7.1
       - earthaccess==0.10.0
       - earthengine-api==0.1.416
-      - easysnowdata==0.0.6
       - geoutils==0.1.8
       - geoviews==1.12.0
       - google-api-core==2.19.1
@@ -500,4 +499,5 @@ dependencies:
       - webencodings==0.5.1
       - xdem==0.0.20
       - xee==0.0.15
-prefix: /home/eric/miniconda3/envs/sar_snowmelt_timing
+      - "--editable=git+https://github.com/egagli/easysnowdata.git#egg=easysnowdata"
+      - "--editable=./"
