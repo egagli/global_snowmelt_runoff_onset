@@ -1,3 +1,12 @@
+# secrets
+config/sas_token.txt
+
+# too big
+processing/*.tif*
+
+# local install
+src/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
