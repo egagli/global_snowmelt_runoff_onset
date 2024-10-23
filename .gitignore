@@ -1,5 +1,6 @@
 # secrets
 config/sas_token.txt
+config/ee_key.json
 
 # too big
 processing/*.tif*
