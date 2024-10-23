@@ -105,26 +105,31 @@ class Config:
             'seasonal_snow_mask_zarr_store_azure_path': self.seasonal_snow_mask_zarr_store_azure_path,
         }
 
+    def get_tile(self, row, col):
+        return Tile(row,col,self)
+
+
     def get_list_of_tiles(self, which='all'):
         if which == 'all':
-            tiles = [Tile(row, col) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success)]
+            tiles = [Tile(row, col, self) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success)]
         elif which == 'processed':
-            tiles = [Tile(row, col) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success==True]
+            tiles = [Tile(row, col, self) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success==True]
         elif which == 'failed':
-            tiles = [Tile(row, col) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success==False]
+            tiles = [Tile(row, col, self) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success==False]
         elif which == 'unprocessed':
-            tiles = [Tile(row, col) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success is np.nan]
+            tiles = [Tile(row, col, self) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success is np.nan]
         elif which == 'unprocessed_and_failed':
-            tiles = [Tile(row, col) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success is np.nan or success==False]
+            tiles = [Tile(row, col, self) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success is np.nan or success==False]
         else:
             raise ValueError("Must choose one of ['all', 'processed', 'failed', 'unprocessed', 'unprocessed_and_failed']")        
         return tiles
 
 
 class Tile:
-    def __init__(self, row, col):
+    def __init__(self, row, col, config):
         self.row = row
         self.col = col
+        self.config = config
         self.index = row, col
         self.percent_valid_snow_pixels = self.get_percent_valid_snow_pixels()
         self.geobox = self.get_geobox()
@@ -160,7 +165,7 @@ class Tile:
         self.success = False
 
     def get_geobox(self):
-        return Config().geobox_tiles[self.index]
+        return self.config.geobox_tiles[self.index]
     
     def get_bbox_gdf(self):
         bbox = self.geobox.boundingbox
@@ -169,5 +174,5 @@ class Tile:
         return bbox_gdf
     
     def get_percent_valid_snow_pixels(self):
-        return float(Config().valid_tiles_gdf['percent_valid_snow_pixels'].loc[(Config().valid_tiles_gdf['row'] == self.row) & (Config().valid_tiles_gdf['col'] == self.col)].values[0])
+        return float(self.config.valid_tiles_gdf['percent_valid_snow_pixels'].loc[(self.config.valid_tiles_gdf['row'] == self.row) & (self.config.valid_tiles_gdf['col'] == self.col)].values[0])
 
