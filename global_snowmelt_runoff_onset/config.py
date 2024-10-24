@@ -8,17 +8,14 @@ import odc.geo
 import odc.stac
 import adlfs
 import os
+import ee
 from typing import List, Tuple, Dict, Any
 
-class Config:
-    _instance = None
 
-    def __new__(cls, config_file=None):
-        if cls._instance is None:
-            cls._instance = super(Config, cls).__new__(cls)
-            if config_file:
-                cls._instance._init_config(config_file)
-        return cls._instance
+class Config:
+    def __init__(self, config_file=None):
+        if config_file:
+            self._init_config(config_file)
 
     def _init_config(self, config_file):
         self.config = configparser.ConfigParser()
@@ -61,7 +58,8 @@ class Config:
             self.bbox_right, self.bbox_top), crs="epsg:4326", resolution=self.resolution)
         self.geobox_tiles = odc.geo.geobox.GeoboxTiles(self.global_geobox, self.spatial_chunk_dims)
         self.sas_token = pathlib.Path('../config/sas_token.txt').read_text()
-        self.azure_blob_fs = adlfs.AzureBlobFileSystem(account_name="snowmelt", credential=self.sas_token)
+        self.ee_credentials = ee.ServiceAccountCredentials(email='coiled@buoyant-aileron-352100.iam.gserviceaccount.com',key_file='../config/ee_key.json')
+        self._azure_blob_fs = adlfs.AzureBlobFileSystem(account_name="snowmelt", credential=self.sas_token, skip_instance_cache=True)
         self.global_runoff_store = self.azure_blob_fs.get_mapper(self.global_runoff_zarr_store_azure_path)
         self.seasonal_snow_mask_store = self.azure_blob_fs.get_mapper(self.seasonal_snow_mask_zarr_store_azure_path)
         self._load_valid_tiles()
@@ -81,6 +79,11 @@ class Config:
         for section in self.config.sections():
             for key, value in self.config[section].items():
                 print(f"{key} = {value}")
+
+    @property
+    def azure_blob_fs(self):
+        self._azure_blob_fs.invalidate_cache()
+        return self._azure_blob_fs
 
     def get_config_dict(self) -> Dict[str, Any]:
         return {

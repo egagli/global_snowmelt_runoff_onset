@@ -39,7 +39,7 @@ def add_topography(tile,ds):
     dem_da = odc.stac.load(items=search.items(),like=ds,chunks={},resampling='bilinear')['data'].squeeze()
     dem_da = dem_da.rio.write_nodata(-32767,encoded=True).drop_vars('time') # compute for xdem stuff
 
-    ds['dem'] = dem_da
+    ds['dem'] = dem_da.compute()
 
     # [xDEM](https://xdem.readthedocs.io/en/stable/index.html) to calculate slope and aspect and topographic position index
 
@@ -99,24 +99,24 @@ def dataset_to_dataframe(tile,ds):
 
     df['tile_row'] = tile.row
     df['tile_col'] = tile.col
-    hemisphere = 'northern' if ds.rio.crs.to_epsg() < 32700 else 'southern'
-    df['hemisphere'] = hemisphere
+
     # change these as we include/exclude new vars
-    df = df[["tile_row","tile_col","hemisphere","original_lat","original_lon","runoff_onset_WY2015","runoff_onset_WY2016","runoff_onset_WY2017","runoff_onset_WY2018","runoff_onset_WY2019","runoff_onset_WY2020","runoff_onset_WY2021","runoff_onset_WY2022","runoff_onset_WY2023","runoff_onset_WY2024","runoff_onset_median","runoff_onset_std","dem","aspect","slope","tpi","chili","snow_classification","esa_worldcover","forest_cover_fraction"]]
+    df = df[["tile_row","tile_col","original_lat","original_lon","runoff_onset_WY2015","runoff_onset_WY2016","runoff_onset_WY2017","runoff_onset_WY2018","runoff_onset_WY2019","runoff_onset_WY2020","runoff_onset_WY2021","runoff_onset_WY2022","runoff_onset_WY2023","runoff_onset_WY2024","runoff_onset_median","runoff_onset_std","dem","aspect","slope","tpi","chili","snow_classification","esa_worldcover","forest_cover_fraction"]]
     
-    columns_to_round = [col for col in df.columns if col not in ['original_lat', 'original_lon', 'runoff_onset_std', 'hemisphere']]
+    columns_to_round = [col for col in df.columns if col not in ['original_lat', 'original_lon', 'runoff_onset_std', 'chili']]
     df[columns_to_round] = df[columns_to_round].replace([np.inf, -np.inf, np.nan], -9999)
-    df[columns_to_round] = df[columns_to_round].round().astype(int)
+    df[columns_to_round] = df[columns_to_round].round().astype(np.int16)
 
-    df['original_lat'] = df['original_lat'].round(4)
-    df['original_lon'] = df['original_lon'].round(4)
-    df['runoff_onset_std'] = df['runoff_onset_std'].round(2)
+    df['original_lat'] = df['original_lat'].round(4).astype(np.float32)
+    df['original_lon'] = df['original_lon'].round(4).astype(np.float32)
+    df['chili'] = df['chili'].round(4).astype(np.float32)
+    df['runoff_onset_std'] = df['runoff_onset_std'].round(2).astype(np.float32)
 
-    for col in df.columns:
-        if df[col].dtype == 'int64':
-            df[col] = pd.to_numeric(df[col], downcast='integer')
-        elif df[col].dtype == 'float64':
-            df[col] = pd.to_numeric(df[col], downcast='float')
+    # for col in df.columns:
+    #     if df[col].dtype == 'int64':
+    #         df[col] = pd.to_numeric(df[col], downcast='integer')
+    #     elif df[col].dtype == 'float64':
+    #         df[col] = pd.to_numeric(df[col], downcast='float')
     
     return df
 
