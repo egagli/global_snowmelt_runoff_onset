@@ -69,7 +69,7 @@ class Config:
         self.valid_tiles_gdf = self.valid_tiles_gdf.sort_values(by='percent_valid_snow_pixels', ascending=False)
         if os.path.exists(self.tile_results_path):
             processed_tiles_df = pd.read_csv(self.tile_results_path).drop_duplicates(subset=['row', 'col'], keep='last')
-            self.valid_tiles_gdf = self.valid_tiles_gdf.merge(processed_tiles_df.drop(columns=['percent_valid_snow_pixels']), on=['row', 'col'], how='outer')
+            self.valid_tiles_gdf = self.valid_tiles_gdf.merge(processed_tiles_df.drop(columns=['percent_valid_snow_pixels']), on=['row', 'col'], how='outer').sort_values(by='percent_valid_snow_pixels', ascending=False)
         else:
             df = pd.DataFrame(columns=self.fields)
             df.to_csv(self.tile_results_path, mode='a', header=True, index=False)
