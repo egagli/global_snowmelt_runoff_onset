@@ -18,7 +18,7 @@ class Config:
             self._init_config(config_file)
 
     def _init_config(self, config_file):
-        self.config = configparser.ConfigParser()
+        self.config = configparser.ConfigParser(converters={'list': lambda x: [i.strip() for i in x.split(',')]})
         self.config.read(config_file)
         self._load_values()
         self._init_derived_values()
@@ -26,6 +26,7 @@ class Config:
 
     def _load_values(self):
         self.resolution = self.config.getfloat('VALUES', 'resolution')
+        self.bands = self.config.getlist('VALUES', 'bands')
         self.spatial_chunk_dim = self.config.getint('VALUES', 'spatial_chunk_dim')
         self.bbox_left = self.config.getfloat('VALUES', 'bbox_left')
         self.bbox_right = self.config.getfloat('VALUES', 'bbox_right')
@@ -88,6 +89,7 @@ class Config:
     def get_config_dict(self) -> Dict[str, Any]:
         return {
             'resolution': self.resolution,
+            'bands': self.bands,
             'zarr_chunk_size': self.zarr_chunk_size,
             'bbox_left': self.bbox_left,
             'bbox_right': self.bbox_right,
@@ -178,4 +180,3 @@ class Tile:
     
     def get_percent_valid_snow_pixels(self):
         return float(self.config.valid_tiles_gdf['percent_valid_snow_pixels'].loc[(self.config.valid_tiles_gdf['row'] == self.row) & (self.config.valid_tiles_gdf['col'] == self.col)].values[0])
-
