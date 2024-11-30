@@ -119,6 +119,22 @@ def apply_seasonal_snow_spatial_and_temporal_mask(s1_rtc_ds, seasonal_snow_mask_
     s1_rtc_masked_ds.rio.write_crs(s1_rtc_ds.rio.crs,inplace=True)
     return s1_rtc_masked_ds
 
+# def apply_mask_for_year(group, seasonal_snow_mask_matched_ds):
+
+#     year = group.water_year.values[0]
+
+
+#     if year not in seasonal_snow_mask_matched_ds.water_year:
+#         print(f"Warning: water_year {year} not found in seasonal_snow_mask_matched_ds")
+#         return group.where(False) 
+
+#     sad_mask = group['DOWY'] >= seasonal_snow_mask_matched_ds['SAD_DOWY'].sel(water_year=year)
+#     sdd_mask = group['DOWY'] <= seasonal_snow_mask_matched_ds['SDD_DOWY'].sel(water_year=year)
+#     consec_mask = seasonal_snow_mask_matched_ds['max_consec_snow_days'].sel(water_year=year) >= 56
+#     combined_mask = sad_mask & sdd_mask & consec_mask
+#     return group.where(combined_mask)
+
+
 def apply_mask_for_year(group, seasonal_snow_mask_matched_ds):
 
     year = group.water_year.values[0]
@@ -127,13 +143,14 @@ def apply_mask_for_year(group, seasonal_snow_mask_matched_ds):
     if year not in seasonal_snow_mask_matched_ds.water_year:
         print(f"Warning: water_year {year} not found in seasonal_snow_mask_matched_ds")
         return group.where(False) 
-
-    sad_mask = group['DOWY'] >= seasonal_snow_mask_matched_ds['SAD_DOWY'].sel(water_year=year)
+    
+    #sad_mask = group['DOWY'] >= seasonal_snow_mask_matched_ds['SAD_DOWY'].sel(water_year=year)
+    sad_mask = group['DOWY'] >= (seasonal_snow_mask_matched_ds['SAD_DOWY'].sel(water_year=year) + seasonal_snow_mask_matched_ds['max_consec_snow_days'].sel(water_year=year)/2)
+    # CHANGED THIS -- MULTIPLY BY 2 TO ACCOUNT FOR HALFING SNOW MAX TEMPORAL SEARCH WINDOW
     sdd_mask = group['DOWY'] <= seasonal_snow_mask_matched_ds['SDD_DOWY'].sel(water_year=year)
     consec_mask = seasonal_snow_mask_matched_ds['max_consec_snow_days'].sel(water_year=year) >= 56
     combined_mask = sad_mask & sdd_mask & consec_mask
     return group.where(combined_mask)
-
 
 def xr_datetime_to_DOWY(date_da, hemisphere="northern"):
     """
@@ -319,8 +336,9 @@ def filter_insufficient_pixels_per_orbit_and_polarization(
     print(f"Filtering insufficient pixels per orbit and polarization...")
 
     #pixelwise_counts_per_orbit_and_polarization_ds = pixelwise_counts_per_orbit_and_polarization_ds.persist()
-    insufficient_mask = (pixelwise_counts_per_orbit_and_polarization_ds >= (min_monthly_acquisitions*(consec_snow_days_da/30))) & (max_days_gap_per_orbit_da <= max_allowed_days_gap_per_orbit) & (pixelwise_counts_per_orbit_and_polarization_ds>0)
-    
+    #insufficient_mask = (pixelwise_counts_per_orbit_and_polarization_ds >= (min_monthly_acquisitions*(consec_snow_days_da/30))) & (max_days_gap_per_orbit_da <= max_allowed_days_gap_per_orbit) & (pixelwise_counts_per_orbit_and_polarization_ds>0)
+    insufficient_mask = (pixelwise_counts_per_orbit_and_polarization_ds >= (min_monthly_acquisitions*((consec_snow_days_da/2)/30))) & (max_days_gap_per_orbit_da <= max_allowed_days_gap_per_orbit) & (pixelwise_counts_per_orbit_and_polarization_ds>0)
+    # CHANGED THIS -- MULTIPLY BY 2 TO ACCOUNT FOR HALFING SNOW MAX TEMPORAL SEARCH WINDOW
 
     constituent_runoff_onsets_ds = backscatter_min_timing_per_orbit_and_polarization_ds.where(insufficient_mask)
     constituent_runoff_onsets_da = constituent_runoff_onsets_ds.to_dataarray(dim="polarization")
@@ -328,7 +346,9 @@ def filter_insufficient_pixels_per_orbit_and_polarization(
     if not report_temporal_res:
         return constituent_runoff_onsets_da
     else:
-        temporal_resolution_da = consec_snow_days_da / (pixelwise_counts_per_orbit_and_polarization_ds.where(insufficient_mask)['vv'].sum(dim='sat:relative_orbit').where(lambda x: x>0))
+        #temporal_resolution_da = consec_snow_days_da / (pixelwise_counts_per_orbit_and_polarization_ds.where(insufficient_mask)['vv'].sum(dim='sat:relative_orbit').where(lambda x: x>0))
+        temporal_resolution_da = (consec_snow_days_da/2) / (pixelwise_counts_per_orbit_and_polarization_ds.where(insufficient_mask)['vv'].sum(dim='sat:relative_orbit').where(lambda x: x>0))
+        # CHANGED THIS -- MULTIPLY BY 2 TO ACCOUNT FOR HALFING SNOW MAX TEMPORAL SEARCH WINDOW
         temporal_resolution = temporal_resolution_da.mean(dim=['latitude','longitude'],skipna=True)
         pixel_count = temporal_resolution_da.count(dim=['latitude','longitude'])
         return constituent_runoff_onsets_da, temporal_resolution, pixel_count
