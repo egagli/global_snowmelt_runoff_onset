@@ -1,6 +1,6 @@
 [VALUES]
 resolution = 0.00072000072000072
-bands = vv,vh
+bands = vv
 spatial_chunk_dim = 2048
 bbox_left = -179.999
 bbox_right = 179.999
@@ -13,6 +13,6 @@ min_monthly_acquisitions = 2
 max_allowed_days_gap_per_orbit = 30
 min_years_for_median_std = 3
 valid_tiles_geojson_path = ../processing/valid_tiles.geojson
-tile_results_path = ../processing/tile_results.csv
-global_runoff_zarr_store_azure_path = snowmelt/snowmelt_runoff_onset/global.zarr
+tile_results_path = ../processing/tile_results_v2.csv
+global_runoff_zarr_store_azure_path = snowmelt/snowmelt_runoff_onset/global_v2.zarr
 seasonal_snow_mask_zarr_store_azure_path = snowmelt/snow_mask_v2/global_modis_snow_mask.zarr
