@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 import xarray as xr
+import rasterio
 import odc.stac
 import time
 import dask
@@ -37,7 +38,7 @@ def get_sentinel1_rtc(geobox, bands=["vv","vh"], start_date='2014-01-01', end_da
         "groupby": "sat:absolute_orbit",
         "geobox":geobox,
         "resampling": "bilinear",
-        "fail_on_error":True
+        "fail_on_error":False
     }
 
 
@@ -79,8 +80,9 @@ def apply_all_masks(s1_rtc_ds,gmba_clipped_gdf,seasonal_snow_mask_matched_ds,wat
     if np.absolute(center_lat) < 3:
         s1_rtc_ds = remove_equator_crossing(s1_rtc_ds)
         
-    s1_rtc_ds = s1_rtc_ds.rio.clip_box(*gmba_clipped_gdf.total_bounds,crs=gmba_clipped_gdf.crs)
-    s1_rtc_ds = s1_rtc_ds.rio.clip(gmba_clipped_gdf.geometry,drop=True) # does this compute?
+    if gmba_clipped_gdf is not None:
+        s1_rtc_ds = s1_rtc_ds.rio.clip_box(*gmba_clipped_gdf.total_bounds,crs=gmba_clipped_gdf.crs)
+        s1_rtc_ds = s1_rtc_ds.rio.clip(gmba_clipped_gdf.geometry,drop=True) # does this compute?
 
     s1_rtc_masked_ds = apply_seasonal_snow_spatial_and_temporal_mask(s1_rtc_ds, seasonal_snow_mask_matched_ds)
     
@@ -109,7 +111,7 @@ def get_gmba_mountain_inventory(bbox_gdf):
 def get_custom_seasonal_snow_mask(s1_rtc_ds,bbox_gdf,seasonal_snow_mask_store):
     seasonal_snow_mask = xr.open_zarr(seasonal_snow_mask_store, consolidated=True, decode_coords='all') 
     seasonal_snow_mask_clip_ds = seasonal_snow_mask.rio.clip_box(*bbox_gdf.total_bounds,crs='EPSG:4326') # clip to correct box, maybe use total_bounds and then use crs 
-    seasonal_snow_mask_matched_ds = seasonal_snow_mask_clip_ds.rio.reproject_match(s1_rtc_ds.isel(time=slice(0,10)).max(dim='time')).rename({'x':'longitude','y':'latitude'}) # if S1 scene at t=0 isn't full, does this get rid of mask values?
+    seasonal_snow_mask_matched_ds = seasonal_snow_mask_clip_ds.rio.reproject_match(s1_rtc_ds.isel(time=slice(0,10)).max(dim='time'), resampling=rasterio.enums.Resampling.bilinear).rename({'x':'longitude','y':'latitude'}) # if S1 scene at t=0 isn't full, does this get rid of mask values?
     #seasonal_snow_mask_matched_ds = seasonal_snow_mask_clip_ds.odc.reproject(geobox)#.rename({'x':'longitude','y':'latitude'})
     return seasonal_snow_mask_matched_ds
 
@@ -147,7 +149,7 @@ def apply_mask_for_year(group, seasonal_snow_mask_matched_ds):
     #sad_mask = group['DOWY'] >= seasonal_snow_mask_matched_ds['SAD_DOWY'].sel(water_year=year)
     sad_mask = group['DOWY'] >= (seasonal_snow_mask_matched_ds['SAD_DOWY'].sel(water_year=year) + seasonal_snow_mask_matched_ds['max_consec_snow_days'].sel(water_year=year)/2)
     # CHANGED THIS -- MULTIPLY BY 2 TO ACCOUNT FOR HALFING SNOW MAX TEMPORAL SEARCH WINDOW
-    sdd_mask = group['DOWY'] <= seasonal_snow_mask_matched_ds['SDD_DOWY'].sel(water_year=year)
+    sdd_mask = group['DOWY'] <= seasonal_snow_mask_matched_ds['SDD_DOWY'].sel(water_year=year)+16 # changed from 8 to 16 june 22 2025 for v6
     consec_mask = seasonal_snow_mask_matched_ds['max_consec_snow_days'].sel(water_year=year) >= 56
     combined_mask = sad_mask & sdd_mask & consec_mask
     return group.where(combined_mask)
@@ -335,9 +337,11 @@ def filter_insufficient_pixels_per_orbit_and_polarization(
 ):
     print(f"Filtering insufficient pixels per orbit and polarization...")
 
+    modified_consec_snow_days_da = (consec_snow_days_da/2)+16 # changed june 22 2025 for v6, this is to account for the fact that we are halving the max temporal search window for snow days and extending 16 days beyond SDD
+
     #pixelwise_counts_per_orbit_and_polarization_ds = pixelwise_counts_per_orbit_and_polarization_ds.persist()
     #insufficient_mask = (pixelwise_counts_per_orbit_and_polarization_ds >= (min_monthly_acquisitions*(consec_snow_days_da/30))) & (max_days_gap_per_orbit_da <= max_allowed_days_gap_per_orbit) & (pixelwise_counts_per_orbit_and_polarization_ds>0)
-    insufficient_mask = (pixelwise_counts_per_orbit_and_polarization_ds >= (min_monthly_acquisitions*((consec_snow_days_da/2)/30))) & (max_days_gap_per_orbit_da <= max_allowed_days_gap_per_orbit) & (pixelwise_counts_per_orbit_and_polarization_ds>0)
+    insufficient_mask = (pixelwise_counts_per_orbit_and_polarization_ds >= (min_monthly_acquisitions*(modified_consec_snow_days_da/30))) & (max_days_gap_per_orbit_da <= max_allowed_days_gap_per_orbit) & (pixelwise_counts_per_orbit_and_polarization_ds>0)
     # CHANGED THIS -- MULTIPLY BY 2 TO ACCOUNT FOR HALFING SNOW MAX TEMPORAL SEARCH WINDOW
 
     constituent_runoff_onsets_ds = backscatter_min_timing_per_orbit_and_polarization_ds.where(insufficient_mask)
@@ -347,7 +351,7 @@ def filter_insufficient_pixels_per_orbit_and_polarization(
         return constituent_runoff_onsets_da
     else:
         #temporal_resolution_da = consec_snow_days_da / (pixelwise_counts_per_orbit_and_polarization_ds.where(insufficient_mask)['vv'].sum(dim='sat:relative_orbit').where(lambda x: x>0))
-        temporal_resolution_da = (consec_snow_days_da/2) / (pixelwise_counts_per_orbit_and_polarization_ds.where(insufficient_mask)['vv'].sum(dim='sat:relative_orbit').where(lambda x: x>0))
+        temporal_resolution_da = modified_consec_snow_days_da / (pixelwise_counts_per_orbit_and_polarization_ds.where(insufficient_mask)['vv'].sum(dim='sat:relative_orbit').where(lambda x: x>0))
         # CHANGED THIS -- MULTIPLY BY 2 TO ACCOUNT FOR HALFING SNOW MAX TEMPORAL SEARCH WINDOW
         temporal_resolution = temporal_resolution_da.mean(dim=['latitude','longitude'],skipna=True)
         pixel_count = temporal_resolution_da.count(dim=['latitude','longitude'])

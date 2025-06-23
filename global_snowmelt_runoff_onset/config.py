@@ -50,8 +50,9 @@ class Config:
 
     def _init_derived_values(self):
         self.water_years = np.arange(self.WY_start, self.WY_end + 1)
-        self.start_date = '2014-01-01'
-        self.end_date = pd.Timestamp.today().strftime('%Y-%m-%d')
+        self.start_date = f'{self.WY_start-1}-10-01'
+        #self.end_date = pd.Timestamp.today().strftime('%Y-%m-%d')
+        self.end_date = f'{self.WY_end+1}-03-31'
         self.spatial_chunk_dims = (self.spatial_chunk_dim, self.spatial_chunk_dim)
         self.chunks_read = {"x": self.spatial_chunk_dim, "y": self.spatial_chunk_dim, "time": 1}
         self.chunks_write = {"longitude": self.spatial_chunk_dim, "latitude": self.spatial_chunk_dim}
