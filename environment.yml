@@ -21,6 +21,10 @@ dependencies:
   - geodatasets
   - adlfs
   - easysnowdata
+  - flox
+  - geopandas
+  - shapely
+  - pyproj
   - pip
 
   - pip:
