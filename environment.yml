@@ -1,4 +1,4 @@
-name: new_global_snowmelt_runoff_onset
+name: global_snowmelt_runoff_onset
 channels:
   - conda-forge
   - defaults
