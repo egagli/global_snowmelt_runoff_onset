@@ -13,6 +13,6 @@ min_monthly_acquisitions = 1
 max_allowed_days_gap_per_orbit = 30
 min_years_for_median_std = 3
 valid_tiles_geojson_path = ../processing/tile_data/valid_tiles.geojson
-tile_results_path = ../processing/tile_results_v5.csv
+tile_results_path = ../processing/tile_data/tile_results_v5.csv
 global_runoff_zarr_store_azure_path = snowmelt/snowmelt_runoff_onset/global_v5.zarr
 seasonal_snow_mask_zarr_store_azure_path = snowmelt/snow_mask_v2/global_modis_snow_mask.zarr

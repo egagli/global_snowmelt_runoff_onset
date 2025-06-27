@@ -2,7 +2,9 @@
 resolution = 0.00072000072000072
 bands = vv
 mountain_snow_only = False
-spatial_chunk_dim = 2048
+spatial_chunk_dim_s1_read = 2048
+spatial_chunk_dim_s1_process = 512
+spatial_chunk_dim_zarr_output = 2048
 bbox_left = -179.999
 bbox_right = 179.999
 bbox_top = 81.099
