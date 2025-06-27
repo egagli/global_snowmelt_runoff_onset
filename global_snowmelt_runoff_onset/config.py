@@ -241,7 +241,13 @@ class Config:
         Get list of tiles based on processing status.
         
         Args:
-            which: Filter criterion ('all', 'processed', 'failed', 'unprocessed', 'unprocessed_and_failed')
+            which: Filter criterion. Options:
+                - 'all': All tiles regardless of processing status
+                - 'processed': Successfully completed tiles  
+                - 'failed': Tiles that encountered errors
+                - 'unprocessed': Tiles not yet attempted
+                - 'unprocessed_and_failed': Tiles needing processing or reprocessing
+                - 'unprocessed_and_failed_weather_stations': Unprocessed/failed tiles that contain weather stations
             
         Returns:
             List of Tile objects matching the filter criterion
@@ -249,18 +255,43 @@ class Config:
         Raises:
             ValueError: If 'which' parameter is not recognized
         """
-        if which == 'all':
-            tiles = [Tile(row, col, self) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success)]
+        # Get base tile list based on processing status
+        if which in ['all', 'unprocessed_and_failed_weather_stations']:
+            base_tiles = [(row, col, success) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success)]
         elif which == 'processed':
-            tiles = [Tile(row, col, self) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success==True]
+            base_tiles = [(row, col, success) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success==True]
         elif which == 'failed':
-            tiles = [Tile(row, col, self) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success==False]
+            base_tiles = [(row, col, success) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success==False]
         elif which == 'unprocessed':
-            tiles = [Tile(row, col, self) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success is np.nan]
+            base_tiles = [(row, col, success) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success is np.nan]
         elif which == 'unprocessed_and_failed':
-            tiles = [Tile(row, col, self) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success is np.nan or success==False]
+            base_tiles = [(row, col, success) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success is np.nan or success==False]
         else:
-            raise ValueError("Must choose one of ['all', 'processed', 'failed', 'unprocessed', 'unprocessed_and_failed']")        
+            raise ValueError("Must choose one of ['all', 'processed', 'failed', 'unprocessed', 'unprocessed_and_failed', 'unprocessed_and_failed_weather_stations']")
+        
+        # Apply weather station filtering if requested
+        if which == 'unprocessed_and_failed_weather_stations':
+            import easysnowdata
+            
+            # Get weather stations
+            StationsWUS = easysnowdata.automatic_weather_stations.StationCollection()
+            
+            # Find tiles that contain weather stations
+            tiles_with_stations_gdf = gpd.sjoin(
+                self.valid_tiles_gdf,
+                StationsWUS.all_stations,
+                how='inner',
+                predicate='contains'
+            )
+            tiles_with_stations_gdf = tiles_with_stations_gdf.drop_duplicates(subset=['row','col'])
+            station_tiles = set(zip(tiles_with_stations_gdf.row, tiles_with_stations_gdf.col))
+            
+            # Filter to unprocessed/failed tiles with stations
+            base_tiles = [(row, col, success) for row, col, success in base_tiles 
+                         if (success is np.nan or success==False) and (row, col) in station_tiles]
+        
+        # Create Tile objects
+        tiles = [Tile(row, col, self) for row, col, success in base_tiles]
         return tiles
 
 
