@@ -189,6 +189,11 @@ def get_spatiotemporal_snow_cover_mask(
         spatiotemporal_snow_cover_mask_ds['search_window_end_DOWY'] - 
         spatiotemporal_snow_cover_mask_ds['search_window_start_DOWY']
     )
+
+    # now drop the SAD_DOWY, SDD_DOWY, and max_consec_snow_days variables
+    spatiotemporal_snow_cover_mask_ds = spatiotemporal_snow_cover_mask_ds.drop_vars(
+        ['SAD_DOWY', 'SDD_DOWY', 'max_consec_snow_days']
+    )
     
     return spatiotemporal_snow_cover_mask_ds
 
@@ -518,6 +523,36 @@ def filter_insufficient_pixels_per_orbit(
     return s1_rtc_masked_filtered_ds
 
 
+# def get_temporal_resolution(
+#     s1_rtc_masked_filtered_ds: xr.Dataset, 
+#     spatiotemporal_snow_cover_mask_ds: xr.Dataset
+# ) -> xr.DataArray:
+#     """
+#     Calculate temporal resolution of the dataset.
+    
+#     Computes the effective temporal resolution as the ratio of the detection
+#     window length to the number of valid acquisitions. Provides a measure
+#     of data density for each pixel and water year.
+    
+#     Args:
+#         s1_rtc_masked_filtered_ds: Filtered Sentinel-1 dataset with dimensions 
+#                                   ('time', 'latitude', 'longitude') and water_year coordinate
+#         spatiotemporal_snow_cover_mask_ds: Snow cover mask dataset with dimensions 
+#                                           ('water_year', 'latitude', 'longitude')
+        
+#     Returns:
+#         DataArray with temporal resolution in days for each pixel and water year
+        
+#         **Dimensions:** ('water_year', 'latitude', 'longitude')
+#         **Values:** search_window_length / count_of_valid_observations (float32)
+#         **Coordinates:** water_year, latitude, longitude
+#     """
+#     temporal_resolution_da = (
+#         spatiotemporal_snow_cover_mask_ds["search_window_length"] / 
+#         s1_rtc_masked_filtered_ds['vv'].groupby("water_year").count(dim="time").where(lambda x: x > 0)
+#     )
+#     return temporal_resolution_da
+
 def get_temporal_resolution(
     s1_rtc_masked_filtered_ds: xr.Dataset, 
     spatiotemporal_snow_cover_mask_ds: xr.Dataset
@@ -542,11 +577,23 @@ def get_temporal_resolution(
         **Values:** search_window_length / count_of_valid_observations (float32)
         **Coordinates:** water_year, latitude, longitude
     """
+    # Count valid observations per water year using flox
+    valid_counts = flox.xarray.xarray_reduce(
+        s1_rtc_masked_filtered_ds['vv'].notnull(), 
+        s1_rtc_masked_filtered_ds.water_year, 
+        func="sum", 
+        dim="time",
+        method="cohorts"  # Excellent for time-based grouping
+    )
+    
+    # Calculate temporal resolution
     temporal_resolution_da = (
         spatiotemporal_snow_cover_mask_ds["search_window_length"] / 
-        s1_rtc_masked_filtered_ds['vv'].groupby("water_year").count(dim="time").where(lambda x: x > 0)
+        valid_counts.where(lambda x: x > 0)
     )
+    
     return temporal_resolution_da
+
 
 
 def xr_datetime_to_DOWY(
@@ -585,13 +632,13 @@ def xr_datetime_to_DOWY(
     
     def vectorized_dowy_calc(x):
         """Vectorized function that works efficiently with dask chunks and handles NaT"""
-        nodata_uint16 = 0
+        nodata_int16 = -9999
         x_days = x.astype('datetime64[D]')
         
         days_diff = (x_days - start_of_water_year_np).astype('timedelta64[D]').astype('int64') + 1
         
-        result = days_diff.astype('uint16')
-        result[pd.isna(x)] = nodata_uint16
+        result = days_diff.astype('int16')
+        result[pd.isna(x)] = nodata_int16
 
         return result
     
@@ -821,20 +868,26 @@ def dataarrays_to_dataset(
         xarray.Dataset with all variables properly formatted for output
         
         **Dataset structure:**
-        - **runoff_onset**: dimensions ('water_year', 'latitude', 'longitude'), dtype uint16
-        - **runoff_onset_median**: dimensions ('latitude', 'longitude'), dtype uint16  
-        - **runoff_onset_mad**: dimensions ('latitude', 'longitude'), dtype float32
-        - **temporal_resolution**: dimensions ('water_year', 'latitude', 'longitude'), dtype float32 (if provided)
-        - **temporal_resolution_median**: dimensions ('latitude', 'longitude'), dtype float32 (if provided)
-        
+        - **runoff_onset**: dimensions ('water_year', 'latitude', 'longitude'),
+          dtype int16
+        - **runoff_onset_median**: dimensions ('latitude', 'longitude'),
+          dtype int16
+        - **runoff_onset_mad**: dimensions ('latitude', 'longitude'),
+          dtype int16 (scaled by 10 for 0.1 day precision)
+        - **temporal_resolution**: dimensions ('water_year', 'latitude',
+          'longitude'), dtype int16 (scaled by 10, if provided)
+        - **temporal_resolution_median**: dimensions ('latitude', 'longitude'),
+          dtype int16 (scaled by 10, if provided)
+
         **Coordinates:**
         - water_year: Complete range from water_years array
         - latitude: Spatial coordinates from input arrays
         - longitude: Spatial coordinates from input arrays
     """
-    runoff_onsets_ds = runoff_onsets_da.to_dataset(name='runoff_onset').round().astype('uint16')
+    
+    runoff_onsets_ds = runoff_onsets_da.to_dataset(name='runoff_onset').round()
     runoff_onsets_ds = runoff_onsets_ds.reindex(water_year=water_years)
-    runoff_onsets_ds['runoff_onset_median'] = median_da.round().astype('uint16')
+    runoff_onsets_ds['runoff_onset_median'] = median_da.round()
     runoff_onsets_ds['runoff_onset_mad'] = mad_da
 
     if temporal_resolution_da is not None:
