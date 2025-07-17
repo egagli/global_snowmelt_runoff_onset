@@ -57,19 +57,6 @@ def get_config_file(config_filename: str) -> str:
     return str(config_file)
 
 
-def extract_version_from_config(config_filename: str) -> str:
-    """Extract version string from config filename."""
-    # Extract version from config filename
-    # (e.g., "global_config_v9.txt" -> "v9")
-    if 'v' in config_filename:
-        version = f"v{config_filename.split('v')[1].split('.')[0]}"
-    else:
-        # Fallback - use filename without extension
-        version = Path(config_filename).stem.replace('global_config_', '')
-    
-    return version
-
-
 def find_individual_tile_csvs(version: str) -> list[Path]:
     """Find all individual tile CSV files for the given version."""
     results_dir = Path("processing/tile_data/github_workflow_results")
@@ -87,11 +74,9 @@ def find_individual_tile_csvs(version: str) -> list[Path]:
     return csv_files
 
 
-def get_main_csv_path(version: str) -> Path:
-    """Get the path to the main tile_results_vX.csv file."""
-    tile_data_dir = Path("processing/tile_data")
-    main_csv = tile_data_dir / f"tile_results_{version}.csv"
-    return main_csv
+def get_main_csv_path(config) -> Path:
+    """Get the path to the main tile_results_vX.csv file from config."""
+    return Path(config.tile_results_path)
 
 
 def read_latest_results_from_individual_csvs(
@@ -267,19 +252,22 @@ def main():
     setup_logging()
     
     try:
-        # Get configuration file and extract version
+        # Get configuration file
         config_file = get_config_file(args.config_file)
-        version = extract_version_from_config(args.config_file)
         
-        logging.info(f"Synchronizing results for config: {args.config_file}, "
-                     f"version: {version}")
+        logging.info(f"Loading configuration from: {config_file}")
         
-        # Load configuration to get field names
+        # Load configuration to get version and other info
         # (suppress config printing to stdout)
         f = io.StringIO()
         with redirect_stdout(f):
             from global_snowmelt_runoff_onset.config import Config
             config = Config(config_file)
+        
+        # Use version from config metadata
+        version = config.version
+        logging.info(f"Synchronizing results for config: {args.config_file}, "
+                     f"version: {version}")
         
         # Find all individual tile CSV files
         individual_csvs = find_individual_tile_csvs(version)
@@ -296,7 +284,7 @@ def main():
             return
         
         # Get main CSV path
-        main_csv_path = get_main_csv_path(version)
+        main_csv_path = get_main_csv_path(config)
         
         # Sync to main CSV
         changes_made = sync_to_main_csv(new_results, main_csv_path, config)

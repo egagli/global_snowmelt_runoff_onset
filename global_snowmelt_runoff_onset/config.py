@@ -61,11 +61,27 @@ class Config:
         Args:
             config_file: Path to configuration file
         """
+        self.config_file_path = self._resolve_repo_path(config_file)
         self.config = configparser.ConfigParser(converters={'list': lambda x: [i.strip() for i in x.split(',')]})
-        self.config.read(config_file)
+        self.config.read(self.config_file_path)
+        self._load_metadata()
         self._load_values()
         self._init_derived_values()
         self._print_config()
+
+    def _load_metadata(self) -> None:
+        """Load metadata from the config file."""
+        if self.config.has_section('METADATA'):
+            self.config_name: str = self.config.get('METADATA', 'config_name', fallback='unknown')
+            self.version: str = self.config.get('METADATA', 'version', fallback='unknown')
+        else:
+            # Extract from filename as fallback
+            config_path = pathlib.Path(self.config_file_path)
+            self.config_name = config_path.stem
+            if 'v' in self.config_name:
+                self.version = f"v{self.config_name.split('v')[1]}"
+            else:
+                self.version = 'unknown'
 
     def _resolve_repo_path(self, path: str) -> str:
         """

@@ -59,6 +59,11 @@ jobs:
         activate-environment: global_snowmelt_runoff_onset_actions
         environment-file: environment_github_actions.yml
         
+    - name: Install package
+      shell: bash -l {0}
+      run: |
+        pip install -e .
+        
     - name: Get tiles for batch processing
       id: get-tiles
       shell: bash -l {0}
@@ -101,6 +106,11 @@ jobs:
         channel-priority: true
         activate-environment: global_snowmelt_runoff_onset_actions
         environment-file: environment_github_actions.yml
+        
+    - name: Install package
+      shell: bash -l {0}
+      run: |
+        pip install -e .
         
     - name: Process tile
       shell: bash -l {0}

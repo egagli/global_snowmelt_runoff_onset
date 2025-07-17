@@ -419,8 +419,8 @@ def save_results_csv(tile, config) -> None:
     repo_output_path = Path("processing/tile_data/github_workflow_results")
     repo_output_path.mkdir(parents=True, exist_ok=True)
     
-    # Extract version from config filename (e.g., "global_config_v9.txt" -> "v9")
-    version = f"v{config.tile_results_path.split('v')[1].split('.')[0]}"
+    # Use version from config metadata
+    version = config.version
 
     # Create filename with version: tile_row_col_vX.csv
     csv_filename = f"tile_{tile.row}_{tile.col}_{version}.csv"
