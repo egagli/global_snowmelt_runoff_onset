@@ -39,7 +39,7 @@ jobs:
     - name: Sync tile results
       shell: bash -l {0}
       run: |
-        python scripts/sync_tile_results.py \
+        python processing/scripts/sync_tile_results.py \
           --config-file ${{ github.event.inputs.config_file || 'global_config_v9.txt' }}
           
     - name: Commit synchronized results
@@ -48,7 +48,7 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action (Sync)"
         
-        if ! git diff --quiet processing/tile_data/; then
+        if [[ -n "$(git status --porcelain processing/tile_data/)" ]]; then
           git add processing/tile_data/
           
           for i in {1..5}; do
