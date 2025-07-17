@@ -96,7 +96,7 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         
-        if ! git diff --quiet processing/tile_data/; then
+        if [[ -n "$(git status --porcelain processing/tile_data/)" ]]; then
           git add processing/tile_data/
           
           for i in {1..5}; do
