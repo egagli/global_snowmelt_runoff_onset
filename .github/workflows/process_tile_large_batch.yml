@@ -1,4 +1,4 @@
-name: Process Tile Batch
+name: Process Tile Large Batch (>256 tiles)
 
 on:
   workflow_dispatch:
@@ -16,9 +16,9 @@ on:
         - unprocessed_and_failed
         - unprocessed_and_failed_weather_stations
       how_many:
-        description: 'How many tiles to process (max)'
+        description: 'How many tiles to process (use Small Batch for ≤256)'
         required: false
-        default: '10'
+        default: '1000'
         type: string
       config_file:
         description: 'Config file to use (e.g., global_config_v9.txt)'
@@ -68,19 +68,29 @@ jobs:
       id: get-tiles
       shell: bash -l {0}
       run: |
-        MATRIX=$(python processing/scripts/get_tiles_for_batch.py \
-          --config-file ${{ github.event.inputs.config_file }} \
-          --which-tiles ${{ github.event.inputs.which_tiles_to_process }} \
-          --how-many ${{ github.event.inputs.how_many }} \
-          --output json)
-        echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-        
         COUNT=$(python processing/scripts/get_tiles_for_batch.py \
           --config-file ${{ github.event.inputs.config_file }} \
           --which-tiles ${{ github.event.inputs.which_tiles_to_process }} \
           --how-many ${{ github.event.inputs.how_many }} \
+          --batch-index -1 \
           --output count)
         echo "count=$COUNT" >> $GITHUB_OUTPUT
+        
+        # Provide information about the processing approach
+        if [ $COUNT -le 256 ]; then
+          echo "ℹ️  Processing $COUNT tiles - consider using 'Process Tile Small Batch' for faster processing"
+        else
+          echo "🚀 Processing $COUNT tiles using large batch workflow"
+          echo "📊 This will use multiple parallel matrix jobs to handle the scale"
+        fi
+        
+        MATRIX=$(python processing/scripts/get_tiles_for_batch.py \
+          --config-file ${{ github.event.inputs.config_file }} \
+          --which-tiles ${{ github.event.inputs.which_tiles_to_process }} \
+          --how-many ${{ github.event.inputs.how_many }} \
+          --batch-index -1 \
+          --output json)
+        echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
   process-tiles:
     needs: generate-tile-matrix
