@@ -67,6 +67,37 @@ class Config:
         self._init_derived_values()
         self._print_config()
 
+    def _resolve_repo_path(self, path: str) -> str:
+        """
+        Resolve a file path relative to the repository root.
+        
+        This ensures that paths work correctly regardless of where the script
+        is executed from (e.g., GitHub Actions vs local development).
+        
+        Args:
+            path: Path from config file (may be relative)
+            
+        Returns:
+            str: Absolute path resolved relative to repository root
+        """
+        if pathlib.Path(path).is_absolute():
+            return path
+            
+        # Find the repository root by looking for setup.py or .git
+        current_dir = pathlib.Path(__file__).parent
+        # Go up from global_snowmelt_runoff_onset/ to repo root
+        repo_root = current_dir.parent
+        
+        # Verify we found the right directory
+        setup_exists = (repo_root / 'setup.py').exists()
+        git_exists = (repo_root / '.git').exists()
+        if not setup_exists and not git_exists:
+            # If not found, try going up one more level
+            repo_root = repo_root.parent
+            
+        resolved_path = repo_root / path
+        return str(resolved_path)
+
     def _load_values(self) -> None:
         """
         Load configuration values from the config file.
@@ -113,11 +144,15 @@ class Config:
             fallback='rasterio'
         )
         
-        # File paths
-        self.valid_tiles_geojson_path: str = self.config.get('VALUES', 'valid_tiles_geojson_path')
-        self.tile_results_path: str = self.config.get('VALUES', 'tile_results_path')
-        self.global_runoff_zarr_store_azure_path: str = self.config.get('VALUES', 'global_runoff_zarr_store_azure_path')
-        self.seasonal_snow_mask_zarr_store_azure_path: str = self.config.get('VALUES', 'seasonal_snow_mask_zarr_store_azure_path')
+        # File paths (resolve relative to repository root)
+        self.valid_tiles_geojson_path: str = self._resolve_repo_path(
+            self.config.get('VALUES', 'valid_tiles_geojson_path'))
+        self.tile_results_path: str = self._resolve_repo_path(
+            self.config.get('VALUES', 'tile_results_path'))
+        self.global_runoff_zarr_store_azure_path: str = self.config.get(
+            'VALUES', 'global_runoff_zarr_store_azure_path')
+        self.seasonal_snow_mask_zarr_store_azure_path: str = self.config.get(
+            'VALUES', 'seasonal_snow_mask_zarr_store_azure_path')
 
         # Output fields for tile processing results
         self.fields: Tuple[str, ...] = ("row","col","percent_valid_snow_pixels","s1_rtc_ds_dims","runoff_onsets_dims",
@@ -161,7 +196,8 @@ class Config:
             self.sas_token: str = sas_token_env
         else:
             # Fallback to local file for development
-            sas_token_file = pathlib.Path('../config/sas_token.txt')
+            sas_token_file = pathlib.Path(
+                self._resolve_repo_path('config/sas_token.txt'))
             if sas_token_file.exists():
                 self.sas_token: str = sas_token_file.read_text().strip()
             else:
@@ -173,11 +209,12 @@ class Config:
         account_name = os.getenv('AZURE_STORAGE_ACCOUNT', 'snowmelt')
         
         # Earth Engine credentials (optional - only used if available)
-        ee_key_file = pathlib.Path('../config/ee_key.json')
+        ee_key_path = self._resolve_repo_path('config/ee_key.json')
+        ee_key_file = pathlib.Path(ee_key_path)
         if ee_key_file.exists():
             self.ee_credentials = ee.ServiceAccountCredentials(
                 email='coiled@buoyant-aileron-352100.iam.gserviceaccount.com',
-                key_file='../config/ee_key.json'
+                key_file=str(ee_key_file)
             )
         else:
             self.ee_credentials = None
