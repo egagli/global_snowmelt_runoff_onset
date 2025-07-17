@@ -1,1 +1,0 @@
-This is where temporary individual tile results go. Run the sync github action to add individual tile results to the main results csv.
