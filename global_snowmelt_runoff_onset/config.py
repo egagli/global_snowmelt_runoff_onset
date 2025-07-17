@@ -154,11 +154,45 @@ class Config:
         self.geobox_tiles: odc.geo.GeoboxTiles = odc.geo.geobox.GeoboxTiles(self.global_geobox, self.spatial_chunk_dims_zarr)
         
         # Cloud storage setup
-        self.sas_token: str = pathlib.Path('../config/sas_token.txt').read_text()
-        self.ee_credentials = ee.ServiceAccountCredentials(email='coiled@buoyant-aileron-352100.iam.gserviceaccount.com',key_file='../config/ee_key.json')
-        self._azure_blob_fs: adlfs.AzureBlobFileSystem = adlfs.AzureBlobFileSystem(account_name="snowmelt", credential=self.sas_token, skip_instance_cache=True)
-        self.global_runoff_store = self.azure_blob_fs.get_mapper(self.global_runoff_zarr_store_azure_path)
-        self.seasonal_snow_mask_store = self.azure_blob_fs.get_mapper(self.seasonal_snow_mask_zarr_store_azure_path)
+        # Try to get credentials from environment variables first
+        # (for GitHub Actions) Fall back to local files for development
+        sas_token_env = os.getenv('AZURE_STORAGE_SAS_TOKEN')
+        if sas_token_env:
+            self.sas_token: str = sas_token_env
+        else:
+            # Fallback to local file for development
+            sas_token_file = pathlib.Path('../config/sas_token.txt')
+            if sas_token_file.exists():
+                self.sas_token: str = sas_token_file.read_text().strip()
+            else:
+                raise ValueError("Azure SAS token not found in environment "
+                                 "variable AZURE_STORAGE_SAS_TOKEN or "
+                                 "../config/sas_token.txt")
+        
+        # Azure storage account name from environment or default
+        account_name = os.getenv('AZURE_STORAGE_ACCOUNT', 'snowmelt')
+        
+        # Earth Engine credentials (optional - only used if available)
+        ee_key_file = pathlib.Path('../config/ee_key.json')
+        if ee_key_file.exists():
+            self.ee_credentials = ee.ServiceAccountCredentials(
+                email='coiled@buoyant-aileron-352100.iam.gserviceaccount.com',
+                key_file='../config/ee_key.json'
+            )
+        else:
+            self.ee_credentials = None
+        
+        self._azure_blob_fs: adlfs.AzureBlobFileSystem = (
+            adlfs.AzureBlobFileSystem(
+                account_name=account_name,
+                credential=self.sas_token,
+                skip_instance_cache=True
+            )
+        )
+        self.global_runoff_store = self.azure_blob_fs.get_mapper(
+            self.global_runoff_zarr_store_azure_path)
+        self.seasonal_snow_mask_store = self.azure_blob_fs.get_mapper(
+            self.seasonal_snow_mask_zarr_store_azure_path)
         self._load_valid_tiles()
 
     def _load_valid_tiles(self) -> None:
