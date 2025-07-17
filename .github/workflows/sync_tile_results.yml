@@ -1,0 +1,77 @@
+name: Sync Tile Results
+
+on:
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: 'Config file to use (e.g., global_config_v9.txt)'
+        required: false
+        default: 'global_config_v9.txt'
+        type: string
+  schedule:
+    - cron: '0 2 * * *'
+
+env:
+  AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
+  AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+
+permissions:
+  contents: write
+
+jobs:
+  sync-results:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Miniforge
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        miniforge-version: latest
+        miniforge-variant: Miniforge3
+        channels: conda-forge,defaults
+        channel-priority: true
+        activate-environment: global_snowmelt_runoff_onset
+        environment-file: environment.yml
+        
+    - name: Sync tile results
+      shell: bash -l {0}
+      run: |
+        python scripts/sync_tile_results.py \
+          --config-file ${{ github.event.inputs.config_file || 'global_config_v9.txt' }}
+          
+    - name: Commit synchronized results
+      if: always()
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action (Sync)"
+        
+        if ! git diff --quiet processing/tile_data/; then
+          git add processing/tile_data/
+          
+          for i in {1..5}; do
+            git pull origin main --no-rebase || echo "Pull failed, continuing..."
+            
+            if ! git diff --staged --quiet; then
+              git commit -m "Sync tile results to main CSV file" || echo "Commit failed, may already be committed"
+            fi
+            
+            if git push; then
+              echo "Successfully pushed synchronized results"
+              break
+            else
+              echo "Push failed (attempt $i/5), waiting before retry..."
+              sleep $((i * 2))
+              git add processing/tile_data/
+            fi
+            
+            if [ $i -eq 5 ]; then
+              echo "Failed to push after 5 attempts"
+              exit 1
+            fi
+          done
+        else
+          echo "No changes to sync"
+        fi

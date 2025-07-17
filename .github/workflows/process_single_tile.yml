@@ -1,0 +1,124 @@
+name: Process Single Tile
+
+on:
+  workflow_dispatch:
+    inputs:
+      tile_row:
+        description: 'Tile row coordinate'
+        required: true
+        type: number
+      tile_col:
+        description: 'Tile column coordinate'
+        required: true
+        type: number
+      config_file:
+        description: 'Config file to use (e.g., global_config_v9.txt)'
+        required: false
+        default: 'global_config_v9.txt'
+        type: string
+
+env:
+  AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
+  AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+
+permissions:
+  contents: write
+
+jobs:
+  process-tile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Miniforge
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        miniforge-version: latest
+        miniforge-variant: Miniforge3
+        channels: conda-forge,defaults
+        channel-priority: true
+        activate-environment: global_snowmelt_runoff_onset
+        environment-file: environment.yml
+        
+    - name: Process tile
+      shell: bash -l {0}
+      run: |
+        python scripts/process_single_tile.py \
+          --tile-row ${{ github.event.inputs.tile_row }} \
+          --tile-col ${{ github.event.inputs.tile_col }} \
+          --config-file ${{ github.event.inputs.config_file }}
+          
+    - name: Create failure record if processing crashed
+      if: always()
+      run: |
+        if [ ! -f "processing/tile_data/github_workflow_results/tile_${{ github.event.inputs.tile_row }}_${{ github.event.inputs.tile_col }}_v*.csv" ]; then
+          python3 -c "
+        import pandas as pd
+        from pathlib import Path
+        
+        # Extract version from config
+        config_file = '${{ github.event.inputs.config_file }}'
+        version = f\"v{config_file.split('v')[1].split('.')[0]}\" if 'v' in config_file else 'v9'
+        
+        # Create failure record
+        output_dir = Path('processing/tile_data/github_workflow_results')
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        csv_file = output_dir / f\"tile_${{ github.event.inputs.tile_row }}_${{ github.event.inputs.tile_col }}_{version}.csv\"
+        
+        # Check if file already exists to avoid duplicates
+        if not csv_file.exists():
+            failure_data = {
+                'row': [${{ github.event.inputs.tile_row }}],
+                'col': [${{ github.event.inputs.tile_col }}],
+                'success': [False],
+                'total_time': [0],
+                'error_messages': ['Workflow crashed - no CSV created'],
+                'tr_2015': [None], 'tr_2016': [None], 'tr_2017': [None], 'tr_2018': [None], 'tr_2019': [None],
+                'tr_2020': [None], 'tr_2021': [None], 'tr_2022': [None], 'tr_2023': [None], 'tr_2024': [None],
+                'pix_ct_2015': [None], 'pix_ct_2016': [None], 'pix_ct_2017': [None], 'pix_ct_2018': [None], 'pix_ct_2019': [None],
+                'pix_ct_2020': [None], 'pix_ct_2021': [None], 'pix_ct_2022': [None], 'pix_ct_2023': [None], 'pix_ct_2024': [None]
+            }
+            
+            df = pd.DataFrame(failure_data)
+            df.to_csv(csv_file, index=False)
+            print(f'Created failure record: {csv_file}')
+        "
+        fi
+        
+    - name: Commit tile results
+      if: always()
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        if ! git diff --quiet processing/tile_data/; then
+          git add processing/tile_data/
+          
+          for i in {1..5}; do
+            git pull origin main --no-rebase || echo "Pull failed, continuing..."
+            
+            if ! git diff --staged --quiet; then
+              git commit -m "Add tile (${{ github.event.inputs.tile_row }}, ${{ github.event.inputs.tile_col }}) results" || echo "Commit failed, may already be committed"
+            fi
+            
+            if git push; then
+              echo "Successfully pushed tile results"
+              break
+            else
+              echo "Push failed (attempt $i/5), waiting before retry..."
+              sleep $((i * 2))
+              git add processing/tile_data/
+            fi
+            
+            if [ $i -eq 5 ]; then
+              echo "Failed to push after 5 attempts"
+              exit 1
+            fi
+          done
+        else
+          echo "No changes to commit"
+        fi
