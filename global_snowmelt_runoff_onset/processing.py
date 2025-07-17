@@ -160,14 +160,30 @@ def get_spatiotemporal_snow_cover_mask(
     Raises:
         ValueError: If reproject_method is not 'rasterio' or 'odc'
     """
+
+
     seasonal_snow_mask = xr.open_zarr(seasonal_snow_mask_store, consolidated=True, decode_coords='all') 
-    seasonal_snow_mask_clip_ds = seasonal_snow_mask.rio.clip_box(*bbox_gdf.total_bounds, crs='EPSG:4326')
+
     if reproject_method == 'rasterio':
+
+        seasonal_snow_mask_clip_ds = seasonal_snow_mask.rio.clip_box(*bbox_gdf.total_bounds, crs='EPSG:4326')
         spatiotemporal_snow_cover_mask_ds = seasonal_snow_mask_clip_ds.rio.reproject_match(
             ds.isel(time=0), resampling=rasterio.enums.Resampling.bilinear
         ).rename({'x':'longitude','y':'latitude'})
+
     elif reproject_method == 'odc':
+
+        seasonal_snow_mask_clip_ds = seasonal_snow_mask.rio.clip_box(*bbox_gdf.total_bounds, crs='EPSG:4326')
         spatiotemporal_snow_cover_mask_ds = seasonal_snow_mask_clip_ds.odc.reproject(ds.odc.geobox,resampling='bilinear')#.rename({'x':'longitude','y':'latitude'})
+
+    elif reproject_method == 'precomputed':
+        
+        latitudes = ds.latitude
+        longitudes = ds.longitude
+        spatiotemporal_snow_cover_mask_ds = seasonal_snow_mask.sel(latitude=latitudes, longitude=longitudes, method='nearest')
+        spatiotemporal_snow_cover_mask_ds = spatiotemporal_snow_cover_mask_ds.assign_coords(latitude=latitudes, longitude=longitudes)
+        spatiotemporal_snow_cover_mask_ds = spatiotemporal_snow_cover_mask_ds.astype(np.float32)
+
     else:
         raise ValueError("reproject_method must be either 'rasterio' or 'odc'.")
 

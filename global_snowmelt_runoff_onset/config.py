@@ -40,6 +40,8 @@ class Config:
         chunks_s1_read (Dict[str, int]): Dask chunks for reading S1 data
         chunks_s1_process (Dict[str, int]): Dask chunks for processing
         chunks_zarr_output (Dict[str, int]): Dask chunks for Zarr output
+        seasonal_snow_mask_reproject_method (str): Method for reprojecting
+            seasonal snow masks. Options: 'rasterio', 'odc', 'precomputed'
     """
     
     def __init__(self, config_file: Optional[str] = None) -> None:
@@ -106,6 +108,10 @@ class Config:
         self.low_backscatter_threshold: float = self.config.getfloat('VALUES', 'low_backscatter_threshold')
         self.extend_search_window_beyond_SDD_days: int = self.config.getint('VALUES', 'extend_search_window_beyond_SDD_days', fallback=16)
         self.min_consec_snow_days_for_seasonal_snow: int = self.config.getint('VALUES', 'min_consec_snow_days_for_seasonal_snow', fallback=56)
+        self.seasonal_snow_mask_reproject_method: str = self.config.get(
+            'VALUES', 'seasonal_snow_mask_reproject_method',
+            fallback='rasterio'
+        )
         
         # File paths
         self.valid_tiles_geojson_path: str = self.config.get('VALUES', 'valid_tiles_geojson_path')
@@ -215,6 +221,9 @@ class Config:
             'low_backscatter_threshold': self.low_backscatter_threshold,
             'extend_search_window_beyond_SDD_days': self.extend_search_window_beyond_SDD_days,
             'min_consec_snow_days_for_seasonal_snow': self.min_consec_snow_days_for_seasonal_snow,
+            'seasonal_snow_mask_reproject_method': (
+                self.seasonal_snow_mask_reproject_method
+            ),
             'start_date': self.start_date,
             'end_date': self.end_date,
             'valid_tiles_geojson_path': self.valid_tiles_geojson_path,
