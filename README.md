@@ -78,8 +78,13 @@ western_us = ds.rio.clip_box(-125, 32, -105, 50)
 ## Installation
 
 ```bash
+# For development and analysis (includes all dependencies)
 conda env create -f environment.yml
 conda activate global_snowmelt_runoff_onset
+
+# For GitHub Actions (minimal dependencies)
+conda env create -f environment_github_actions.yml
+conda activate global_snowmelt_runoff_onset_actions
 
 # Configure Azure credentials
 export AZURE_STORAGE_SAS_TOKEN="your_token"

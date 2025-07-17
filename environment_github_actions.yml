@@ -1,0 +1,29 @@
+name: global_snowmelt_runoff_onset_actions
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy
+  - pandas
+  - xarray
+  - dask
+  - geopandas
+  - rasterio
+  - matplotlib
+  - tqdm
+  - requests
+  - pystac-client
+  - planetary-computer
+  - odc-stac
+  - odc-geo
+  - zarr
+  - azure-storage-blob
+  - adlfs
+  - shapely
+  - earthengine-api
+  - pip
+  - pip:
+    - easysnowdata
+    - flox
+
