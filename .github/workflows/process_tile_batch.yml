@@ -52,7 +52,7 @@ jobs:
         channels: conda-forge,defaults
         channel-priority: true
         activate-environment: global_snowmelt_runoff_onset_actions
-        environment-file: .github/workflows/environment_github_actions.yml
+        environment-file: environment_github_actions.yml
         
     - name: Get tiles for batch processing
       id: get-tiles
@@ -95,7 +95,7 @@ jobs:
         channels: conda-forge,defaults
         channel-priority: true
         activate-environment: global_snowmelt_runoff_onset_actions
-        environment-file: .github/workflows/environment_github_actions.yml
+        environment-file: environment_github_actions.yml
         
     - name: Process tile
       shell: bash -l {0}
