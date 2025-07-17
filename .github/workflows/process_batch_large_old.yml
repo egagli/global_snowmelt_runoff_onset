@@ -1,4 +1,4 @@
-name: Process Batch Small (≤256 tiles)
+name: Process Batch Large (>256 tiles)
 
 on:
   workflow_dispatch:
@@ -16,37 +16,15 @@ on:
         - unprocessed_and_failed
         - unprocessed_and_failed_weather_stations
       how_many:
-        description: 'How many tiles to process (max 256 for this workflow)'
+        description: 'How many tiles to process (use Small Batch for ≤256)'
         required: false
-        default: '10'
+        default: '1000'
         type: string
       config_file:
         description: 'Config file to use (e.g., global_config_v9.txt)'
         required: false
         default: 'global_config_v9.txt'
         type: string
-      batch_index:
-        description: 'Batch index (for reusable workflow calls)'
-        required: false
-        default: '-1'
-        type: string
-
-  # Must duplicate inputs for workflow_call (https://github.com/orgs/community/discussions/39357)
-  workflow_call:
-    inputs:
-      which_tiles_to_process:
-        type: string
-        required: true
-      how_many:
-        type: string
-        required: true
-      config_file:
-        type: string
-        required: true
-      batch_index:
-        type: string
-        required: false
-        default: '-1'
 
 env:
   AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
@@ -56,11 +34,71 @@ permissions:
   contents: write
 
 jobs:
-  generate-tile-matrix:
+  generate-batch-matrix:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.get-tiles.outputs.matrix }}
-      tile-count: ${{ steps.get-tiles.outputs.count }}
+      batch-matrix: ${{ steps.get-batches.outputs.matrix }}
+      total-tiles: ${{ steps.get-batches.outputs.total-tiles }}
+      
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Miniforge
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        miniforge-version: latest
+        miniforge-variant: Miniforge3
+        channels: conda-forge,defaults
+        channel-priority: true
+        activate-environment: global_snowmelt_runoff_onset_actions
+        environment-file: environment_github_actions.yml
+        
+    - name: Install package
+      shell: bash -l {0}
+      run: |
+        pip install -e .
+        
+    - name: Generate batch matrix
+      id: get-batches
+      shell: bash -l {0}
+      run: |
+        # Get batch info
+        BATCH_INFO=$(python processing/scripts/get_tiles_for_batch.py \
+          --config-file ${{ github.event.inputs.config_file }} \
+          --which-tiles ${{ github.event.inputs.which_tiles_to_process }} \
+          --how-many ${{ github.event.inputs.how_many }} \
+          --output batch-info)
+        
+        echo "$BATCH_INFO"
+        
+        # Extract values from batch info
+        TOTAL_TILES=$(echo "$BATCH_INFO" | grep "total_tiles:" | cut -d' ' -f2)
+        NUM_BATCHES=$(echo "$BATCH_INFO" | grep "num_batches:" | cut -d' ' -f2)
+        
+        echo "total-tiles=$TOTAL_TILES" >> $GITHUB_OUTPUT
+        
+        # Generate batch indices matrix
+        BATCH_INDICES=""
+        for i in $(seq 0 $((NUM_BATCHES - 1))); do
+          BATCH_INDICES="$BATCH_INDICES$i,"
+        done
+        BATCH_INDICES=${BATCH_INDICES%,}  # Remove trailing comma
+        
+        BATCH_MATRIX="{\"batch-index\": [$BATCH_INDICES]}"
+        echo "matrix=$BATCH_MATRIX" >> $GITHUB_OUTPUT
+        
+        echo "🚀 Processing $TOTAL_TILES tiles across $NUM_BATCHES batches"
+        echo "📊 Each batch will process up to 256 tiles"
+
+  process-batches:
+    needs: generate-batch-matrix
+    if: fromJson(needs.generate-batch-matrix.outputs.total-tiles) > 0
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-batch-matrix.outputs.batch-matrix) }}
     
     steps:
     - name: Checkout repository
@@ -81,47 +119,45 @@ jobs:
       run: |
         pip install -e .
         
-    - name: Get tiles for batch processing
+    - name: Get tiles for this batch
       id: get-tiles
       shell: bash -l {0}
       run: |
-        BATCH_INDEX="${{ inputs.batch_index }}"
+        BATCH_INDEX=${{ matrix.batch-index }}
+        echo "� Processing batch $BATCH_INDEX"
         
         COUNT=$(python processing/scripts/get_tiles_for_batch.py \
-          --config-file ${{ inputs.config_file }} \
-          --which-tiles ${{ inputs.which_tiles_to_process }} \
-          --how-many ${{ inputs.how_many }} \
+          --config-file ${{ github.event.inputs.config_file }} \
+          --which-tiles ${{ github.event.inputs.which_tiles_to_process }} \
+          --how-many ${{ github.event.inputs.how_many }} \
           --batch-index $BATCH_INDEX \
           --output count)
         echo "count=$COUNT" >> $GITHUB_OUTPUT
         
-        # Check if user should use Large Batch workflow instead (only for workflow_dispatch)
-        if [ "$BATCH_INDEX" = "-1" ] && [ $COUNT -gt 256 ]; then
-          echo "⚠️  WARNING: You're trying to process $COUNT tiles, but this workflow is limited to 256 tiles."
-          echo "🔄 Consider using the 'Process Batch Large' workflow instead for better performance."
-          echo "❌ This workflow will fail due to GitHub Actions matrix job limits."
-          exit 1
+        if [ $COUNT -eq 0 ]; then
+          echo "⚠️  No tiles to process in batch $BATCH_INDEX"
+          exit 0
         fi
         
+        echo "📊 Processing $COUNT tiles in batch $BATCH_INDEX"
+        
         MATRIX=$(python processing/scripts/get_tiles_for_batch.py \
-          --config-file ${{ inputs.config_file }} \
-          --which-tiles ${{ inputs.which_tiles_to_process }} \
-          --how-many ${{ inputs.how_many }} \
+          --config-file ${{ github.event.inputs.config_file }} \
+          --which-tiles ${{ github.event.inputs.which_tiles_to_process }} \
+          --how-many ${{ github.event.inputs.how_many }} \
           --batch-index $BATCH_INDEX \
           --output json)
         echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-        
-        echo "✅ Processing $COUNT tiles with Small Batch workflow"
 
   process-tiles:
-    needs: generate-tile-matrix
-    if: fromJson(needs.generate-tile-matrix.outputs.tile-count) > 0
+    needs: process-batches
+    if: fromJson(needs.process-batches.outputs.count) > 0
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        tile: ${{ fromJson(needs.generate-tile-matrix.outputs.matrix) }}
+        tile: ${{ fromJson(needs.process-batches.outputs.matrix) }}
     
     steps:
     - name: Checkout repository
@@ -148,13 +184,13 @@ jobs:
         python processing/scripts/process_single_tile.py \
           --tile-row ${{ matrix.tile.row }} \
           --tile-col ${{ matrix.tile.col }} \
-          --config-file ${{ inputs.config_file }}
+          --config-file ${{ github.event.inputs.config_file }}
           
     - name: Create failure record if processing crashed
       if: always()
       shell: bash -l {0}
       run: |
-        CONFIG_FILE="${{ inputs.config_file }}"
+        CONFIG_FILE="${{ github.event.inputs.config_file }}"
         VERSION=$(echo "$CONFIG_FILE" | sed 's/.*v\([0-9]*\).*/v\1/')
         
         # Check if processing succeeded by looking at the main CSV
