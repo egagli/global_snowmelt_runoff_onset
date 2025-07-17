@@ -72,9 +72,9 @@ jobs:
         
         echo "$BATCH_INFO"
         
-        # Extract values from batch info
-        TOTAL_TILES=$(echo "$BATCH_INFO" | grep "total_tiles:" | cut -d' ' -f2)
-        NUM_BATCHES=$(echo "$BATCH_INFO" | grep "num_batches:" | cut -d' ' -f2)
+        # Parse JSON output using python
+        TOTAL_TILES=$(echo "$BATCH_INFO" | python -c "import json, sys; data=json.load(sys.stdin); print(data['total_tiles'])")
+        NUM_BATCHES=$(echo "$BATCH_INFO" | python -c "import json, sys; data=json.load(sys.stdin); print(data['num_batches'])")
         
         echo "total-tiles=$TOTAL_TILES" >> $GITHUB_OUTPUT
         
