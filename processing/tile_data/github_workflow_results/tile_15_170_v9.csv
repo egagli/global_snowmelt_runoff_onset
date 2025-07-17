@@ -1,0 +1,2 @@
+row,col,percent_valid_snow_pixels,s1_rtc_ds_dims,runoff_onsets_dims,tr_2015,tr_2016,tr_2017,tr_2018,tr_2019,tr_2020,tr_2021,tr_2022,tr_2023,tr_2024,pix_ct_2015,pix_ct_2016,pix_ct_2017,pix_ct_2018,pix_ct_2019,pix_ct_2020,pix_ct_2021,pix_ct_2022,pix_ct_2023,pix_ct_2024,start_time,total_time,success,error_messages
+15,170,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 427}","{'water_year': 9, 'latitude': 2048, 'longitude': 2048}",,,11.906,11.95,13.5,12.15,16.5,27.975,,,0,0,4183359,1870473,152265,3138164,1856291,127,,0,1752750103.5047305,383.21502137184143,True,[]
