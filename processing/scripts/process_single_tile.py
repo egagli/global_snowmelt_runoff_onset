@@ -426,8 +426,20 @@ def save_results_to_main_csv(tile, config) -> None:
     main_csv_path = Path(config.tile_results_path)
     main_csv_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Create row data
-    row_data = [getattr(tile, field, None) for field in config.fields]
+    # Create row data - convert None/NaN to empty string to match pandas behavior
+    import math
+    
+    def clean_value(value):
+        """Convert None, NaN, or 'nan' string to empty string for CSV consistency."""
+        if value is None:
+            return ''
+        if isinstance(value, float) and math.isnan(value):
+            return ''
+        if isinstance(value, str) and value.lower() == 'nan':
+            return ''
+        return value
+    
+    row_data = [clean_value(getattr(tile, field, None)) for field in config.fields]
     
     # Retry logic for handling concurrent access
     max_retries = 5
