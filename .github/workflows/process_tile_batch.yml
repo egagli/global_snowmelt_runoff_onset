@@ -4,14 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       which_tiles_to_process:
-        description: 'Which tiles to process (failed/unprocessed/all)'
+        description: 'Which tiles to process'
         required: false
-        default: 'failed'
+        default: 'unprocessed'
         type: choice
         options:
+        - all
+        - processed
         - failed
         - unprocessed
-        - all
+        - unprocessed_and_failed
+        - unprocessed_and_failed_weather_stations
       how_many:
         description: 'How many tiles to process (max)'
         required: false
@@ -49,24 +52,24 @@ jobs:
         channels: conda-forge,defaults
         channel-priority: true
         activate-environment: global_snowmelt_runoff_onset_actions
-        environment-file: environment_github_actions.yml
+        environment-file: .github/workflows/environment_github_actions.yml
         
     - name: Get tiles for batch processing
       id: get-tiles
       shell: bash -l {0}
       run: |
-        MATRIX=$(python scripts/get_tiles_for_batch.py \
-          --config-file ${{ github.event.inputs.config_file }} \
+        MATRIX=$(python processing/scripts/get_tiles_for_batch.py \
+          --config-file config/${{ github.event.inputs.config_file }} \
           --which-tiles ${{ github.event.inputs.which_tiles_to_process }} \
           --how-many ${{ github.event.inputs.how_many }} \
-          --output-format json)
+          --output json)
         echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
         
-        COUNT=$(python scripts/get_tiles_for_batch.py \
-          --config-file ${{ github.event.inputs.config_file }} \
+        COUNT=$(python processing/scripts/get_tiles_for_batch.py \
+          --config-file config/${{ github.event.inputs.config_file }} \
           --which-tiles ${{ github.event.inputs.which_tiles_to_process }} \
           --how-many ${{ github.event.inputs.how_many }} \
-          --output-format count)
+          --output count)
         echo "count=$COUNT" >> $GITHUB_OUTPUT
 
   process-tiles:
@@ -92,15 +95,15 @@ jobs:
         channels: conda-forge,defaults
         channel-priority: true
         activate-environment: global_snowmelt_runoff_onset_actions
-        environment-file: environment_github_actions.yml
+        environment-file: .github/workflows/environment_github_actions.yml
         
     - name: Process tile
       shell: bash -l {0}
       run: |
-        python scripts/process_single_tile.py \
+        python processing/scripts/process_single_tile.py \
           --tile-row ${{ matrix.tile.row }} \
           --tile-col ${{ matrix.tile.col }} \
-          --config-file ${{ github.event.inputs.config_file }}
+          --config-file config/${{ github.event.inputs.config_file }}
           
     - name: Create failure record if processing crashed
       if: always()
@@ -144,7 +147,7 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action (Batch)"
         
-        if ! git diff --quiet processing/tile_data/; then
+        if [[ -n "$(git status --porcelain processing/tile_data/)" ]]; then
           git add processing/tile_data/
           
           for i in {1..5}; do

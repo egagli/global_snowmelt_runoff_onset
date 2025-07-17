@@ -26,7 +26,7 @@ import dask
 import dask.array
 
 # Add the parent directory to Python path to import our modules
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 
 def dask_or_computed(variable):

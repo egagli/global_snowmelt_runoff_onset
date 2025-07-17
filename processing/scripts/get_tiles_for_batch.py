@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 
 # Add the parent directory to Python path to import our modules
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 def get_tiles_for_batch(config_file: str, which_tiles: str, how_many: int, 
                         output_format: str = 'list') -> list:
