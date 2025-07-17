@@ -1,0 +1,24 @@
+[VALUES]
+resolution = 0.00072000072000072
+bands = vv
+mountain_snow_only = False
+spatial_chunk_dim_s1_read = 2048
+spatial_chunk_dim_s1_process = 512
+spatial_chunk_dim_zarr_output = 2048
+bbox_left = -179.999
+bbox_right = 179.999
+bbox_top = 81.099
+bbox_bottom = -59.999
+WY_start = 2015
+WY_end = 2024
+low_backscatter_threshold = 0.001
+min_monthly_acquisitions = 1
+max_allowed_days_gap_per_orbit = 30
+min_years_for_median_std = 3
+extend_search_window_beyond_SDD_days = 16
+min_consec_snow_days_for_seasonal_snow = 56
+valid_tiles_geojson_path = ../processing/tile_data/global_tiles_with_seasonal_snow.geojson
+tile_results_path = ../processing/tile_data/tile_results_v9.csv
+global_runoff_zarr_store_azure_path = snowmelt/snowmelt_runoff_onset/global_v9.zarr
+seasonal_snow_mask_zarr_store_azure_path = snowmelt/snow_cover/global_modis_snow_cover_reprojected.zarr
+seasonal_snow_mask_reproject_method = precomputed
