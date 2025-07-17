@@ -1,0 +1,3005 @@
+{
+  "metadata": {
+    "comparison_name": "v8 vs v9",
+    "reference_version": "v8",
+    "target_version": "v9",
+    "reference_config_path": "../config/global_config_v8.txt",
+    "target_config_path": "../config/global_config_v9.txt",
+    "timestamp": "2025-07-14T12:57:05.052264",
+    "output_path": "tile_data/quality_check/quality_check_v8_v9/validation_results_v8_v9_20250714_125705.json"
+  },
+  "validation_results": {
+    "dataset_configs": {
+      "target_dataset": "../config/global_config_v9.txt",
+      "reference_dataset": "../config/global_config_v8.txt",
+      "target_processed_tiles": 10,
+      "reference_processed_tiles": 10,
+      "common_tiles": 10,
+      "tiles_checked": 3
+    },
+    "tile_comparisons": {
+      "tile_12_21": {
+        "variables": {
+          "runoff_onset": {
+            "dimensions": {
+              "target_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 41943040,
+              "reference_dataset": 41943040,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 6140620,
+              "reference_dataset": 6149607,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 315,
+              "reference_dataset": 315,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 37.0,
+              "reference_dataset": 37.0,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 363.0,
+              "reference_dataset": 363.0,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 201.82064486143673,
+              "reference_dataset": 201.8243383360294,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 209.0,
+              "reference_dataset": 209.0,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 213.0,
+              "reference_dataset": 213.0,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 35.81493466034277,
+              "reference_dataset": 35.81074127057796,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 37.0,
+              "reference_dataset": 37.0,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 148.0,
+              "reference_dataset": 149.0,
+              "match": false
+            },
+            "percentile_20": {
+              "target_dataset": 165.0,
+              "reference_dataset": 165.0,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 182.0,
+              "reference_dataset": 182.0,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 201.0,
+              "reference_dataset": 201.0,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 209.0,
+              "reference_dataset": 209.0,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 217.0,
+              "reference_dataset": 217.0,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 224.0,
+              "reference_dataset": 224.0,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 230.0,
+              "reference_dataset": 230.0,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 241.0,
+              "reference_dataset": 241.0,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 363.0,
+              "reference_dataset": 363.0,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 24272,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 180.0,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.012107368705786029,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "runoff_onset_mad": {
+            "dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 4194304,
+              "reference_dataset": 4194304,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 1172,
+              "reference_dataset": 1174,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 176,
+              "reference_dataset": 176,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 0.5000000074505806,
+              "reference_dataset": 0.5000000074505806,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 98.0000014603138,
+              "reference_dataset": 98.0000014603138,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 14.083760749718605,
+              "reference_dataset": 14.08029118576621,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 12.000000178813934,
+              "reference_dataset": 12.000000178813934,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 7.000000104308128,
+              "reference_dataset": 7.000000104308128,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 8.158345456871148,
+              "reference_dataset": 8.157282006017454,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 5.000000074505806,
+              "reference_dataset": 5.000000074505806,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 7.000000104308128,
+              "reference_dataset": 7.000000104308128,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 8.50000012665987,
+              "reference_dataset": 8.50000012665987,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 10.000000149011612,
+              "reference_dataset": 10.000000149011612,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 12.000000178813934,
+              "reference_dataset": 12.000000178813934,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 15.000000223517418,
+              "reference_dataset": 15.000000223517418,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 17.50000026077032,
+              "reference_dataset": 17.50000026077032,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 21.000000312924385,
+              "reference_dataset": 21.000000312924385,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 26.00000038743019,
+              "reference_dataset": 26.00000038743019,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 98.0000014603138,
+              "reference_dataset": 98.0000014603138,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "aggregation_correct": {
+              "target_dataset": true,
+              "reference_dataset": true,
+              "match": true
+            },
+            "aggregation_difference": {
+              "target_dataset": 1.4603137969970703e-06,
+              "reference_dataset": 1.4603137969970703e-06,
+              "match": true
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 21434,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 50.00000074505806,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.01744484456479947,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "runoff_onset_median": {
+            "dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 4194304,
+              "reference_dataset": 4194304,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 1172,
+              "reference_dataset": 1174,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 272,
+              "reference_dataset": 272,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 65.0,
+              "reference_dataset": 65.0,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 358.0,
+              "reference_dataset": 358.0,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 204.51840223489268,
+              "reference_dataset": 204.52004850791653,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 208.0,
+              "reference_dataset": 208.0,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 206.0,
+              "reference_dataset": 206.0,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 28.66158821266557,
+              "reference_dataset": 28.660310823396127,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 65.0,
+              "reference_dataset": 65.0,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 162.0,
+              "reference_dataset": 162.0,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 177.0,
+              "reference_dataset": 177.0,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 191.0,
+              "reference_dataset": 191.0,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 202.0,
+              "reference_dataset": 202.0,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 208.0,
+              "reference_dataset": 208.0,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 213.0,
+              "reference_dataset": 213.0,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 222.0,
+              "reference_dataset": 222.0,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 228.0,
+              "reference_dataset": 228.0,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 237.0,
+              "reference_dataset": 237.0,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 358.0,
+              "reference_dataset": 358.0,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "aggregation_correct": {
+              "target_dataset": false,
+              "reference_dataset": false,
+              "match": false
+            },
+            "aggregation_difference": {
+              "target_dataset": 0.5,
+              "reference_dataset": 0.5,
+              "match": false
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 15968,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 76.0,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.01833785263037397,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "temporal_resolution": {
+            "dimensions": {
+              "target_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 41943040,
+              "reference_dataset": 41943040,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 6140620,
+              "reference_dataset": 6149607,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 270,
+              "reference_dataset": 270,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 3.1000000461935997,
+              "reference_dataset": 3.1000000461935997,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 30.000000447034836,
+              "reference_dataset": 30.000000447034836,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 10.339285959328585,
+              "reference_dataset": 10.342466175745047,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 7.600000113248825,
+              "reference_dataset": 7.600000113248825,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 6.3000000938773155,
+              "reference_dataset": 6.3000000938773155,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 6.0699220589738925,
+              "reference_dataset": 6.070273614112391,
+              "match": true
+            },
+            "percentile_00": {
+              "target_dataset": 3.1000000461935997,
+              "reference_dataset": 3.1000000461935997,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 4.700000070035458,
+              "reference_dataset": 4.700000070035458,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 6.000000089406967,
+              "reference_dataset": 6.000000089406967,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 6.400000095367432,
+              "reference_dataset": 6.400000095367432,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 6.800000101327896,
+              "reference_dataset": 6.800000101327896,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 7.600000113248825,
+              "reference_dataset": 7.600000113248825,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 10.900000162422657,
+              "reference_dataset": 10.900000162422657,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 12.200000181794167,
+              "reference_dataset": 12.200000181794167,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 13.800000205636024,
+              "reference_dataset": 13.800000205636024,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 20.800000309944153,
+              "reference_dataset": 20.800000309944153,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 30.000000447034836,
+              "reference_dataset": 30.000000447034836,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 869667,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 18.200000271201134,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.007676513966422455,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "temporal_resolution_median": {
+            "dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 4194304,
+              "reference_dataset": 4194304,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 1172,
+              "reference_dataset": 1174,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 193,
+              "reference_dataset": 192,
+              "match": false
+            },
+            "precision": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 4.100000061094761,
+              "reference_dataset": 4.100000061094761,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 28.000000417232513,
+              "reference_dataset": 28.000000417232513,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 8.294428775019945,
+              "reference_dataset": 8.29844694023504,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 7.500000111758709,
+              "reference_dataset": 7.500000111758709,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 6.800000101327896,
+              "reference_dataset": 6.800000101327896,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 2.5299001456129395,
+              "reference_dataset": 2.5320370464586186,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 4.100000061094761,
+              "reference_dataset": 4.100000061094761,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 5.500000081956387,
+              "reference_dataset": 5.500000081956387,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 6.70000009983778,
+              "reference_dataset": 6.70000009983778,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 6.900000102818012,
+              "reference_dataset": 6.900000102818012,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 7.1000001057982445,
+              "reference_dataset": 7.1000001057982445,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 7.500000111758709,
+              "reference_dataset": 7.500000111758709,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 8.100000120699406,
+              "reference_dataset": 8.100000120699406,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 9.100000135600567,
+              "reference_dataset": 9.100000135600567,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 10.100000150501728,
+              "reference_dataset": 10.100000150501728,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 12.300000183284283,
+              "reference_dataset": 12.300000183284283,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 28.000000417232513,
+              "reference_dataset": 28.000000417232513,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "aggregation_correct": {
+              "target_dataset": false,
+              "reference_dataset": false,
+              "match": false
+            },
+            "aggregation_difference": {
+              "target_dataset": 0.05000000074505806,
+              "reference_dataset": 0.05000000074505806,
+              "match": false
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 113800,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 6.900000102818012,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.010223937879058663,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          }
+        }
+      },
+      "tile_23_47": {
+        "variables": {
+          "runoff_onset": {
+            "dimensions": {
+              "target_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 41943040,
+              "reference_dataset": 41943040,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 22683919,
+              "reference_dataset": 22698289,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 274,
+              "reference_dataset": 274,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 41.0,
+              "reference_dataset": 41.0,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 359.0,
+              "reference_dataset": 359.0,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 158.45379594426973,
+              "reference_dataset": 158.46906405803847,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 155.0,
+              "reference_dataset": 155.0,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 160.0,
+              "reference_dataset": 160.0,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 29.255116880029522,
+              "reference_dataset": 29.243790747766987,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 41.0,
+              "reference_dataset": 41.0,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 124.0,
+              "reference_dataset": 124.0,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 135.0,
+              "reference_dataset": 135.0,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 142.0,
+              "reference_dataset": 142.0,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 148.0,
+              "reference_dataset": 148.0,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 155.0,
+              "reference_dataset": 155.0,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 161.0,
+              "reference_dataset": 161.0,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 172.0,
+              "reference_dataset": 172.0,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 184.0,
+              "reference_dataset": 184.0,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 202.0,
+              "reference_dataset": 202.0,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 359.0,
+              "reference_dataset": 359.0,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 33010,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 120.0,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.02531599395596233,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "runoff_onset_mad": {
+            "dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 4194304,
+              "reference_dataset": 4194304,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 1273843,
+              "reference_dataset": 1276579,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 127,
+              "reference_dataset": 127,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 0.5000000074505806,
+              "reference_dataset": 0.5000000074505806,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 71.00000105798244,
+              "reference_dataset": 71.00000105798244,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 14.330792509693211,
+              "reference_dataset": 14.325112929703778,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 13.000000193715096,
+              "reference_dataset": 13.000000193715096,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 13.000000193715096,
+              "reference_dataset": 13.000000193715096,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 7.793453487756082,
+              "reference_dataset": 7.790442720867998,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 5.000000074505806,
+              "reference_dataset": 5.000000074505806,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 7.000000104308128,
+              "reference_dataset": 7.000000104308128,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 9.500000141561031,
+              "reference_dataset": 9.500000141561031,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 12.000000178813934,
+              "reference_dataset": 12.000000178813934,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 13.000000193715096,
+              "reference_dataset": 13.000000193715096,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 15.500000230967999,
+              "reference_dataset": 15.500000230967999,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 18.0000002682209,
+              "reference_dataset": 18.0000002682209,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 20.500000305473804,
+              "reference_dataset": 20.500000305473804,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 25.00000037252903,
+              "reference_dataset": 25.00000037252903,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 71.00000105798244,
+              "reference_dataset": 71.00000105798244,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "aggregation_correct": {
+              "target_dataset": true,
+              "reference_dataset": true,
+              "match": true
+            },
+            "aggregation_difference": {
+              "target_dataset": 1.0579824447631836e-06,
+              "reference_dataset": 1.0579824447631836e-06,
+              "match": true
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 27433,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 45.000000670552254,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.04649907103022488,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "runoff_onset_median": {
+            "dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 4194304,
+              "reference_dataset": 4194304,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 1273843,
+              "reference_dataset": 1276579,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 201,
+              "reference_dataset": 200,
+              "match": false
+            },
+            "precision": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 76.0,
+              "reference_dataset": 76.0,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 298.0,
+              "reference_dataset": 298.0,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 156.30822873512093,
+              "reference_dataset": 156.32258797522042,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 154.0,
+              "reference_dataset": 154.0,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 160.0,
+              "reference_dataset": 160.0,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 18.3845920343148,
+              "reference_dataset": 18.385134664408493,
+              "match": true
+            },
+            "percentile_00": {
+              "target_dataset": 76.0,
+              "reference_dataset": 76.0,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 138.0,
+              "reference_dataset": 138.0,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 142.0,
+              "reference_dataset": 142.0,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 147.0,
+              "reference_dataset": 147.0,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 150.0,
+              "reference_dataset": 150.0,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 154.0,
+              "reference_dataset": 154.0,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 158.0,
+              "reference_dataset": 158.0,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 160.0,
+              "reference_dataset": 160.0,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 166.0,
+              "reference_dataset": 166.0,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 178.0,
+              "reference_dataset": 178.0,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 298.0,
+              "reference_dataset": 298.0,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "aggregation_correct": {
+              "target_dataset": false,
+              "reference_dataset": false,
+              "match": false
+            },
+            "aggregation_difference": {
+              "target_dataset": 0.5,
+              "reference_dataset": 0.5,
+              "match": false
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 19788,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 61.0,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.042887180937202785,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "temporal_resolution": {
+            "dimensions": {
+              "target_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 41943040,
+              "reference_dataset": 41943040,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 22683919,
+              "reference_dataset": 22698289,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 274,
+              "reference_dataset": 274,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 2.7000000402331352,
+              "reference_dataset": 2.7000000402331352,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 30.000000447034836,
+              "reference_dataset": 30.000000447034836,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 7.022820377702167,
+              "reference_dataset": 7.028527639332131,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 6.200000092387199,
+              "reference_dataset": 6.200000092387199,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 6.000000089406967,
+              "reference_dataset": 6.000000089406967,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 3.3853601193163985,
+              "reference_dataset": 3.387443310669325,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 2.7000000402331352,
+              "reference_dataset": 2.7000000402331352,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 3.9000000581145287,
+              "reference_dataset": 3.9000000581145287,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 4.500000067055225,
+              "reference_dataset": 4.500000067055225,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 5.700000084936619,
+              "reference_dataset": 5.700000084936619,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 6.000000089406967,
+              "reference_dataset": 6.000000089406967,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 6.200000092387199,
+              "reference_dataset": 6.200000092387199,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 6.500000096857548,
+              "reference_dataset": 6.500000096857548,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 7.300000108778477,
+              "reference_dataset": 7.300000108778477,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 8.300000123679638,
+              "reference_dataset": 8.300000123679638,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 11.800000175833702,
+              "reference_dataset": 11.800000175833702,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 30.000000447034836,
+              "reference_dataset": 30.000000447034836,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 579178,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 16.600000247359276,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.008027129179376386,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "temporal_resolution_median": {
+            "dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 4194304,
+              "reference_dataset": 4194304,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 1273843,
+              "reference_dataset": 1276579,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 179,
+              "reference_dataset": 179,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 2.9000000432133675,
+              "reference_dataset": 2.9000000432133675,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 22.500000335276127,
+              "reference_dataset": 22.500000335276127,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 6.568564375916162,
+              "reference_dataset": 6.5736396287536865,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 6.200000092387199,
+              "reference_dataset": 6.200000092387199,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 6.000000089406967,
+              "reference_dataset": 6.000000089406967,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 1.2619286689992442,
+              "reference_dataset": 1.262972740639179,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 2.9000000432133675,
+              "reference_dataset": 2.9000000432133675,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 5.600000083446503,
+              "reference_dataset": 5.600000083446503,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 5.800000086426735,
+              "reference_dataset": 5.800000086426735,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 5.900000087916851,
+              "reference_dataset": 6.000000089406967,
+              "match": false
+            },
+            "percentile_40": {
+              "target_dataset": 6.000000089406967,
+              "reference_dataset": 6.000000089406967,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 6.200000092387199,
+              "reference_dataset": 6.200000092387199,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 6.400000095367432,
+              "reference_dataset": 6.400000095367432,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 6.70000009983778,
+              "reference_dataset": 6.70000009983778,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 7.1000001057982445,
+              "reference_dataset": 7.1000001057982445,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 7.900000117719173,
+              "reference_dataset": 7.900000117719173,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 22.500000335276127,
+              "reference_dataset": 22.500000335276127,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "aggregation_correct": {
+              "target_dataset": false,
+              "reference_dataset": false,
+              "match": false
+            },
+            "aggregation_difference": {
+              "target_dataset": 0.05000000074505806,
+              "reference_dataset": 0.05000000074505806,
+              "match": false
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 93924,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 6.800000101327896,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.00821736125141,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          }
+        }
+      },
+      "tile_23_46": {
+        "variables": {
+          "runoff_onset": {
+            "dimensions": {
+              "target_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 41943040,
+              "reference_dataset": 41943040,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 14033815,
+              "reference_dataset": 14045063,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 261,
+              "reference_dataset": 261,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 35.0,
+              "reference_dataset": 35.0,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 351.0,
+              "reference_dataset": 351.0,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 152.50763709848624,
+              "reference_dataset": 152.51381191546614,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 150.0,
+              "reference_dataset": 150.0,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 113.0,
+              "reference_dataset": 113.0,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 29.603518167955258,
+              "reference_dataset": 29.59648775978662,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 35.0,
+              "reference_dataset": 35.0,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 114.0,
+              "reference_dataset": 114.0,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 126.0,
+              "reference_dataset": 126.0,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 135.0,
+              "reference_dataset": 136.0,
+              "match": false
+            },
+            "percentile_40": {
+              "target_dataset": 143.0,
+              "reference_dataset": 143.0,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 150.0,
+              "reference_dataset": 150.0,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 158.0,
+              "reference_dataset": 158.0,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 166.0,
+              "reference_dataset": 166.0,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 178.0,
+              "reference_dataset": 178.0,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 196.0,
+              "reference_dataset": 196.0,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 351.0,
+              "reference_dataset": 351.0,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 44917,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 108.0,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.025951639140033917,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "runoff_onset_mad": {
+            "dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 4194304,
+              "reference_dataset": 4194304,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 279889,
+              "reference_dataset": 280541,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 122,
+              "reference_dataset": 121,
+              "match": false
+            },
+            "precision": {
+              "target_dataset": 0.5000000074505806,
+              "reference_dataset": 0.5000000074505806,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 64.00000095367432,
+              "reference_dataset": 64.00000095367432,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 16.01469566566816,
+              "reference_dataset": 16.008063705846283,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 15.000000223517418,
+              "reference_dataset": 15.000000223517418,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 13.000000193715096,
+              "reference_dataset": 13.000000193715096,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 7.383602882243058,
+              "reference_dataset": 7.381528394028263,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 7.000000104308128,
+              "reference_dataset": 7.000000104308128,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 9.500000141561031,
+              "reference_dataset": 9.500000141561031,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 11.500000171363354,
+              "reference_dataset": 11.500000171363354,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 13.500000201165676,
+              "reference_dataset": 13.500000201165676,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 15.000000223517418,
+              "reference_dataset": 15.000000223517418,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 17.00000025331974,
+              "reference_dataset": 17.00000025331974,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 19.500000290572643,
+              "reference_dataset": 19.500000290572643,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 22.000000327825546,
+              "reference_dataset": 22.000000327825546,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 26.00000038743019,
+              "reference_dataset": 26.00000038743019,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 64.00000095367432,
+              "reference_dataset": 64.00000095367432,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "aggregation_correct": {
+              "target_dataset": true,
+              "reference_dataset": true,
+              "match": true
+            },
+            "aggregation_difference": {
+              "target_dataset": 9.5367431640625e-07,
+              "reference_dataset": 9.5367431640625e-07,
+              "match": true
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 37136,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 46.000000685453415,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.04186597462381023,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "runoff_onset_median": {
+            "dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 4194304,
+              "reference_dataset": 4194304,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 279889,
+              "reference_dataset": 280541,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 169,
+              "reference_dataset": 169,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 1.0,
+              "reference_dataset": 1.0,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 77.0,
+              "reference_dataset": 77.0,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 263.0,
+              "reference_dataset": 263.0,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 150.30354701788136,
+              "reference_dataset": 150.30734027584194,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 148.0,
+              "reference_dataset": 148.0,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 150.0,
+              "reference_dataset": 150.0,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 17.936526295693366,
+              "reference_dataset": 17.9351567689552,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 77.0,
+              "reference_dataset": 77.0,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 131.0,
+              "reference_dataset": 131.0,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 137.0,
+              "reference_dataset": 137.0,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 140.0,
+              "reference_dataset": 140.0,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 144.0,
+              "reference_dataset": 144.0,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 148.0,
+              "reference_dataset": 148.0,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 152.0,
+              "reference_dataset": 152.0,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 156.0,
+              "reference_dataset": 156.0,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 161.0,
+              "reference_dataset": 161.0,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 173.0,
+              "reference_dataset": 173.0,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 263.0,
+              "reference_dataset": 263.0,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "aggregation_correct": {
+              "target_dataset": false,
+              "reference_dataset": false,
+              "match": false
+            },
+            "aggregation_difference": {
+              "target_dataset": 0.5,
+              "reference_dataset": 0.5,
+              "match": false
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 26873,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 49.0,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.04261142026228977,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "temporal_resolution": {
+            "dimensions": {
+              "target_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'water_year': 1, 'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 41943040,
+              "reference_dataset": 41943040,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 14033815,
+              "reference_dataset": 14045063,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 274,
+              "reference_dataset": 274,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 2.7000000402331352,
+              "reference_dataset": 2.7000000402331352,
+              "match": true
+            },
+            "max": {
+              "target_dataset": 30.000000447034836,
+              "reference_dataset": 30.000000447034836,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 8.260734500347949,
+              "reference_dataset": 8.266177513027229,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 6.600000098347664,
+              "reference_dataset": 6.600000098347664,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 4.000000059604645,
+              "reference_dataset": 4.000000059604645,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 4.815980267323963,
+              "reference_dataset": 4.817437746316902,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 2.7000000402331352,
+              "reference_dataset": 2.7000000402331352,
+              "match": true
+            },
+            "percentile_10": {
+              "target_dataset": 3.9000000581145287,
+              "reference_dataset": 3.9000000581145287,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 4.200000062584877,
+              "reference_dataset": 4.200000062584877,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 4.800000071525574,
+              "reference_dataset": 4.800000071525574,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 6.000000089406967,
+              "reference_dataset": 6.000000089406967,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 6.600000098347664,
+              "reference_dataset": 6.600000098347664,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 7.800000116229057,
+              "reference_dataset": 7.800000116229057,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 11.200000166893005,
+              "reference_dataset": 11.200000166893005,
+              "match": true
+            },
+            "percentile_80": {
+              "target_dataset": 12.000000178813934,
+              "reference_dataset": 12.000000178813934,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 12.800000190734863,
+              "reference_dataset": 12.800000190734863,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 30.000000447034836,
+              "reference_dataset": 30.000000447034836,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 974861,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 13.300000198185444,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.008983783173239052,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          },
+          "temporal_resolution_median": {
+            "dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "chunk_dimensions": {
+              "target_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "reference_dataset": "{'latitude': 2048, 'longitude': 2048}",
+              "match": true
+            },
+            "dtype": {
+              "target_dataset": "float64",
+              "reference_dataset": "float64",
+              "match": true
+            },
+            "encoded_dtype": {
+              "target_dataset": "int16",
+              "reference_dataset": "int16",
+              "match": true
+            },
+            "nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "encoded_nodata_value": {
+              "target_dataset": -9999,
+              "reference_dataset": -9999,
+              "match": true
+            },
+            "scale_factor": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "add_offset": {
+              "target_dataset": 0.0,
+              "reference_dataset": 0.0,
+              "match": true
+            },
+            "total_pixels": {
+              "target_dataset": 4194304,
+              "reference_dataset": 4194304,
+              "match": true
+            },
+            "nan_pixels": {
+              "target_dataset": 279889,
+              "reference_dataset": 280541,
+              "match": false
+            },
+            "unique_values": {
+              "target_dataset": 143,
+              "reference_dataset": 143,
+              "match": true
+            },
+            "precision": {
+              "target_dataset": 0.10000000149011612,
+              "reference_dataset": 0.10000000149011612,
+              "match": true
+            },
+            "min": {
+              "target_dataset": 2.9000000432133675,
+              "reference_dataset": 3.0000000447034836,
+              "match": false
+            },
+            "max": {
+              "target_dataset": 18.200000271201134,
+              "reference_dataset": 18.200000271201134,
+              "match": true
+            },
+            "mean": {
+              "target_dataset": 6.784462198242425,
+              "reference_dataset": 6.790271484503789,
+              "match": false
+            },
+            "median": {
+              "target_dataset": 6.70000009983778,
+              "reference_dataset": 6.70000009983778,
+              "match": true
+            },
+            "mode": {
+              "target_dataset": 6.70000009983778,
+              "reference_dataset": 6.70000009983778,
+              "match": true
+            },
+            "std": {
+              "target_dataset": 1.4193842442951317,
+              "reference_dataset": 1.4209951046643094,
+              "match": false
+            },
+            "percentile_00": {
+              "target_dataset": 2.9000000432133675,
+              "reference_dataset": 3.0000000447034836,
+              "match": false
+            },
+            "percentile_10": {
+              "target_dataset": 4.800000071525574,
+              "reference_dataset": 4.800000071525574,
+              "match": true
+            },
+            "percentile_20": {
+              "target_dataset": 5.700000084936619,
+              "reference_dataset": 5.700000084936619,
+              "match": true
+            },
+            "percentile_30": {
+              "target_dataset": 6.200000092387199,
+              "reference_dataset": 6.200000092387199,
+              "match": true
+            },
+            "percentile_40": {
+              "target_dataset": 6.500000096857548,
+              "reference_dataset": 6.500000096857548,
+              "match": true
+            },
+            "percentile_50": {
+              "target_dataset": 6.70000009983778,
+              "reference_dataset": 6.70000009983778,
+              "match": true
+            },
+            "percentile_60": {
+              "target_dataset": 7.000000104308128,
+              "reference_dataset": 7.000000104308128,
+              "match": true
+            },
+            "percentile_70": {
+              "target_dataset": 7.200000107288361,
+              "reference_dataset": 7.300000108778477,
+              "match": false
+            },
+            "percentile_80": {
+              "target_dataset": 7.700000114738941,
+              "reference_dataset": 7.700000114738941,
+              "match": true
+            },
+            "percentile_90": {
+              "target_dataset": 8.700000129640102,
+              "reference_dataset": 8.700000129640102,
+              "match": true
+            },
+            "percentile_100": {
+              "target_dataset": 18.200000271201134,
+              "reference_dataset": 18.200000271201134,
+              "match": true
+            },
+            "num_outside_expected_range": {
+              "target_dataset": 0,
+              "reference_dataset": 0,
+              "match": true
+            },
+            "mode_outside_expected_range": {
+              "target_dataset": null,
+              "reference_dataset": null,
+              "match": true
+            },
+            "aggregation_correct": {
+              "target_dataset": false,
+              "reference_dataset": false,
+              "match": false
+            },
+            "aggregation_difference": {
+              "target_dataset": 0.05000000074505806,
+              "reference_dataset": 0.05000000074505806,
+              "match": false
+            },
+            "_separator": {
+              "target_dataset": "--- COMPARISON METRICS ---",
+              "reference_dataset": "--- COMPARISON METRICS ---",
+              "match": true
+            },
+            "num_values_mismatch": {
+              "target_dataset": 129875,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "min_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "max_difference": {
+              "target_dataset": 6.000000089406967,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "mean_difference": {
+              "target_dataset": 0.010392479208905946,
+              "reference_dataset": "-",
+              "match": false
+            },
+            "median_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            },
+            "mode_difference": {
+              "target_dataset": 0.0,
+              "reference_dataset": "-",
+              "match": true
+            }
+          }
+        }
+      }
+    }
+  }
+}
