@@ -203,7 +203,7 @@ class Config:
             else:
                 raise ValueError("Azure SAS token not found in environment "
                                  "variable AZURE_STORAGE_SAS_TOKEN or "
-                                 "../config/sas_token.txt")
+                                 "config/sas_token.txt")
         
         # Azure storage account name from environment or default
         account_name = os.getenv('AZURE_STORAGE_ACCOUNT', 'snowmelt')
