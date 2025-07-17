@@ -8,7 +8,6 @@ through the complete snowmelt runoff onset detection pipeline.
 """
 
 import argparse
-import os
 import sys
 import time
 import traceback
@@ -18,8 +17,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import gc
 import psutil
-import numpy as np
-import pandas as pd
 import xarray as xr
 import odc.stac
 import dask
@@ -45,13 +42,15 @@ def dask_or_computed(variable):
         is_dask = isinstance(variable.data, dask.array.Array)
     elif hasattr(variable, 'data_vars'):
         # Dataset - check if any data variables are dask-backed
-        is_dask = any([isinstance(variable[var].data, dask.array.Array) 
+        is_dask = any([isinstance(variable[var].data, dask.array.Array)
                       for var in variable.data_vars])
     else:
         # Not a dask-compatible object
         is_dask = False
 
-    return f"[DASK: {variable.nbytes * 1e-9:.2f}GB]" if is_dask else f"[COMPUTED: {variable.nbytes * 1e-9:.2f}GB]"
+    return (f"[DASK: {variable.nbytes * 1e-9:.2f}GB]" if is_dask
+            else f"[COMPUTED: {variable.nbytes * 1e-9:.2f}GB]")
+
 
 def setup_logging(tile_row: int, tile_col: int) -> None:
     """Set up logging for the tile processing."""
@@ -414,36 +413,54 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
 
 
 def save_results_csv(tile, config) -> None:
-    """Save tile results to CSV format in repository with version-based filename."""
-    # Save to repository directory for direct access and version control
-    repo_output_path = Path("processing/tile_data/github_workflow_results")
-    repo_output_path.mkdir(parents=True, exist_ok=True)
-    
-    # Use version from config metadata
-    version = config.version
+    """Save tile results directly to main CSV file."""
+    save_results_to_main_csv(tile, config)
 
-    # Create filename with version: tile_row_col_vX.csv
-    csv_filename = f"tile_{tile.row}_{tile.col}_{version}.csv"
-    repo_csv_file = repo_output_path / csv_filename
+
+def save_results_to_main_csv(tile, config) -> None:
+    """Append results directly to the main CSV file."""
+    import csv
+    import time
+    import random
     
-    # Create DataFrame using the same pattern as original repo
-    df = pd.DataFrame(
-        [[getattr(tile, f, None) for f in config.fields]],
-        columns=config.fields,
-    )
+    main_csv_path = Path(config.tile_results_path)
+    main_csv_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Check if file exists and append, otherwise create new
-    if repo_csv_file.exists():
-        # Append to existing file
-        df.to_csv(repo_csv_file, mode='a', header=False, index=False)
-        logging.info(f"Results appended to existing file: {repo_csv_file}")
-    else:
-        # Create new file with header
-        df.to_csv(repo_csv_file, index=False)
-        logging.info(f"Results saved to new file: {repo_csv_file}")
+    # Create row data
+    row_data = [getattr(tile, field, None) for field in config.fields]
     
-    logging.info(f"CSV structure matches original repository with "
-                 f"{len(config.fields)} fields: {list(config.fields)}")
+    # Retry logic for handling concurrent access
+    max_retries = 5
+    base_delay = 0.1
+    
+    for attempt in range(max_retries):
+        try:
+            # Check if file exists and needs header
+            needs_header = not main_csv_path.exists()
+            
+            # Use context manager for atomic operations
+            with open(main_csv_path, 'a', newline='') as f:
+                writer = csv.writer(f)
+                
+                if needs_header:
+                    writer.writerow(config.fields)
+                
+                writer.writerow(row_data)
+                f.flush()  # Ensure data is written immediately
+            
+            logging.info(f"Results appended to main CSV: {main_csv_path}")
+            return  # Success!
+            
+        except (IOError, OSError, PermissionError) as e:
+            if attempt < max_retries - 1:
+                # Random jitter to avoid thundering herd
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 0.1)
+                logging.debug(f"CSV write attempt {attempt + 1} failed, "
+                             f"retrying in {delay:.2f}s: {e}")
+                time.sleep(delay)
+            else:
+                # Final attempt failed, re-raise
+                raise
 
 
 def main():
