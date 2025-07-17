@@ -15,7 +15,25 @@ from pathlib import Path
 # Add the parent directory to Python path to import our modules
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-def get_tiles_for_batch(config_file: str, which_tiles: str, how_many: int, 
+def get_config_file(config_file: str) -> str:
+    """
+    Get the full path to the configuration file.
+    
+    Args:
+        config_file: Name of the configuration file (with or without path)
+        
+    Returns:
+        Full path to the configuration file
+    """
+    # If the config_file already starts with "config/", use it as is
+    if config_file.startswith("config/"):
+        return config_file
+    
+    # Otherwise, prepend "config/" to the filename
+    return f"config/{config_file}"
+
+
+def get_tiles_for_batch(config_file: str, which_tiles: str, how_many: int,
                         output_format: str = 'list') -> list:
     """
     Get a list of tiles for batch processing.
@@ -30,6 +48,9 @@ def get_tiles_for_batch(config_file: str, which_tiles: str, how_many: int,
     Returns:
         List of dictionaries with tile coordinates
     """
+    # Get the full config file path
+    config_file = get_config_file(config_file)
+    
     # Suppress configuration logging for JSON and count outputs
     if output_format in ['json', 'count']:
         # Redirect stdout to suppress print statements during config loading

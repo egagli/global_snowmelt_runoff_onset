@@ -49,7 +49,7 @@ jobs:
         python processing/scripts/process_single_tile.py \
           --tile-row ${{ github.event.inputs.tile_row }} \
           --tile-col ${{ github.event.inputs.tile_col }} \
-          --config-file config/${{ github.event.inputs.config_file }}
+          --config-file ${{ github.event.inputs.config_file }}
           
     - name: Create failure record if processing crashed
       if: always()

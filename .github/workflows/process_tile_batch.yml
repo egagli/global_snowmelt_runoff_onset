@@ -64,14 +64,14 @@ jobs:
       shell: bash -l {0}
       run: |
         MATRIX=$(python processing/scripts/get_tiles_for_batch.py \
-          --config-file config/${{ github.event.inputs.config_file }} \
+          --config-file ${{ github.event.inputs.config_file }} \
           --which-tiles ${{ github.event.inputs.which_tiles_to_process }} \
           --how-many ${{ github.event.inputs.how_many }} \
           --output json)
         echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
         
         COUNT=$(python processing/scripts/get_tiles_for_batch.py \
-          --config-file config/${{ github.event.inputs.config_file }} \
+          --config-file ${{ github.event.inputs.config_file }} \
           --which-tiles ${{ github.event.inputs.which_tiles_to_process }} \
           --how-many ${{ github.event.inputs.how_many }} \
           --output count)
@@ -108,7 +108,7 @@ jobs:
         python processing/scripts/process_single_tile.py \
           --tile-row ${{ matrix.tile.row }} \
           --tile-col ${{ matrix.tile.col }} \
-          --config-file config/${{ github.event.inputs.config_file }}
+          --config-file ${{ github.event.inputs.config_file }}
           
     - name: Create failure record if processing crashed
       if: always()
