@@ -54,7 +54,8 @@ def get_config_file(config_filename: str) -> str:
     if not config_file.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_file}")
     
-    return str(config_file)
+    # Return absolute path
+    return str(config_file.resolve())
 
 
 def find_individual_tile_csvs(version: str) -> list[Path]:
