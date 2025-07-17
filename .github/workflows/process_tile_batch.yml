@@ -127,33 +127,87 @@ jobs:
         CONFIG_FILE="${{ github.event.inputs.config_file }}"
         VERSION=$(echo "$CONFIG_FILE" | sed 's/.*v\([0-9]*\).*/v\1/')
         
-        if [ ! -f "processing/tile_data/github_workflow_results/tile_${{ matrix.tile.row }}_${{ matrix.tile.col }}_${VERSION}.csv" ]; then
-          python -c "
+        # Check if processing succeeded by looking at the main CSV
+        python -c "
         import pandas as pd
         from pathlib import Path
+        import sys
         
-        output_dir = Path('processing/tile_data/github_workflow_results')
-        output_dir.mkdir(parents=True, exist_ok=True)
+        version = '${VERSION}'
+        main_csv = Path(f'processing/tile_data/tile_results_{version}.csv')
         
-        csv_file = output_dir / 'tile_${{ matrix.tile.row }}_${{ matrix.tile.col }}_${VERSION}.csv'
+        if main_csv.exists():
+            try:
+                df = pd.read_csv(main_csv)
+                # Check if our tile exists and succeeded
+                tile_rows = df[(df['row'] == ${{ matrix.tile.row }}) & 
+                              (df['col'] == ${{ matrix.tile.col }})]
+                
+                if len(tile_rows) > 0 and tile_rows.iloc[-1]['success']:
+                    print('Tile processing succeeded')
+                    sys.exit(0)
+            except Exception as e:
+                print(f'Error checking main CSV: {e}')
         
-        if not csv_file.exists():
-            failure_data = {
-                'row': [${{ matrix.tile.row }}],
-                'col': [${{ matrix.tile.col }}],
-                'success': [False],
-                'total_time': [0],
-                'error_messages': ['Batch workflow crashed - no CSV created'],
-                'tr_2015': [None], 'tr_2016': [None], 'tr_2017': [None], 'tr_2018': [None], 'tr_2019': [None],
-                'tr_2020': [None], 'tr_2021': [None], 'tr_2022': [None], 'tr_2023': [None], 'tr_2024': [None],
-                'pix_ct_2015': [None], 'pix_ct_2016': [None], 'pix_ct_2017': [None], 'pix_ct_2018': [None], 'pix_ct_2019': [None],
-                'pix_ct_2020': [None], 'pix_ct_2021': [None], 'pix_ct_2022': [None], 'pix_ct_2023': [None], 'pix_ct_2024': [None]
-            }
-            
-            df = pd.DataFrame(failure_data)
-            df.to_csv(csv_file, index=False)
-            print(f'Created failure record: {csv_file}')
+        # If we get here, processing failed - add failure record
+        print('Adding failure record to main CSV')
+        
+        failure_data = {
+            'row': [${{ matrix.tile.row }}],
+            'col': [${{ matrix.tile.col }}],
+            'success': [False],
+            'total_time': [0],
+            'error_messages': ['Batch workflow crashed - processing failed'],
+            'tr_2015': [None], 'tr_2016': [None], 'tr_2017': [None], 'tr_2018': [None], 'tr_2019': [None],
+            'tr_2020': [None], 'tr_2021': [None], 'tr_2022': [None], 'tr_2023': [None], 'tr_2024': [None],
+            'pix_ct_2015': [None], 'pix_ct_2016': [None], 'pix_ct_2017': [None], 'pix_ct_2018': [None], 'pix_ct_2019': [None],
+            'pix_ct_2020': [None], 'pix_ct_2021': [None], 'pix_ct_2022': [None], 'pix_ct_2023': [None], 'pix_ct_2024': [None]
+        }
+        
+        failure_df = pd.DataFrame(failure_data)
+        
+        # Append to main CSV
+        if main_csv.exists():
+            failure_df.to_csv(main_csv, mode='a', header=False, index=False)
+        else:
+            failure_df.to_csv(main_csv, index=False)
+        
+        print(f'Added failure record to {main_csv}')
         "
+        
+    - name: Commit batch tile results
+      if: always()
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action (Batch)"
+        
+        # Only commit changes to main CSV files
+        if [[ -n "$(git status --porcelain processing/tile_data/tile_results_*.csv)" ]]; then
+          git add processing/tile_data/tile_results_*.csv
+          
+          for i in {1..5}; do
+            git pull origin main --no-rebase || echo "Pull failed, continuing..."
+            
+            if ! git diff --staged --quiet; then
+              git commit -m "Add batch tile (${{ matrix.tile.row }}, ${{ matrix.tile.col }}) results" || echo "Commit failed, may already be committed"
+            fi
+            
+            if git push; then
+              echo "Successfully pushed batch tile results"
+              break
+            else
+              echo "Push failed (attempt $i/5), waiting before retry..."
+              sleep $((i * 2))
+              git add processing/tile_data/tile_results_*.csv
+            fi
+            
+            if [ $i -eq 5 ]; then
+              echo "Failed to push after 5 attempts"
+              exit 1
+            fi
+          done
+        else
+          echo "No changes to main CSV files"
         fi
         
     - name: Commit tile results
