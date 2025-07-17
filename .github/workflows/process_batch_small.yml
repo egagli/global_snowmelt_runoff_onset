@@ -25,11 +25,6 @@ on:
         required: false
         default: 'global_config_v9.txt'
         type: string
-      max_parallel:
-        description: 'Maximum number of parallel jobs'
-        required: false
-        default: '5'
-        type: string
 
 env:
   AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
@@ -100,7 +95,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
-      max-parallel: ${{ fromJson(github.event.inputs.max_parallel) }}
       fail-fast: false
       matrix:
         tile: ${{ fromJson(needs.generate-tile-matrix.outputs.matrix) }}
