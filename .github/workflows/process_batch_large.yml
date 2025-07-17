@@ -1,4 +1,4 @@
-name: Process Tile Small Batch (≤256 tiles)
+name: Process Batch Large (>256 tiles)
 
 on:
   workflow_dispatch:
@@ -16,9 +16,9 @@ on:
         - unprocessed_and_failed
         - unprocessed_and_failed_weather_stations
       how_many:
-        description: 'How many tiles to process (max 256 for this workflow)'
+        description: 'How many tiles to process (use Small Batch for ≤256)'
         required: false
-        default: '10'
+        default: '1000'
         type: string
       config_file:
         description: 'Config file to use (e.g., global_config_v9.txt)'
@@ -76,12 +76,12 @@ jobs:
           --output count)
         echo "count=$COUNT" >> $GITHUB_OUTPUT
         
-        # Check if user should use Large Batch workflow instead
-        if [ $COUNT -gt 256 ]; then
-          echo "⚠️  WARNING: You're trying to process $COUNT tiles, but this workflow is limited to 256 tiles."
-          echo "🔄 Consider using the 'Process Tile Large Batch' workflow instead for better performance."
-          echo "❌ This workflow will fail due to GitHub Actions matrix job limits."
-          exit 1
+        # Provide information about the processing approach
+        if [ $COUNT -le 256 ]; then
+          echo "ℹ️  Processing $COUNT tiles - consider using 'Process Tile Small Batch' for faster processing"
+        else
+          echo "🚀 Processing $COUNT tiles using large batch workflow"
+          echo "📊 This will use multiple parallel matrix jobs to handle the scale"
         fi
         
         MATRIX=$(python processing/scripts/get_tiles_for_batch.py \
@@ -91,8 +91,6 @@ jobs:
           --batch-index -1 \
           --output json)
         echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-        
-        echo "✅ Processing $COUNT tiles with Small Batch workflow"
 
   process-tiles:
     needs: generate-tile-matrix
