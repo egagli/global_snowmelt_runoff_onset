@@ -26,7 +26,7 @@ on:
         default: 'global_config_v9.txt'
         type: string
       batch_index:
-        description: 'Batch index (for reusable workflow calls)'
+        description: 'Batch index for reusable workflow calls (keep as -1)'
         required: false
         default: '-1'
         type: string
