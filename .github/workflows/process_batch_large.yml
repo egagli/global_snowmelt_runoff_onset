@@ -30,9 +30,6 @@ env:
   AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
   AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
 
-permissions:
-  contents: write
-
 jobs:
   generate-batch-matrix:
     runs-on: ubuntu-latest

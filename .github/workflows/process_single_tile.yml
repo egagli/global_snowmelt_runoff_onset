@@ -21,9 +21,6 @@ env:
   AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
   AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
 
-permissions:
-  contents: write
-
 jobs:
   process-tile:
     runs-on: ubuntu-latest
@@ -56,36 +53,11 @@ jobs:
           --tile-col ${{ github.event.inputs.tile_col }} \
           --config-file ${{ github.event.inputs.config_file }}
           
-    - name: Commit tile results
+    - name: Upload tile result as artifact
       if: always()
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        if [[ -n "$(git status --porcelain processing/tile_data/)" ]]; then
-          git add processing/tile_data/
-          
-          for i in {1..5}; do
-            git pull origin main --no-rebase || echo "Pull failed, continuing..."
-            
-            if ! git diff --staged --quiet; then
-              git commit -m "Add tile (${{ github.event.inputs.tile_row }}, ${{ github.event.inputs.tile_col }}) results" || echo "Commit failed, may already be committed"
-            fi
-            
-            if git push; then
-              echo "Successfully pushed tile results"
-              break
-            else
-              echo "Push failed (attempt $i/5), waiting before retry..."
-              sleep $((i * 2))
-              git add processing/tile_data/
-            fi
-            
-            if [ $i -eq 5 ]; then
-              echo "Failed to push after 5 attempts"
-              exit 1
-            fi
-          done
-        else
-          echo "No changes to commit"
-        fi
+      uses: actions/upload-artifact@v4
+      with:
+        name: tile-result-${{ github.event.inputs.tile_row }}-${{ github.event.inputs.tile_col }}
+        path: processing/tile_data/github_workflow_results/tile_${{ github.event.inputs.tile_row }}_${{ github.event.inputs.tile_col }}_*.csv
+        retention-days: 30
+        if-no-files-found: ignore

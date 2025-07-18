@@ -413,20 +413,28 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
 
 
 def save_results_csv(tile, config) -> None:
-    """Save tile results directly to main CSV file."""
-    save_results_to_main_csv(tile, config)
+    """Save tile results to individual CSV file for artifact upload."""
+    save_results_to_individual_csv(tile, config)
 
 
-def save_results_to_main_csv(tile, config) -> None:
-    """Append results directly to the main CSV file."""
-    import csv
-    import time
-    import random
+def save_results_to_individual_csv(tile, config) -> None:
+    """Save tile results to individual CSV file for artifact upload."""
+    import pandas as pd
     
-    main_csv_path = Path(config.tile_results_path)
-    main_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    # Create output directory
+    output_dir = Path("processing/tile_data/github_workflow_results")
+    output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Create row data - convert None/NaN to empty string to match pandas behavior
+    # Extract version from config file name
+    config_version = "v9"  # Default fallback
+    if hasattr(config, 'config_name'):
+        config_version = config.config_name.replace('global_config_', '')
+    
+    # Create CSV filename
+    csv_filename = f"tile_{tile.row}_{tile.col}_{config_version}.csv"
+    csv_path = output_dir / csv_filename
+    
+    # Convert None/NaN to empty string to match pandas behavior
     import math
     
     def clean_value(value):
@@ -439,40 +447,14 @@ def save_results_to_main_csv(tile, config) -> None:
             return ''
         return value
     
-    row_data = [clean_value(getattr(tile, field, None)) for field in config.fields]
+    # Create row data
+    row_data = {field: clean_value(getattr(tile, field, None)) for field in config.fields}
     
-    # Retry logic for handling concurrent access
-    max_retries = 5
-    base_delay = 0.1
+    # Write to CSV using pandas for consistency
+    df = pd.DataFrame([row_data])
+    df.to_csv(csv_path, index=False)
     
-    for attempt in range(max_retries):
-        try:
-            # Check if file exists and needs header
-            needs_header = not main_csv_path.exists()
-            
-            # Use context manager for atomic operations
-            with open(main_csv_path, 'a', newline='') as f:
-                writer = csv.writer(f)
-                
-                if needs_header:
-                    writer.writerow(config.fields)
-                
-                writer.writerow(row_data)
-                f.flush()  # Ensure data is written immediately
-            
-            logging.info(f"Results appended to main CSV: {main_csv_path}")
-            return  # Success!
-            
-        except (IOError, OSError, PermissionError) as e:
-            if attempt < max_retries - 1:
-                # Random jitter to avoid thundering herd
-                delay = base_delay * (2 ** attempt) + random.uniform(0, 0.1)
-                logging.debug(f"CSV write attempt {attempt + 1} failed, "
-                             f"retrying in {delay:.2f}s: {e}")
-                time.sleep(delay)
-            else:
-                # Final attempt failed, re-raise
-                raise
+    logging.info(f"Tile results saved to individual CSV: {csv_path}")
 
 
 def main():
