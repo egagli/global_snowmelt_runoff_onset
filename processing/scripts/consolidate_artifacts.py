@@ -193,8 +193,8 @@ def _save_consolidated_data(consolidated_data: list, config_version: str) -> Non
     final_df.to_csv(main_csv_path, index=False)
     
     # Calculate statistics
-    success_count = len(final_df[final_df['status'] == 'success'])
-    failure_count = len(final_df[final_df['status'] != 'success'])
+    success_count = len(final_df[final_df['success'] == True])
+    failure_count = len(final_df[final_df['success'] != True])
     
     print(f"""
 ✅ Consolidation complete!
