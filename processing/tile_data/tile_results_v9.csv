@@ -836,10 +836,18 @@ row,col,percent_valid_snow_pixels,s1_rtc_ds_dims,runoff_onsets_dims,tr_2015,tr_2
 16,159,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 318}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",,,6.428,14.071,15.433,13.208,13.571,26.8,,,0,0,4016293,4014812,3466929,3025401,737951,7,,,1752792650.5899808,338.83235120773315,True,[]
 16,159,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 318}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",,,6.428,14.071,15.433,13.208,13.571,26.8,,,0,0,4016293,4014812,3466929,3025401,737951,7,,,1752793275.1689706,345.0267689228058,True,[]
 <<<<<<< HEAD
+<<<<<<< HEAD
 17,229,False,0,Batch workflow crashed - processing failed,,,,,,,,,,,,,,,,,,,,
 =======
 <<<<<<< HEAD
+17,165,False,0,Batch workflow crashed - processing failed,,,,,,,,,,,,,,,,,,,,
+=======
+17,38,False,0,Batch workflow crashed - processing failed,,,,,,,,,,,,,,,,,,,,
+>>>>>>> 9474e4b12997330f42b9050c0c8ee67a63469173
+=======
+<<<<<<< HEAD
 17,43,False,0,Batch workflow crashed - processing failed,,,,,,,,,,,,,,,,,,,,
+>>>>>>> 083264cd38323ad257bac2b40dd16634b7cacf53
 =======
 <<<<<<< HEAD
 16,192,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 421}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",27.325,,6.294,13.256,6.272,12.239,12.333,23.475,,,338,0,4077666,4070307,4068994,4001315,4070305,405,,,1752797481.0454817,397.71566343307495,True,[]
@@ -951,4 +959,11 @@ row,col,percent_valid_snow_pixels,s1_rtc_ds_dims,runoff_onsets_dims,tr_2015,tr_2
 >>>>>>> 85d754acd0137fc1ffc0006706ad1dc28bbfc05e
 >>>>>>> 1926b4371b2e15f6f738165f3eb22ce8b9201d25
 >>>>>>> d75f80b5bed780803f33e7fe51fd4e4cf37fbac4
+<<<<<<< HEAD
 >>>>>>> f013ba2eded401cdee6d5347b5ca1b6092d2d1fd
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> f013ba2eded401cdee6d5347b5ca1b6092d2d1fd
+>>>>>>> 083264cd38323ad257bac2b40dd16634b7cacf53
+>>>>>>> 9474e4b12997330f42b9050c0c8ee67a63469173
