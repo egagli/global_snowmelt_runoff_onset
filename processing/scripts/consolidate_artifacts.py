@@ -178,7 +178,7 @@ def _save_consolidated_data(consolidated_data: list, config_version: str) -> Non
         final_df = pd.concat([existing_df, new_df], ignore_index=True)
         
         # Remove duplicates based on row/col
-        final_df = final_df.sort_values('start_time').drop_duplicates(subset=['row', 'col'], keep='last')
+        final_df = final_df.sort_values('start_time').drop_duplicates(subset=['row', 'col','success'], keep='last')
         
         print(f"📊 Combined dataset: {len(existing_df)} existing + {len(new_df)} new = {len(final_df)} total")
     else:
