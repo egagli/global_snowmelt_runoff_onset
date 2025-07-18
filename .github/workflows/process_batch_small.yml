@@ -140,12 +140,67 @@ jobs:
         pip install -e .
         
     - name: Process tile
+      id: process_tile
       shell: bash -l {0}
       run: |
         python processing/scripts/process_single_tile.py \
           --tile-row ${{ matrix.tile.row }} \
           --tile-col ${{ matrix.tile.col }} \
           --config-file ${{ inputs.config_file }}
+          
+    - name: Create failure CSV if processing failed
+      if: failure() && steps.process_tile.outcome == 'failure'
+      shell: bash -l {0}
+      run: |
+        python -c "
+        import sys
+        from pathlib import Path
+        
+        # Add the parent directory to Python path to import our modules
+        sys.path.append(str(Path.cwd()))
+        
+        from global_snowmelt_runoff_onset.config import Config
+        import pandas as pd
+        import os
+        from datetime import datetime
+        
+        # Load config to get proper field structure
+        config_file = '${{ inputs.config_file }}'
+        config = Config(f'config/{config_file}')
+        
+        # Create a failure tile object with the proper structure
+        tile = config.get_tile(${{ matrix.tile.row }}, ${{ matrix.tile.col }})
+        tile.start_time = datetime.now().isoformat()
+        tile.total_time = 0.0
+        tile.success = False
+        tile.error_messages = ['GitHub Actions runner crashed or timed out']
+        
+        # Create row data using the same logic as successful saves
+        def clean_value(value):
+            import math
+            if value is None:
+                return ''
+            if isinstance(value, float) and math.isnan(value):
+                return ''
+            if isinstance(value, str) and value.lower() == 'nan':
+                return ''
+            return value
+        
+        row_data = {field: clean_value(getattr(tile, field, None)) for field in config.fields}
+        
+        # Create output directory
+        output_dir = 'processing/tile_data/github_workflow_results'
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Extract version from config file name
+        config_version = config_file.replace('global_config_', '').replace('.txt', '')
+        
+        # Save CSV using same logic as successful case
+        csv_path = f'{output_dir}/tile_{tile.row}_{tile.col}_{config_version}.csv'
+        df = pd.DataFrame([row_data])
+        df.to_csv(csv_path, index=False)
+        print(f'Created failure CSV: {csv_path}')
+        "
           
     - name: Upload tile result as artifact
       if: always()
