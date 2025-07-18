@@ -835,4 +835,120 @@ row,col,percent_valid_snow_pixels,s1_rtc_ds_dims,runoff_onsets_dims,tr_2015,tr_2
 16,159,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 318}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",nan,nan,6.428,14.071,15.433,13.208,13.571,26.8,,,0,0,4016293,4014812,3466929,3025401,737951,7,,,1752790304.0698476,345.1010060310364,True,[]
 16,159,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 318}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",,,6.428,14.071,15.433,13.208,13.571,26.8,,,0,0,4016293,4014812,3466929,3025401,737951,7,,,1752792650.5899808,338.83235120773315,True,[]
 16,159,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 318}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",,,6.428,14.071,15.433,13.208,13.571,26.8,,,0,0,4016293,4014812,3466929,3025401,737951,7,,,1752793275.1689706,345.0267689228058,True,[]
+<<<<<<< HEAD
 17,38,False,0,Batch workflow crashed - processing failed,,,,,,,,,,,,,,,,,,,,
+=======
+<<<<<<< HEAD
+17,43,False,0,Batch workflow crashed - processing failed,,,,,,,,,,,,,,,,,,,,
+=======
+<<<<<<< HEAD
+16,192,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 421}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",27.325,,6.294,13.256,6.272,12.239,12.333,23.475,,,338,0,4077666,4070307,4068994,4001315,4070305,405,,,1752797481.0454817,397.71566343307495,True,[]
+=======
+<<<<<<< HEAD
+16,38,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 986}","{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",13.45,21.5,4.684,5.722,5.125,4.483,3.059,12.573,11.782,14.7,2094994,42683,4132522,4135319,4134671,4135982,4133611,4128656,4131251,3760304,1752796691.4489276,1146.3364887237549,True,[]
+=======
+<<<<<<< HEAD
+16,230,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 1260}","{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",14.65,11.85,12.083,6.162,6.293,5.902,6.082,6.7,11.754,6.525,3375597,4118627,4120439,4120047,4120892,4120854,4116536,4117041,4119454,4123343,1752796694.8120658,1085.5515360832214,True,[]
+=======
+<<<<<<< HEAD
+15,198,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 265}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",,,13.27,12.086,13.05,12.25,12.315,24.975,,,0,0,2215438,2672806,4187272,4188125,2668233,57,,,1752797442.922097,323.79687333106995,True,[]
+=======
+<<<<<<< HEAD
+17,149,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 844}","{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",11.814,7.136,6.368,10.658,11.214,5.62,5.783,6.046,6.038,7.5,4039146,4156524,4163081,4157588,4163427,3508137,4161013,4166921,4135274,4166294,1752796692.1806424,990.9932718276978,True,[]
+=======
+<<<<<<< HEAD
+16,205,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 661}","{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",26.0,22.783,12.95,11.818,11.85,11.818,15.875,17.033,15.812,23.783,3295199,2420,4193706,4193507,4193680,4193647,4191262,3,1156,30311,1752797174.7407281,494.83768820762634,True,[]
+=======
+<<<<<<< HEAD
+16,204,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 435}","{'water_year': 9, 'latitude': 2048, 'longitude': 2048}",27.025,,13.222,11.441,11.378,11.5,15.875,,,,561,0,4193098,4193112,4193079,4192923,4188886,0,,0,1752797174.152907,483.1422803401947,True,[]
+=======
+<<<<<<< HEAD
+16,188,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 225}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",,,15.286,11.833,11.856,19.57,11.889,29.675,,,0,0,4192353,4192715,4190517,4142446,4190503,19,,,1752797366.0393007,254.16368174552917,True,[]
+=======
+<<<<<<< HEAD
+17,45,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 1071}",,,,,,,,,,,,,,,,,,,,,,1752797542.8409665,54.494425773620605,False,"[""'/vsicurl/https://sentinel1euwestrtc.blob.core.windows.net/sentinel1-grd-rtc/GRD/2021/7/18/IW/DV/S1B_IW_GRDH_1SDV_20210718T133742_20210718T133811_027849_0352B8_24C8/measurement/iw-vv.rtc.tiff?st=2025-07-17T00%3A12%3A25Z&se=2025-07-18T00%3A57%3A25Z&sp=rl&sv=2024-05-04&sr=c&skoid=9c8ff44a-6a2c-4dfb-b298-1c9212f64d9a&sktid=72f988bf-86f1-41af-91ab-2d7cd011db47&skt=2025-07-17T17%3A11%3A06Z&ske=2025-07-24T17%3A11%3A06Z&sks=b&skv=2024-05-04&sig=nberSkwQxujCOvgYZVLfrdetuH4xNFJ%2Be3/QESR4Vac%3D' not recognized as being in a supported file format."", 'Traceback (most recent call last):\n  File ""rasterio/_base.pyx"", line 310, in rasterio._base.DatasetBase.__init__\n  File ""rasterio/_base.pyx"", line 221, in rasterio._base.open_dataset\n  File ""rasterio/_err.pyx"", line 359, in rasterio._err.exc_wrap_pointer\nrasterio._err.CPLE_OpenFailedError: \'/vsicurl/https://sentinel1euwestrtc.blob.core.windows.net/sentinel1-grd-rtc/GRD/2021/7/18/IW/DV/S1B_IW_GRDH_1SDV_20210718T133742_20210718T133811_027849_0352B8_24C8/measurement/iw-vv.rtc.tiff?st=2025-07-17T00%3A12%3A25Z&se=2025-07-18T00%3A57%3A25Z&sp=rl&sv=2024-05-04&sr=c&skoid=9c8ff44a-6a2c-4dfb-b298-1c9212f64d9a&sktid=72f988bf-86f1-41af-91ab-2d7cd011db47&skt=2025-07-17T17%3A11%3A06Z&ske=2025-07-24T17%3A11%3A06Z&sks=b&skv=2024-05-04&sig=nberSkwQxujCOvgYZVLfrdetuH4xNFJ%2Be3/QESR4Vac%3D\' not recognized as being in a supported file format.\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File ""/home/runner/work/global_snowmelt_runoff_onset/global_snowmelt_runoff_onset/processing/scripts/process_single_tile.py"", line 279, in process_tile_github_actions\n    tile_median_temporal_resolution, tile_pixel_count = dask.compute(\n  File ""/home/runner/miniconda3/envs/global_snowmelt_runoff_onset_actions/lib/python3.10/site-packages/dask/base.py"", line 681, in compute\n    results = schedule(expr, keys, **kwargs)\n  File ""/home/runner/miniconda3/envs/global_snowmelt_runoff_onset_actions/lib/python3.10/site-packages/odc/loader/_builder.py"", line 436, in _dask_loader_tyx\n    _fill_nd_slice(\n  File ""/home/runner/miniconda3/envs/global_snowmelt_runoff_onset_actions/lib/python3.10/site-packages/odc/loader/_builder.py"", line 513, in _fill_nd_slice\n    yx_roi, pix = src.read(cfg, dst_gbox, dst=dst, selection=selection)\n  File ""/home/runner/miniconda3/envs/global_snowmelt_runoff_onset_actions/lib/python3.10/site-packages/odc/loader/_rio.py"", line 115, in read\n    return rio_read(self._src, cfg, dst_geobox, dst=dst, selection=selection)\n  File ""/home/runner/miniconda3/envs/global_snowmelt_runoff_onset_actions/lib/python3.10/site-packages/odc/loader/_rio.py"", line 526, in rio_read\n    raise e\n  File ""/home/runner/miniconda3/envs/global_snowmelt_runoff_onset_actions/lib/python3.10/site-packages/odc/loader/_rio.py"", line 512, in rio_read\n    _rio_read(src, cfg, dst_geobox, prep_dst(dst), selection=selection)\n  File ""/home/runner/miniconda3/envs/global_snowmelt_runoff_onset_actions/lib/python3.10/site-packages/odc/loader/_rio.py"", line 560, in _rio_read\n    with rasterio.open(src.uri, ""r"", sharing=False) as rdr:\n  File ""/home/runner/miniconda3/envs/global_snowmelt_runoff_onset_actions/lib/python3.10/site-packages/rasterio/env.py"", line 463, in wrapper\n    return f(*args, **kwds)\n  File ""/home/runner/miniconda3/envs/global_snowmelt_runoff_onset_actions/lib/python3.10/site-packages/rasterio/__init__.py"", line 356, in open\n    dataset = DatasetReader(path, driver=driver, sharing=sharing, **kwargs)\n  File ""rasterio/_base.pyx"", line 312, in rasterio._base.DatasetBase.__init__\nrasterio.errors.RasterioIOError: \'/vsicurl/https://sentinel1euwestrtc.blob.core.windows.net/sentinel1-grd-rtc/GRD/2021/7/18/IW/DV/S1B_IW_GRDH_1SDV_20210718T133742_20210718T133811_027849_0352B8_24C8/measurement/iw-vv.rtc.tiff?st=2025-07-17T00%3A12%3A25Z&se=2025-07-18T00%3A57%3A25Z&sp=rl&sv=2024-05-04&sr=c&skoid=9c8ff44a-6a2c-4dfb-b298-1c9212f64d9a&sktid=72f988bf-86f1-41af-91ab-2d7cd011db47&skt=2025-07-17T17%3A11%3A06Z&ske=2025-07-24T17%3A11%3A06Z&sks=b&skv=2024-05-04&sig=nberSkwQxujCOvgYZVLfrdetuH4xNFJ%2Be3/QESR4Vac%3D\' not recognized as being in a supported file format.\n']"
+17,45,False,0,Batch workflow crashed - processing failed,,,,,,,,,,,,,,,,,,,,
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+16,76,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 977}","{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",26.875,,7.823,8.111,6.372,5.932,6.188,13.461,12.2,16.025,323,0,3928464,3929327,3899188,3905833,3886673,1444986,2709603,6870,1752796695.1269116,868.6259098052979,True,[]
+=======
+15,201,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 236}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",,,13.111,14.575,13.306,14.5,13.129,23.425,,,0,0,4179161,2004365,4177494,1760348,1011,323,,,1752797214.728685,353.062127828598,True,[]
+>>>>>>> c38800df29f4a52b421b7cb20b86213365615f32
+=======
+<<<<<<< HEAD
+15,204,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 285}","{'water_year': 9, 'latitude': 2048, 'longitude': 2048}",27.14,,13.1,11.818,11.864,11.945,17.421,,,,1143345,0,4193990,4149693,4194046,3901092,3886081,0,,0,1752797145.7899063,378.0358958244324,True,[]
+=======
+<<<<<<< HEAD
+16,154,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 823}","{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",16.15,13.85,12.781,12.686,12.357,9.611,12.375,5.997,6.208,8.55,1493953,1501028,4152117,4157434,4154630,3542826,4156557,1861624,1857983,1854609,1752796695.4424343,787.0012397766113,True,[]
+=======
+<<<<<<< HEAD
+16,184,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 290}","{'water_year': 9, 'latitude': 2048, 'longitude': 2048}",,,13.113,11.833,13.306,12.312,11.783,,14.2,,0,0,4193299,4192767,3159838,3156825,1238233,0,393561,,1752797170.27923,295.6979990005493,True,[]
+=======
+<<<<<<< HEAD
+17,155,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 670}","{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",,14.45,5.147,5.906,6.85,6.346,6.796,11.812,12.45,20.625,0,3,3510324,3533060,3504308,3490906,3520687,3354360,3348346,3357080,1752796688.778503,748.5727622509003,True,[]
+=======
+<<<<<<< HEAD
+16,198,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 305}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",25.875,,12.363,12.036,13.106,13.505,12.889,26.038,,,25,0,4192044,978391,4190776,4190780,975384,8,,,1752797081.5848942,311.54011940956116,True,[]
+=======
+<<<<<<< HEAD
+17,156,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 668}","{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",,14.675,7.321,7.579,14.417,6.435,7.0,11.812,12.417,21.45,0,7,4047686,4051193,4002358,4037128,4041221,219354,218728,216161,1752796695.6197739,672.4967048168182,True,[]
+=======
+<<<<<<< HEAD
+17,54,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 538}","{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",22.825,23.125,23.0,6.903,7.0,9.012,6.876,19.7,13.975,15.214,273,214,2469920,3907652,3980089,3937161,3961411,271483,280858,275742,1752796691.781548,604.9101288318634,True,[]
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+16,156,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 671}","{'water_year': 10, 'latitude': 2048, 'longitude': 2048}",,,7.592,7.85,14.417,6.7,7.046,11.719,12.343,21.625,0,0,4168304,4133589,3181641,3705527,4178479,380871,379694,378114,1752796693.0697649,551.6930315494537,True,[]
+=======
+16,203,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 416}","{'water_year': 9, 'latitude': 2048, 'longitude': 2048}",26.55,,13.515,6.95,6.65,16.694,16.217,22.342,,,587,0,4184107,3895172,4189139,1954115,2489705,160,,0,1752796699.6218429,554.3321859836578,True,[]
+=======
+<<<<<<< HEAD
+16,211,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 484}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",27.6,29.625,8.011,12.0,11.009,11.461,12.039,25.5,,,1791188,291665,4193016,4192905,4193213,4192732,4192277,19,,,1752796689.556258,555.3758451938629,True,[]
+>>>>>>> 6dbabd395c8884ab31878dd1825924f7cdeb30b6
+=======
+<<<<<<< HEAD
+17,163,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 414}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",,,6.438,6.925,12.9,7.864,6.6,22.7,,,0,0,3912822,3893167,3815996,3873125,3874185,795,,,1752796688.9646516,538.9112679958344,True,[]
+=======
+<<<<<<< HEAD
+15,205,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 202}","{'water_year': 9, 'latitude': 2048, 'longitude': 2048}",25.94,24.5,13.383,11.818,11.864,11.959,17.314,,,,2718842,2239432,4194299,4194304,4194268,4194278,4192901,0,,0,1752796696.2841527,374.4904327392578,True,[]
+=======
+<<<<<<< HEAD
+16,54,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 322}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",20.05,24.975,14.875,13.167,13.3,17.407,12.94,24.4,,,861,1057,2911,3299669,3621795,3530572,3582207,1045,,,1752796690.5307174,370.5253629684448,True,[]
+=======
+<<<<<<< HEAD
+16,189,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 294}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",28.25,,14.731,11.839,11.856,20.33,11.911,29.3,,,21,0,4191035,4190843,4189945,4118316,4190298,28,,,1752796704.969231,331.194961309433,True,[]
+=======
+<<<<<<< HEAD
+16,185,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 174}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",26.1,,12.887,11.833,13.381,12.156,16.275,24.825,,,360,0,4174830,4169572,4165369,4158032,14,348,,,1752796690.0755641,288.14981627464294,True,[]
+=======
+15,215,100.0,"{'latitude': 2048, 'longitude': 2048, 'time': 221}","{'water_year': 8, 'latitude': 2048, 'longitude': 2048}",25.99,23.88,14.889,12.21,12.215,11.85,13.55,,,,450089,3280674,4193809,1577154,1573948,1574040,1572628,0,,,1752796692.5945277,204.8061752319336,True,[]
+>>>>>>> b5bedba3fe40ab9058cc13f800543d1676379973
+>>>>>>> ac4ac389f8261400880fda32c5d6e47c4cefb724
+>>>>>>> 4a66b604ff378db5ae464848e116e46364dab0c8
+>>>>>>> a86bde3bbe8d40141e8659294127601d54b85007
+>>>>>>> 2b87f50c8cedadaf9b3f942dfe077ea69b09e104
+>>>>>>> df813e8df23369be13d583289153e70f8613e727
+<<<<<<< HEAD
+=======
+>>>>>>> 964ce953e7629d1e4cbca5a1249069480b6a51d1
+>>>>>>> 6dbabd395c8884ab31878dd1825924f7cdeb30b6
+>>>>>>> 3d9faa496f8551d7a7956118778e0537438e8e9d
+>>>>>>> c2c28cccc2ab913de5f1f0c3f926daee448d5995
+>>>>>>> 9b0c92bd5be0699acc7425917ed6c4b8ae8c01f3
+>>>>>>> a882b8a88afd053fe13c1f6863414476056ed56c
+>>>>>>> cfc101afa65c24a7a98fad232e06f2159c52d990
+>>>>>>> 5e46ac2007bcf85d37702189206c8cadc0645ac7
+>>>>>>> 5244e32807e00a3b9b33fd8817cf704dd5d7625b
+>>>>>>> cf95e97b28f2b0251a6ea71936dd1b524ec4a2f7
+>>>>>>> 6e07b56096ecf45dc6f18a5d1081abae412f2f87
+>>>>>>> 4f1f5efbd8fdd424c4aa5d2056172e2240b0dab2
+>>>>>>> 8d54d106a323869dd45d82d1ab32329292718fdb
+>>>>>>> 9ebcd4145a57bd4bb1846d3b2611271f5f115654
+>>>>>>> ee3a174879d3854c886590477115527e04f3223f
+>>>>>>> 7edb8733b146b95829ab8d50602f0c0e9ee6b94e
+>>>>>>> f3d764de740a9a0597e63d323b09beca83f3ebcb
+>>>>>>> 85d754acd0137fc1ffc0006706ad1dc28bbfc05e
+>>>>>>> 1926b4371b2e15f6f738165f3eb22ce8b9201d25
+>>>>>>> d75f80b5bed780803f33e7fe51fd4e4cf37fbac4
+>>>>>>> f013ba2eded401cdee6d5347b5ca1b6092d2d1fd
