@@ -41,6 +41,7 @@ jobs:
     - name: Consolidate artifacts using Python script
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash -l {0}
       run: |
         python processing/scripts/consolidate_artifacts.py github \
           --repo "${{ github.repository }}" \
