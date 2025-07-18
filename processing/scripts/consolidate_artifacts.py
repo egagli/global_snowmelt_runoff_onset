@@ -14,7 +14,7 @@ import pandas as pd
 import argparse
 import requests
 import zipfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def consolidate_local_artifacts(artifacts_dir: str,
@@ -87,7 +87,7 @@ def consolidate_github_artifacts(repo: str, token: str, days_back: int = 7,
     }
     
     # Calculate date threshold
-    cutoff_date = datetime.now() - timedelta(days=days_back)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
     
     try:
         # Get workflow runs
