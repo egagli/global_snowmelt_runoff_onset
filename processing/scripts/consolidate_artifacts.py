@@ -90,42 +90,74 @@ def consolidate_github_artifacts(repo: str, token: str, days_back: int = 7,
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
     
     try:
-        # Get workflow runs
-        runs_url = f"https://api.github.com/repos/{repo}/actions/runs"
-        runs_response = requests.get(runs_url, headers=headers)
-        runs_response.raise_for_status()
-        runs_data = runs_response.json()
-        
+        # Get workflow runs with pagination
         all_artifacts_data = []
+        runs_page = 1
         
-        for run in runs_data['workflow_runs']:
-            # Skip old runs
-            run_date = datetime.fromisoformat(run['created_at'].replace('Z', '+00:00'))
-            if run_date < cutoff_date:
-                continue
-                
-            # Get artifacts for this run
-            artifacts_url = f"https://api.github.com/repos/{repo}/actions/runs/{run['id']}/artifacts"
-            artifacts_response = requests.get(artifacts_url, headers=headers)
-            artifacts_response.raise_for_status()
-            artifacts_data = artifacts_response.json()
+        while True:
+            runs_url = (f"https://api.github.com/repos/{repo}/actions/runs"
+                        f"?per_page=100&page={runs_page}")
+            runs_response = requests.get(runs_url, headers=headers)
+            runs_response.raise_for_status()
+            runs_data = runs_response.json()
             
-            for artifact in artifacts_data['artifacts']:
-                if 'tile-result' in artifact['name']:
-                    print(f"📦 Found artifact: {artifact['name']}")
+            if not runs_data['workflow_runs']:
+                break  # No more runs
+                
+            print(f"📄 Processing workflow runs page {runs_page} "
+                  f"({len(runs_data['workflow_runs'])} runs)")
+            
+            for run in runs_data['workflow_runs']:
+                # Skip old runs
+                run_date = datetime.fromisoformat(
+                    run['created_at'].replace('Z', '+00:00'))
+                if run_date < cutoff_date:
+                    continue
                     
-                    # Download artifact
-                    download_url = artifact['archive_download_url']
-                    download_response = requests.get(download_url, headers=headers)
-                    download_response.raise_for_status()
+                # Get artifacts for this run with pagination
+                artifacts_page = 1
+                while True:
+                    artifacts_url = (
+                        f"https://api.github.com/repos/{repo}/actions/runs/"
+                        f"{run['id']}/artifacts?per_page=100&page="
+                        f"{artifacts_page}")
+                    artifacts_response = requests.get(
+                        artifacts_url, headers=headers)
+                    artifacts_response.raise_for_status()
+                    artifacts_data = artifacts_response.json()
                     
-                    # Extract and process the zip content
-                    with zipfile.ZipFile(io.BytesIO(download_response.content)) as zip_ref:
-                        for file_name in zip_ref.namelist():
-                            if file_name.endswith('.csv'):
-                                with zip_ref.open(file_name) as csv_file:
-                                    df = pd.read_csv(csv_file)
-                                    all_artifacts_data.append(df)
+                    if not artifacts_data['artifacts']:
+                        break  # No more artifacts for this run
+                    
+                    if artifacts_page == 1:
+                        print(f"  📦 Run {run['id']}: found "
+                              f"{artifacts_data['total_count']} artifacts")
+                    
+                    for artifact in artifacts_data['artifacts']:
+                        if 'tile-result' in artifact['name']:
+                            print(f"    ✅ Processing artifact: "
+                                  f"{artifact['name']}")
+                            
+                            # Download artifact
+                            download_url = artifact['archive_download_url']
+                            download_response = requests.get(
+                                download_url, headers=headers)
+                            download_response.raise_for_status()
+                            
+                            # Extract and process the zip content
+                            with zipfile.ZipFile(
+                                    io.BytesIO(download_response.content)
+                                    ) as zip_ref:
+                                for file_name in zip_ref.namelist():
+                                    if file_name.endswith('.csv'):
+                                        with zip_ref.open(
+                                                file_name) as csv_file:
+                                            df = pd.read_csv(csv_file)
+                                            all_artifacts_data.append(df)
+                    
+                    artifacts_page += 1
+            
+            runs_page += 1
         
         # Consolidate all artifact data
         if all_artifacts_data:
