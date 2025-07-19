@@ -154,6 +154,25 @@ def consolidate_github_artifacts(repo: str, token: str, days_back: int = 7,
         print(f"❌ Error processing artifacts: {e}")
         raise
 
+def to_unix_timestamp(value):
+    if isinstance(value, str):
+        # Handle ISO datetime strings - convert to datetime first, then to Unix timestamp
+        try:
+            dt = pd.to_datetime(value)
+            return dt.timestamp()
+        except:
+            # If it's a string that looks like a number, convert to float
+            try:
+                return float(value)
+            except:
+                return None
+    else:
+        # Already a numeric Unix timestamp
+        try:
+            return float(value)
+        except:
+            return None       
+
 
 def _save_consolidated_data(consolidated_data: list, config_version: str) -> None:
     """
@@ -176,6 +195,8 @@ def _save_consolidated_data(consolidated_data: list, config_version: str) -> Non
         
         # Combine with new data
         final_df = pd.concat([existing_df, new_df], ignore_index=True)
+
+        final_df['start_time'] = final_df['start_time'].apply(to_unix_timestamp)
         
         # Remove duplicates based on row/col
         final_df = final_df.sort_values('start_time').drop_duplicates(subset=['row', 'col','success'], keep='last')
