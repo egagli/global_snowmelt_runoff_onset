@@ -283,11 +283,11 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         logging.info(f"Tile pixel count (tile_pixel_count) - "
                      f"{dask_or_computed(tile_pixel_count)}")
 
-        with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
-            tile_median_temporal_resolution, tile_pixel_count = dask.compute(
-                tile_median_temporal_resolution,
-                tile_pixel_count,
-            )
+        # with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
+        #     tile_median_temporal_resolution, tile_pixel_count = dask.compute(
+        #         tile_median_temporal_resolution,
+        #         tile_pixel_count,
+        #     )
 
         # Store temporal resolution metrics
         for water_year in config.water_years:
@@ -386,12 +386,19 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         logging.info(f"Reindexed to global coordinates (runoff_onsets_reindexed_ds) - {dask_or_computed(runoff_onsets_reindexed_ds)}")
 
         # Write to Zarr
-        with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
-            runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
-                config.chunks_zarr_output
-            ).to_zarr(
-                config.global_runoff_store, region="auto", mode="r+", consolidated=True
-            )
+        # with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
+        #     runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
+        #         config.chunks_zarr_output
+        #     ).to_zarr(
+        #         config.global_runoff_store, region="auto", mode="r+", consolidated=True
+        #     )
+        # Write to Zarr
+        runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
+            config.chunks_zarr_output
+        ).to_zarr(
+            config.global_runoff_store, region="auto", mode="r+", consolidated=True
+        )
+        
         logging.info("Results written to global zarr store")
 
         # Record success
