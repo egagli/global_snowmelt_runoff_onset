@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import gc
 import psutil
+import numpy as np
 import xarray as xr
 import odc.stac
 import dask
@@ -187,7 +188,8 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             fail_on_error=True,
         )
 
-        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk(config.chunks_s1_process)
+        # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk(config.chunks_s1_process) we don't do this with the serverless approach
+        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].astype(np.float16)
 
         # Check if lazily loaded
         logging.info(f"Retrieved Sentinel-1 RTC dataset (s1_rtc_ds) - {dask_or_computed(s1_rtc_ds)}")
