@@ -185,7 +185,10 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             end_date=config.end_date,
             chunks_read=config.chunks_s1_read,
             fail_on_error=True,
-        ).chunk(config.chunks_s1_process)
+        )
+
+        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk(config.chunks_s1_process)
+
         # Check if lazily loaded
         logging.info(f"Retrieved Sentinel-1 RTC dataset (s1_rtc_ds) - {dask_or_computed(s1_rtc_ds)}")
         monitor_memory_and_cleanup()
