@@ -353,7 +353,7 @@ def apply_seasonal_snow_spatial_and_temporal_mask(
     """
     s1_rtc_masked_ds = s1_rtc_ds.groupby("water_year").map(
         lambda group: apply_mask_for_year(group, spatiotemporal_snow_cover_mask_ds)
-    )
+    ).dropna(dim="time", how="all")
     s1_rtc_masked_ds.rio.write_crs(s1_rtc_ds.rio.crs, inplace=True)
     return s1_rtc_masked_ds
 
