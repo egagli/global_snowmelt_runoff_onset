@@ -192,7 +192,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         )
 
         # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk(config.chunks_s1_process) we don't do this with the serverless approach
-        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].astype(np.float16)
+        # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].astype(np.float16)
 
         # Check if lazily loaded
         logging.info(f"Retrieved Sentinel-1 RTC dataset (s1_rtc_ds) - {dask_or_computed(s1_rtc_ds)}")
