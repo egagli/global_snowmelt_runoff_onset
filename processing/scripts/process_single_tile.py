@@ -518,7 +518,7 @@ def main():
             for error in result.error_messages:
                 logging.error(f"Error: {error}")
         logging.info("Failed tile results saved to CSV")
-        sys.exit(1)
+        sys.exit(0) # changed to 0 to write csv even on failure. if process crashes, that's when github actions will create a csv
 
 
 if __name__ == "__main__":
