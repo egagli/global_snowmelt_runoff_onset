@@ -270,6 +270,16 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         logging.info(f"Calculated temporal resolution data array "
                      f"(temporal_resolution_da) - {dask_or_computed(temporal_resolution_da)}")
 
+
+        with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
+            temporal_resolution_da = dask.compute(
+                temporal_resolution_da,
+            )
+
+        logging.info(f"Calculated temporal resolution data array post compute"
+                     f"(temporal_resolution_da) - {dask_or_computed(temporal_resolution_da)}")
+
+
         tile_median_temporal_resolution = temporal_resolution_da.median(
             dim=["latitude", "longitude"]
         )
@@ -283,11 +293,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         logging.info(f"Tile pixel count (tile_pixel_count) - "
                      f"{dask_or_computed(tile_pixel_count)}")
 
-        with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
-            tile_median_temporal_resolution, tile_pixel_count = dask.compute(
-                tile_median_temporal_resolution,
-                tile_pixel_count,
-            )
 
         # Store temporal resolution metrics
         for water_year in config.water_years:
@@ -303,10 +308,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
 
 
         logging.info("Computed runoff_onsets_da, median temporal resolution, and pixel count")
-        logging.info(f"Tile median temporal resolution (tile_median_temporal_resolution) - "
-                     f"{dask_or_computed(tile_median_temporal_resolution)}")
-        logging.info(f"Tile pixel count (tile_pixel_count) - "
-                     f"{dask_or_computed(tile_pixel_count)}")
 
         # Calculate runoff onsets
         logging.info("Calculating runoff onsets...")
