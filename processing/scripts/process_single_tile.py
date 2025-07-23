@@ -301,6 +301,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         # Check if lazily loaded
         logging.info(f"Calculated median data array (median_da) - {dask_or_computed(median_da)}")
         logging.info(f"Calculated MAD data array (mad_da) - {dask_or_computed(mad_da)}")
+        monitor_memory_and_cleanup()
 
         # Calculate median temporal resolution
         median_temporal_resolution_da = processing.median_with_min_obs(
@@ -311,6 +312,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         # Check if lazily loaded
         logging.info(f"Calculated median temporal resolution data array "
                      f"(median_temporal_resolution_da) - {dask_or_computed(median_temporal_resolution_da)}")
+        monitor_memory_and_cleanup()
 
         # Create dataset
         runoff_onsets_ds = processing.dataarrays_to_dataset(
@@ -336,6 +338,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                 raise
 
         logging.info(f"Created runoff onsets dataset (runoff_onsets_ds) - {status}")
+        monitor_memory_and_cleanup()
 
         # Reindex to global coordinates
         global_ds = xr.open_zarr(config.global_runoff_store, consolidated=True)
@@ -344,13 +347,13 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             longitude=runoff_onsets_ds.longitude,
             method="nearest",
         )
-
         runoff_onsets_reindexed_ds = runoff_onsets_ds.assign_coords(
             latitude=global_subset_ds.latitude, 
             longitude=global_subset_ds.longitude
         )
 
         logging.info(f"Reindexed to global coordinates (runoff_onsets_reindexed_ds) - {dask_or_computed(runoff_onsets_reindexed_ds)}")
+        monitor_memory_and_cleanup()
 
         # Write to Zarr
         with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
@@ -360,6 +363,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                 config.global_runoff_store, region="auto", mode="r+", consolidated=True
             )
         logging.info("Results written to global zarr store")
+        monitor_memory_and_cleanup()
 
         global_ds = xr.open_zarr(config.global_runoff_store, consolidated=True)
         global_subset_ds = global_ds.sel(
@@ -380,6 +384,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                      f"{dask_or_computed(tile_median_temporal_resolution)}")
         logging.info(f"Tile pixel count (tile_pixel_count) - "
                      f"{dask_or_computed(tile_pixel_count)}")
+        monitor_memory_and_cleanup()
 
 
         # Store temporal resolution metrics
@@ -395,6 +400,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                 setattr(tile, f"pix_ct_{water_year}", int(pixel_count))
 
         logging.info("Tile median temporal resolution and pixel count per water year stored in tile object")
+        monitor_memory_and_cleanup()
 
         # Record success
         tile.total_time = time.time() - start_time
