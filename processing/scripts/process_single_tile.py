@@ -42,18 +42,22 @@ def dask_or_computed(variable):
         # Single DataArray
         is_dask = isinstance(variable.data, dask.array.Array)
         datatype = variable.data.dtype
+        memory_gb = variable.nbytes * 1e-9
+
     elif hasattr(variable, 'data_vars'):
         # Dataset - check if any data variables are dask-backed
         is_dask = any([isinstance(variable[var].data, dask.array.Array)
                       for var in variable.data_vars])
         datatype = variable[list(variable.data_vars)[0]].data.dtype if variable.data_vars else None
+        memory_gb = sum(var.nbytes for var in variable.data_vars.values()) * 1e-9 if variable.data_vars else 0
     else:
         # Not a dask-compatible object
         is_dask = False
-        datatype = None
+        datatype = type(variable)
+        memory_gb = sys.getsizeof(variable) * 1e-9  # Convert bytes to GB
 
-    return (f"[DASK: {variable.nbytes * 1e-9:.2f}GB, dtype: {datatype}]" if is_dask
-            else f"[COMPUTED: {variable.nbytes * 1e-9:.2f}GB, dtype: {datatype}]")
+    return (f"[DASK: {memory_gb:.3f}GB, dtype: {datatype}]" if is_dask
+            else f"[COMPUTED: {memory_gb:.3f}GB, dtype: {datatype}]")
 
 
 def setup_logging(tile_row: int, tile_col: int) -> None:
