@@ -276,9 +276,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
 
 
         with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
-            temporal_resolution_da = dask.compute(
-                temporal_resolution_da,
-            )
+            temporal_resolution_da = temporal_resolution_da.compute()
 
         logging.info(f"Calculated temporal resolution data array post compute"
                      f"(temporal_resolution_da) - {dask_or_computed(temporal_resolution_da)}")
