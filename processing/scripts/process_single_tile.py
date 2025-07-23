@@ -275,42 +275,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                      f"(temporal_resolution_da) - {dask_or_computed(temporal_resolution_da)}")
 
 
-        with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
-            temporal_resolution_da = temporal_resolution_da.compute()
-
-        logging.info(f"Calculated temporal resolution data array post compute"
-                     f"(temporal_resolution_da) - {dask_or_computed(temporal_resolution_da)}")
-
-
-        tile_median_temporal_resolution = temporal_resolution_da.median(
-            dim=["latitude", "longitude"]
-        )
-        tile_pixel_count = temporal_resolution_da.count(
-            dim=["latitude", "longitude"]
-        )
-
-        # Log if these are lazy
-        logging.info(f"Tile median temporal resolution (tile_median_temporal_resolution) - "
-                     f"{dask_or_computed(tile_median_temporal_resolution)}")
-        logging.info(f"Tile pixel count (tile_pixel_count) - "
-                     f"{dask_or_computed(tile_pixel_count)}")
-
-
-        # Store temporal resolution metrics
-        for water_year in config.water_years:
-            if water_year in tile_median_temporal_resolution.water_year:
-                temporal_resolution = tile_median_temporal_resolution.sel(
-                    water_year=water_year
-                ).values
-                setattr(tile, f"tr_{water_year}", round(float(temporal_resolution), 3))
-
-            if water_year in tile_pixel_count.water_year:
-                pixel_count = tile_pixel_count.sel(water_year=water_year).values
-                setattr(tile, f"pix_ct_{water_year}", int(pixel_count))
-
-
-        logging.info("Computed runoff_onsets_da, median temporal resolution, and pixel count")
-
         # Calculate runoff onsets
         logging.info("Calculating runoff onsets...")
         monitor_memory_and_cleanup()
@@ -396,6 +360,41 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                 config.global_runoff_store, region="auto", mode="r+", consolidated=True
             )
         logging.info("Results written to global zarr store")
+
+        global_ds = xr.open_zarr(config.global_runoff_store, consolidated=True)
+        global_subset_ds = global_ds.sel(
+            latitude=runoff_onsets_ds.latitude,
+            longitude=runoff_onsets_ds.longitude,
+            method="nearest",
+        )
+
+        tile_median_temporal_resolution = global_subset_ds['temporal_resolution'].median(
+            dim=["latitude", "longitude"]
+        ).compute()
+        tile_pixel_count = global_subset_ds['temporal_resolution'].count(
+            dim=["latitude", "longitude"]
+        ).compute()
+
+        # Log if these are lazy
+        logging.info(f"Tile median temporal resolution (tile_median_temporal_resolution) - "
+                     f"{dask_or_computed(tile_median_temporal_resolution)}")
+        logging.info(f"Tile pixel count (tile_pixel_count) - "
+                     f"{dask_or_computed(tile_pixel_count)}")
+
+
+        # Store temporal resolution metrics
+        for water_year in config.water_years:
+            if water_year in tile_median_temporal_resolution.water_year:
+                temporal_resolution = tile_median_temporal_resolution.sel(
+                    water_year=water_year
+                ).values
+                setattr(tile, f"tr_{water_year}", round(float(temporal_resolution), 3))
+
+            if water_year in tile_pixel_count.water_year:
+                pixel_count = tile_pixel_count.sel(water_year=water_year).values
+                setattr(tile, f"pix_ct_{water_year}", int(pixel_count))
+
+        logging.info("Tile median temporal resolution and pixel count per water year stored in tile object")
 
         # Record success
         tile.total_time = time.time() - start_time
