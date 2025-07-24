@@ -144,20 +144,20 @@ def monitor_memory_and_cleanup():
     memory_percent = psutil.virtual_memory().percent
     logging.info(f"Current memory usage: {memory_percent:.1f}%")
     
-    if memory_percent > 85:
-        logging.warning(f"High memory usage: {memory_percent:.1f}%. Running cleanup...")
-        gc.collect()
+    # if memory_percent > 85:
+    #     logging.warning(f"High memory usage: {memory_percent:.1f}%. Running cleanup...")
+    #     gc.collect()
         
-        # Force garbage collection for specific types
-        for obj in gc.get_objects():
-            if hasattr(obj, 'close') and callable(obj.close):
-                try:
-                    obj.close()
-                except:
-                    pass
+    #     # Force garbage collection for specific types
+    #     for obj in gc.get_objects():
+    #         if hasattr(obj, 'close') and callable(obj.close):
+    #             try:
+    #                 obj.close()
+    #             except:
+    #                 pass
         
-        memory_after = psutil.virtual_memory().percent
-        logging.info(f"Memory usage after cleanup: {memory_after:.1f}%")
+    #     memory_after = psutil.virtual_memory().percent
+    #     logging.info(f"Memory usage after cleanup: {memory_after:.1f}%")
     
     return memory_percent
 
@@ -270,7 +270,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         monitor_memory_and_cleanup()
         temporal_resolution_da = processing.get_temporal_resolution(
             s1_rtc_masked_filtered_ds, spatiotemporal_snow_cover_mask_ds
-        )
+        ).astype(np.float32)
         # Check if lazily loaded
         logging.info(f"Calculated temporal resolution data array "
                      f"(temporal_resolution_da) - {dask_or_computed(temporal_resolution_da)}")
@@ -283,7 +283,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             processing.calculate_runoff_onset,
             returned_dates_format="dowy",
             return_constituent_runoff_onsets=False,
-        )
+        ).astype(np.float32)
         # Check if lazily loaded
         logging.info(f"Calculated runoff onsets data array "
                      f"(runoff_onsets_da) - {dask_or_computed(runoff_onsets_da)}")
@@ -299,6 +299,10 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             dim="water_year",
             min_count=config.min_years_for_median_std
         )
+
+        median_da = median_da.astype(np.float32)
+        mad_da = mad_da.astype(np.float32)
+
         # Check if lazily loaded
         logging.info(f"Calculated median data array (median_da) - {dask_or_computed(median_da)}")
         logging.info(f"Calculated MAD data array (mad_da) - {dask_or_computed(mad_da)}")
@@ -309,7 +313,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             da=temporal_resolution_da,
             dim="water_year",
             min_count=config.min_years_for_median_std
-        )
+        ).astype(np.float32)
         # Check if lazily loaded
         logging.info(f"Calculated median temporal resolution data array "
                      f"(median_temporal_resolution_da) - {dask_or_computed(median_temporal_resolution_da)}")
