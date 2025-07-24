@@ -6,7 +6,7 @@ on:
       which_tiles_to_process:
         description: 'Which tiles to process'
         required: false
-        default: 'unprocessed'
+        default: 'unprocessed_and_failed_skip_empty_tiles'
         type: choice
         options:
         - all
@@ -14,6 +14,7 @@ on:
         - failed
         - unprocessed
         - unprocessed_and_failed
+        - unprocessed_and_failed_skip_empty_tiles
         - unprocessed_and_failed_weather_stations
       how_many:
         description: 'How many tiles to process (use Small Batch for ≤256)'

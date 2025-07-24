@@ -343,6 +343,7 @@ class Config:
                 - 'failed': Tiles that encountered errors
                 - 'unprocessed': Tiles not yet attempted
                 - 'unprocessed_and_failed': Tiles needing processing or reprocessing
+                - 'unprocessed_and_failed_skip_empty_tiles': Unprocessed/failed tiles that do not have the error message "No such band/alias"
                 - 'unprocessed_and_failed_weather_stations': Unprocessed/failed tiles that contain weather stations
             
         Returns:
@@ -362,6 +363,8 @@ class Config:
             base_tiles = [(row, col, success) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success is np.nan]
         elif which == 'unprocessed_and_failed':
             base_tiles = [(row, col, success) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success) if success is np.nan or success==False]
+        elif which == 'unprocessed_and_failed_skip_empty_tiles':
+            base_tiles = [(row, col, success) for row, col, success, error_messages in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success, self.valid_tiles_gdf.error_messages) if (success is np.nan or success==False) and ('No such band/alias' not in str(error_messages))]
         else:
             raise ValueError("Must choose one of ['all', 'processed', 'failed', 'unprocessed', 'unprocessed_and_failed', 'unprocessed_and_failed_weather_stations']")
         
