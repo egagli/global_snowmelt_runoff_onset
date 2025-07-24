@@ -197,7 +197,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             fail_on_error=True,
         )
 
-        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":100})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
+        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":50})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
         # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].astype(np.float16)
 
         # Check if lazily loaded
@@ -241,7 +241,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                      f"(s1_rtc_masked_ds) - {dask_or_computed(s1_rtc_masked_ds)}")
         monitor_memory_and_cleanup()
 
-        s1_rtc_masked_ds['vv'] = s1_rtc_masked_ds['vv'].chunk({"latitude":256, "longitude": 256, "time": 30}) 
 
         # Remove bad scenes and border noise
         logging.info("Removing bad scenes and border noise...")
