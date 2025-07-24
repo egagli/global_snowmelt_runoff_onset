@@ -241,6 +241,8 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                      f"(s1_rtc_masked_ds) - {dask_or_computed(s1_rtc_masked_ds)}")
         monitor_memory_and_cleanup()
 
+        s1_rtc_masked_ds['vv'] = s1_rtc_masked_ds['vv'].chunk({"latitude":256, "longitude": 256, "time": 30}) 
+
         # Remove bad scenes and border noise
         logging.info("Removing bad scenes and border noise...")
         s1_rtc_masked_ds = processing.remove_bad_scenes_and_border_noise(
