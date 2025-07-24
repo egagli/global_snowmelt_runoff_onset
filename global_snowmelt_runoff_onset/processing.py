@@ -662,8 +662,8 @@ def xr_datetime_to_DOWY(
         vectorized_dowy_calc,
         date_da,
         vectorize=False,
-        dask="parallelized",
-        output_dtypes=[float],
+        dask="allowed",
+        output_dtypes=[np.int16],
         dask_gufunc_kwargs={"output_sizes": {}},
     )
 
