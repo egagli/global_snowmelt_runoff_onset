@@ -283,7 +283,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             processing.calculate_runoff_onset,
             returned_dates_format="dowy",
             return_constituent_runoff_onsets=False,
-        ).astype(np.float32)
+        )#.astype(np.float32)
         # Check if lazily loaded
         logging.info(f"Calculated runoff onsets data array "
                      f"(runoff_onsets_da) - {dask_or_computed(runoff_onsets_da)}")
