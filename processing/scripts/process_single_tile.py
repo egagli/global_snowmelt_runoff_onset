@@ -361,7 +361,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         monitor_memory_and_cleanup()
 
         # Write to Zarr
-        with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
+        with dask.config.set({"pool":ThreadPoolExecutor(16), "scheduler":"threads", 'array.chunk-size': '512MB'}):
             runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
                 config.chunks_zarr_output
             ).to_zarr(
