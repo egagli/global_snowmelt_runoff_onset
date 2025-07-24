@@ -379,10 +379,14 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
 
         tile_median_temporal_resolution = global_subset_ds['temporal_resolution'].median(
             dim=["latitude", "longitude"]
-        ).compute()
+        )
         tile_pixel_count = global_subset_ds['temporal_resolution'].count(
             dim=["latitude", "longitude"]
-        ).compute()
+        )
+
+        tile_median_temporal_resolution, tile_pixel_count = dask.compute(
+            tile_median_temporal_resolution, tile_pixel_count
+        )
 
         # Log if these are lazy
         logging.info(f"Tile median temporal resolution (tile_median_temporal_resolution) - "
