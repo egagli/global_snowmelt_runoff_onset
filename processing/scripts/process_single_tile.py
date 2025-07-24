@@ -197,7 +197,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             fail_on_error=True,
         )
 
-        # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":300})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
+        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":100})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
         # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].astype(np.float16)
 
         # Check if lazily loaded
@@ -236,8 +236,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk(chunks="auto"),#.chunk({"latitude": 128, "longitude": 128, "water_year": 1}),
             water_years=config.water_years,
         )
-        # probably very necessary to chunk here because s1_rtc_masked_ds chunking is 1 for time, NOT optimal
-        s1_rtc_masked_ds['vv'] = s1_rtc_masked_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":100})
 
         # Check if lazily loaded
         logging.info(f"Applied all masks to S1 RTC dataset "
@@ -254,6 +252,13 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         logging.info(f"Removed bad scenes and border noise from S1 RTC "
                      f"dataset (s1_rtc_masked_ds) - {dask_or_computed(s1_rtc_masked_ds)}")
         monitor_memory_and_cleanup()
+
+        if s1_rtc_ds.attrs['hemisphere'] == 'northern':
+            resamp = "YS-OCT"
+        else:
+            resamp = "YS-APR"
+
+        s1_rtc_masked_ds['vv'] = s1_rtc_masked_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":xr.groupers.TimeResampler(resamp)})
 
         # Filter by acquisitions and gaps
         logging.info("Filtering by acquisitions and gaps...")
