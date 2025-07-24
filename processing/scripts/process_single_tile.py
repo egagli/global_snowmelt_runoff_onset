@@ -232,7 +232,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         s1_rtc_masked_ds = processing.apply_all_masks(
             s1_rtc_ds=s1_rtc_ds,
             gmba_clipped_gdf=gmba_clipped_gdf,
-            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds,#.chunk({"latitude": 128, "longitude": 128, "water_year": 1}),
+            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk(chunks="auto"),#.chunk({"latitude": 128, "longitude": 128, "water_year": 1}),
             water_years=config.water_years,
         )
         # Check if lazily loaded
