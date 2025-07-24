@@ -197,9 +197,16 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             fail_on_error=True,
         )
 
-        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":100})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
+        #s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":100})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
         # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].astype(np.float16)
 
+        if s1_rtc_ds.attrs['hemisphere'] == 'northern':
+            resamp = "YS-OCT"
+        else:
+            resamp = "YS-APR"
+
+        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 256, "longitude": 256, "time":xr.groupers.TimeResampler(resamp)})
+        
         # Check if lazily loaded
         logging.info(f"Retrieved Sentinel-1 RTC dataset (s1_rtc_ds) - {dask_or_computed(s1_rtc_ds)}")
         monitor_memory_and_cleanup()
@@ -233,7 +240,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         s1_rtc_masked_ds = processing.apply_all_masks(
             s1_rtc_ds=s1_rtc_ds,
             gmba_clipped_gdf=gmba_clipped_gdf,
-            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk(chunks="auto"),#.chunk({"latitude": 128, "longitude": 128, "water_year": 1}),
+            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":256,"longitude":256,"water_year":1}),
             water_years=config.water_years,
         )
 
@@ -252,13 +259,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         logging.info(f"Removed bad scenes and border noise from S1 RTC "
                      f"dataset (s1_rtc_masked_ds) - {dask_or_computed(s1_rtc_masked_ds)}")
         monitor_memory_and_cleanup()
-
-        if s1_rtc_ds.attrs['hemisphere'] == 'northern':
-            resamp = "YS-OCT"
-        else:
-            resamp = "YS-APR"
-
-        s1_rtc_masked_ds['vv'] = s1_rtc_masked_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":xr.groupers.TimeResampler(resamp)})
 
         # Filter by acquisitions and gaps
         logging.info("Filtering by acquisitions and gaps...")
