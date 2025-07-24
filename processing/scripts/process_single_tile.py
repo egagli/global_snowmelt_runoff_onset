@@ -361,12 +361,17 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         monitor_memory_and_cleanup()
 
         # Write to Zarr
-        with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
-            runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
-                config.chunks_zarr_output
-            ).to_zarr(
-                config.global_runoff_store, region="auto", mode="r+", consolidated=True
-            )
+        # with dask.config.set(pool=ThreadPoolExecutor(16), scheduler="threads"):
+        #     runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
+        #         config.chunks_zarr_output
+        #     ).to_zarr(
+        #         config.global_runoff_store, region="auto", mode="r+", consolidated=True
+        #     )
+        runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
+            config.chunks_zarr_output
+        ).to_zarr(
+            config.global_runoff_store, region="auto", mode="r+", consolidated=True
+        )
         logging.info("Results written to global zarr store")
         monitor_memory_and_cleanup()
 
