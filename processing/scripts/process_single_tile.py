@@ -50,6 +50,7 @@ def dask_or_computed(variable):
         is_dask = any([isinstance(variable[var].data, dask.array.Array)
                       for var in variable.data_vars])
         datatype = variable[list(variable.data_vars)[0]].data.dtype if variable.data_vars else None
+        datatype = {variable.name: variable.dtype for variable in variable.data_vars.values()} if is_dask else None
         memory_gb = sum(var.nbytes for var in variable.data_vars.values()) * 1e-9 if variable.data_vars else 0
     else:
         # Not a dask-compatible object
