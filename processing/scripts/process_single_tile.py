@@ -22,6 +22,7 @@ import xarray as xr
 import odc.stac
 import dask
 import dask.array
+import flox
 
 # Add the parent directory to Python path to import our modules
 sys.path.append(str(Path(__file__).parent.parent.parent))
