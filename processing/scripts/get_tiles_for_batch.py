@@ -150,7 +150,7 @@ def main():
     parser.add_argument("--which-tiles", type=str,
                         default="unprocessed",
                         choices=['all', 'processed', 'failed', 'unprocessed',
-                                'unprocessed_and_failed',
+                                'unprocessed_and_failed', 'unprocessed_and_failed_skip_empty_tiles',
                                 'unprocessed_and_failed_weather_stations'],
                         help="Which tiles to process")
     parser.add_argument("--how-many", type=int,
