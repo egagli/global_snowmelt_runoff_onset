@@ -194,10 +194,10 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             start_date=config.start_date,
             end_date=config.end_date,
             chunks_read=config.chunks_s1_read,
-            fail_on_error=True,
+            fail_on_error=False,
         )
 
-        #s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":100})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
+        # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":100})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
         # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].astype(np.float16)
 
         if s1_rtc_ds.attrs['hemisphere'] == 'northern':
