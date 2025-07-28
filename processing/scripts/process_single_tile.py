@@ -205,7 +205,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         else:
             resamp = "YS-APR"
 
-        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":30}) # xr.groupers.TimeResampler(resamp)
+        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":10}) # xr.groupers.TimeResampler(resamp)
         
         # Check if lazily loaded
         logging.info(f"Retrieved Sentinel-1 RTC dataset (s1_rtc_ds) - {dask_or_computed(s1_rtc_ds)}")
