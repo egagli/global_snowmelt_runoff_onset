@@ -208,8 +208,8 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         #     thread_count = 4
         #     s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 256, "longitude": 256, "time":50})
 
-        thread_count = 8
-        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 256, "longitude": 256, "time":200})
+        #thread_count = 8
+        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":50})
 
         # Check if lazily loaded
         logging.info(f"Retrieved Sentinel-1 RTC dataset (s1_rtc_ds) - {dask_or_computed(s1_rtc_ds)}")
@@ -375,12 +375,12 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         monitor_memory_and_cleanup()
 
         # Write to Zarr
-        with dask.config.set({"pool":ThreadPoolExecutor(thread_count), "scheduler":"threads", 'array.chunk-size': '512MB'}):
-            runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
-                config.chunks_zarr_output
-            ).to_zarr(
-                config.global_runoff_store, region="auto", mode="r+", consolidated=True
-            )
+        #with dask.config.set({"pool":ThreadPoolExecutor(thread_count), "scheduler":"threads", 'array.chunk-size': '512MB'}):
+        runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
+            config.chunks_zarr_output
+        ).to_zarr(
+            config.global_runoff_store, region="auto", mode="r+", consolidated=True
+        )
         logging.info("Results written to global zarr store")
         monitor_memory_and_cleanup()
 
