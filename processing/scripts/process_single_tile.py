@@ -186,7 +186,12 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         # Configure ODC for cloud access
         odc.stac.configure_rio(cloud_defaults=True)
 
-        dask.config.set({"array.chunk-size": "512MiB"})
+        dask.config.set({"array.chunk-size": "512MiB",
+                         "temporary-directory": "/tmp",
+                         "optimization.fuse.active": False,
+                         "scheduler": "threads",
+                         "pool": ThreadPoolExecutor(16),
+                         })
 
         # Get Sentinel-1 data
         logging.info("Retrieving Sentinel-1 data...")
