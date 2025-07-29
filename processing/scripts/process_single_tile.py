@@ -193,7 +193,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             bands=config.bands,
             start_date=config.start_date,
             end_date=config.end_date,
-            chunks_read=config.chunks_s1_read,
+            chunks_read={"x": 2048, "y": 2048, "time":30},#config.chunks_s1_read,
             fail_on_error=True,
         )
 
@@ -387,7 +387,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                 )
         else:
             logging.info("Writing to global Zarr store with default scheduler...")
-            with dask.config.set({"scheduler": which_scheduler, "array.chunk-size": "512MiB"}):
+            with dask.config.set({"array.chunk-size": "512MiB"}):
                 runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
                     config.chunks_zarr_output
                 ).to_zarr(
