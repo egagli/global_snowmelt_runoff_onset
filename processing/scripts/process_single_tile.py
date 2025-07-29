@@ -186,7 +186,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         # Configure ODC for cloud access
         odc.stac.configure_rio(cloud_defaults=True)
 
-        dask.config.set({"array.chunk-size": "128MiB",
+        dask.config.set({"array.chunk-size": "64MiB",
                          "temporary-directory": "/tmp",
                          "optimization.fuse.active": False,
                          "scheduler": "threads",
