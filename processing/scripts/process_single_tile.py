@@ -197,7 +197,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             fail_on_error=False,
         )
 
-        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 128, "longitude": 128, "time":1})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
+        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":30})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
         # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].astype(np.float16)
 
         # if s1_rtc_ds.attrs['hemisphere'] == 'northern':
@@ -240,7 +240,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         s1_rtc_masked_ds = processing.apply_all_masks(
             s1_rtc_ds=s1_rtc_ds,
             gmba_clipped_gdf=gmba_clipped_gdf,
-            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":128,"longitude":128,"water_year":1}),
+            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":512,"longitude":512,"water_year":1}),
             water_years=config.water_years,
         )
 
@@ -371,12 +371,12 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         monitor_memory_and_cleanup()
 
         # Write to Zarr
-        with dask.config.set({"pool":ThreadPoolExecutor(16), "scheduler":"threads", 'array.chunk-size': '512MB'}):
-            runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
-                config.chunks_zarr_output
-            ).to_zarr(
-                config.global_runoff_store, region="auto", mode="r+", consolidated=True
-            )
+        #with dask.config.set({"pool":ThreadPoolExecutor(16), "scheduler":"threads", 'array.chunk-size': '512MB'}):
+        runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
+            config.chunks_zarr_output
+        ).to_zarr(
+            config.global_runoff_store, region="auto", mode="r+", consolidated=True
+        )
         logging.info("Results written to global zarr store")
         monitor_memory_and_cleanup()
 
