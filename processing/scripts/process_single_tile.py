@@ -186,6 +186,8 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         # Configure ODC for cloud access
         odc.stac.configure_rio(cloud_defaults=True)
 
+        dask.config.set({"array.chunk-size": "512MiB"})
+
         # Get Sentinel-1 data
         logging.info("Retrieving Sentinel-1 data...")
         s1_rtc_ds = processing.get_sentinel1_rtc(
@@ -193,7 +195,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             bands=config.bands,
             start_date=config.start_date,
             end_date=config.end_date,
-            chunks_read={"x": 2048, "y": 2048, "time":30},#config.chunks_s1_read,
+            chunks_read=config.chunks_s1_read,
             fail_on_error=True,
         )
 
@@ -206,7 +208,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         #     s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":30})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
         # else:
         #     thread_count = 4
-        #     s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 256, "longitude": 256, "time":50})
+        s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk(chunks="auto")
 
         thread_count = 16
         which_scheduler = 'threads'
@@ -387,12 +389,11 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                 )
         else:
             logging.info("Writing to global Zarr store with default scheduler...")
-            with dask.config.set({"array.chunk-size": "512MiB"}):
-                runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
-                    config.chunks_zarr_output
-                ).to_zarr(
-                    config.global_runoff_store, region="auto", mode="r+", consolidated=True
-                )
+            runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
+                config.chunks_zarr_output
+            ).to_zarr(
+                config.global_runoff_store, region="auto", mode="r+", consolidated=True
+            )
 
         logging.info("Results written to global zarr store")
         monitor_memory_and_cleanup()
