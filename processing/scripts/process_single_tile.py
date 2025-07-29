@@ -193,7 +193,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             bands=config.bands,
             start_date=config.start_date,
             end_date=config.end_date,
-            chunks_read={'x':2048,'y':2048,'time':10},#config.chunks_s1_read,
+            chunks_read=config.chunks_s1_read,
             fail_on_error=True,
         )
 
