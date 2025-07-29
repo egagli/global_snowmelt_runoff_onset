@@ -193,7 +193,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             bands=config.bands,
             start_date=config.start_date,
             end_date=config.end_date,
-            chunks_read={'x':512,'y':512,'time':1},#config.chunks_s1_read,
+            chunks_read={'x':1024,'y':1024,'time':1},#config.chunks_s1_read,
             fail_on_error=False,
         )
 
@@ -240,7 +240,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         s1_rtc_masked_ds = processing.apply_all_masks(
             s1_rtc_ds=s1_rtc_ds,
             gmba_clipped_gdf=gmba_clipped_gdf,
-            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":512,"longitude":512,"water_year":1}),
+            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":1024,"longitude":1024,"water_year":1}),
             water_years=config.water_years,
         )
 
