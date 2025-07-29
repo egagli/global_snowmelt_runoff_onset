@@ -193,7 +193,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             bands=config.bands,
             start_date=config.start_date,
             end_date=config.end_date,
-            chunks_read=config.chunks_s1_read, #{'x':256,'y':256,'time':50},#config.chunks_s1_read,
+            chunks_read={'x':2048,'y':2048,'time':'auto'},#config.chunks_s1_read,
             fail_on_error=True,
         )
 
@@ -208,8 +208,9 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         #     thread_count = 4
         #     s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 256, "longitude": 256, "time":50})
 
-        thread_count = 4
+        thread_count = 16
         which_scheduler = 'threads'
+        #which_scheduler = 'processes'
         #s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 256, "longitude": 256, "time":1})
 
         # Check if lazily loaded
@@ -378,7 +379,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         # Write to Zarr
         if which_scheduler == 'threads':
             logging.info(f"Writing to global Zarr store with threads scheduler with {thread_count} threads...")
-            with dask.config.set({"pool":ThreadPoolExecutor(thread_count), "scheduler":"threads"}):
+            with dask.config.set({"pool":ThreadPoolExecutor(thread_count), "scheduler":which_scheduler, "array.chunk-size": "512MiB"}):
                 runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
                     config.chunks_zarr_output
                 ).to_zarr(
@@ -386,11 +387,12 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                 )
         else:
             logging.info("Writing to global Zarr store with default scheduler...")
-            runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
-                config.chunks_zarr_output
-            ).to_zarr(
-                config.global_runoff_store, region="auto", mode="r+", consolidated=True
-            )
+            with dask.config.set({"scheduler": which_scheduler, "array.chunk-size": "512MiB"}):
+                runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
+                    config.chunks_zarr_output
+                ).to_zarr(
+                    config.global_runoff_store, region="auto", mode="r+", consolidated=True
+                )
 
         logging.info("Results written to global zarr store")
         monitor_memory_and_cleanup()
