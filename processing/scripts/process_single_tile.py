@@ -234,7 +234,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             extend_search_window_beyond_SDD_days=config.extend_search_window_beyond_SDD_days,
             min_consec_snow_days_for_seasonal_snow=config.min_consec_snow_days_for_seasonal_snow,
             reproject_method=config.seasonal_snow_mask_reproject_method,
-        ).persist()
+        ).compute()
         # Check if lazily loaded (should be computed/eager after .compute())
         logging.info(f"Retrieved spatiotemporal snow cover mask dataset "
                      f"(spatiotemporal_snow_cover_mask_ds) - {dask_or_computed(spatiotemporal_snow_cover_mask_ds)}")
