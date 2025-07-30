@@ -173,6 +173,8 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
     try:
         # Import after modules are available
         import global_snowmelt_runoff_onset.processing as processing
+        import pystac_client
+        import planetary_computer
 
         start_time = time.time()
 
@@ -183,9 +185,42 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         logging.info(f"Processing tile ({tile_row}, {tile_col})")
         monitor_memory_and_cleanup()
 
+        items = (
+            pystac_client.Client.open(
+                "https://planetarycomputer.microsoft.com/api/stac/v1",
+                modifier=planetary_computer.sign_inplace,
+            )
+            .search(
+                intersects=tile.geobox.geographic_extent,
+                collections=["sentinel-1-rtc"],
+                datetime=("2015-10-01", "2024-09-30"),
+            )
+            .item_collection()
+        )
+
+        number_of_stac_items = len(items)
+
+        logging.info(f"Found {number_of_stac_items} STAC Items for tile ({tile_row}, {tile_col})")
+
+        if number_of_stac_items < 1200:
+            thread_count = 16
+        elif number_of_stac_items < 2000:
+            thread_count = 8
+        else:
+            thread_count = 4
+
+        logging.info(f"Using {thread_count} threads for processing based on number of STAC items: {number_of_stac_items}")
+
+        dask.config.set({"array.chunk-size": "128MiB",
+                         "temporary-directory": "/tmp",
+                         "optimization.fuse.active": False,
+                         "scheduler": "threads",
+                         "pool": ThreadPoolExecutor(thread_count),
+                         })
+
+
         # Configure ODC for cloud access
         odc.stac.configure_rio(cloud_defaults=True)
-
 
         # Get Sentinel-1 data
         logging.info("Retrieving Sentinel-1 data...")
@@ -198,33 +233,12 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             fail_on_error=False,
         )
 
-
         # Check if lazily loaded
         logging.info(f"Retrieved Sentinel-1 RTC dataset (s1_rtc_ds) - {dask_or_computed(s1_rtc_ds)}")
         monitor_memory_and_cleanup()
 
         tile.s1_rtc_ds_dims = dict(s1_rtc_ds.sizes)
         logging.info(f"Sentinel-1 RTC dataset dimensions: {tile.s1_rtc_ds_dims}")
-
-        time_dim_length = len(s1_rtc_ds.time)
-
-        if time_dim_length < 1200:
-            thread_count = 16
-        elif time_dim_length < 2000:
-            thread_count = 8
-        else:
-            thread_count = 4
-
-        logging.info(f"Using {thread_count} threads for processing based on time dimension length: {time_dim_length}")
-
-        dask.config.set({"array.chunk-size": "128MiB",
-                         "temporary-directory": "/tmp",
-                         "optimization.fuse.active": False,
-                         "scheduler": "threads",
-                         "pool": ThreadPoolExecutor(thread_count),
-                         })
-
-
 
         # Get spatiotemporal snow cover mask
         logging.info("Getting spatiotemporal snow cover mask...")
@@ -261,7 +275,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                      f"(s1_rtc_masked_ds) - {dask_or_computed(s1_rtc_masked_ds)}")
         monitor_memory_and_cleanup()
 
-
         # Remove bad scenes and border noise
         logging.info("Removing bad scenes and border noise...")
         s1_rtc_masked_ds = processing.remove_bad_scenes_and_border_noise(
@@ -296,7 +309,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         # Check if lazily loaded
         logging.info(f"Calculated temporal resolution data array "
                      f"(temporal_resolution_da) - {dask_or_computed(temporal_resolution_da)}")
-
 
         # Calculate runoff onsets
         logging.info("Calculating runoff onsets...")
@@ -416,7 +428,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         logging.info(f"Tile pixel count (tile_pixel_count) - "
                      f"{dask_or_computed(tile_pixel_count)}")
         monitor_memory_and_cleanup()
-
 
         # Store temporal resolution metrics
         for water_year in config.water_years:
