@@ -185,40 +185,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         logging.info(f"Processing tile ({tile_row}, {tile_col})")
         monitor_memory_and_cleanup()
 
-        items = (
-            pystac_client.Client.open(
-                "https://planetarycomputer.microsoft.com/api/stac/v1",
-                modifier=planetary_computer.sign_inplace,
-            )
-            .search(
-                intersects=tile.geobox.geographic_extent,
-                collections=["sentinel-1-rtc"],
-                datetime=("2015-10-01", "2024-09-30"),
-            )
-            .item_collection()
-        )
-
-        number_of_stac_items = len(items)
-
-        logging.info(f"Found {number_of_stac_items} STAC Items for tile ({tile_row}, {tile_col})")
-
-        if number_of_stac_items < 1200:
-            thread_count = 16
-        elif number_of_stac_items < 2000:
-            thread_count = 8
-        else:
-            thread_count = 4
-
-        logging.info(f"Using {thread_count} threads for processing based on number of STAC items: {number_of_stac_items}")
-
-        dask.config.set({"array.chunk-size": "128MiB",
-                         "temporary-directory": "/tmp",
-                         "optimization.fuse.active": False,
-                         "scheduler": "threads",
-                         "pool": ThreadPoolExecutor(thread_count),
-                         })
-
-
         # Configure ODC for cloud access
         odc.stac.configure_rio(cloud_defaults=True)
 
@@ -230,7 +196,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             start_date=config.start_date,
             end_date=config.end_date,
             chunks_read=config.chunks_s1_read,
-            fail_on_error=False,
+            fail_on_error=True,
         )
 
         # Check if lazily loaded
@@ -239,6 +205,25 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
 
         tile.s1_rtc_ds_dims = dict(s1_rtc_ds.sizes)
         logging.info(f"Sentinel-1 RTC dataset dimensions: {tile.s1_rtc_ds_dims}")
+
+        length_of_time_dimension = len(s1_rtc_ds.time)
+        if length_of_time_dimension < 1200:
+            thread_count = 16
+        elif length_of_time_dimension < 2000:
+            thread_count = 8
+        elif length_of_time_dimension < 3400:
+            thread_count = 4
+        else:
+            thread_count = 2
+
+        logging.info(f"Using {thread_count} threads for processing based on length of time dimension: {length_of_time_dimension}")
+
+        dask.config.set({"array.chunk-size": "128MiB",
+                         "temporary-directory": "/tmp",
+                         "optimization.fuse.active": False,
+                         "scheduler": "threads",
+                         "pool": ThreadPoolExecutor(thread_count),
+                         })        
 
         # Get spatiotemporal snow cover mask
         logging.info("Getting spatiotemporal snow cover mask...")
@@ -249,7 +234,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             extend_search_window_beyond_SDD_days=config.extend_search_window_beyond_SDD_days,
             min_consec_snow_days_for_seasonal_snow=config.min_consec_snow_days_for_seasonal_snow,
             reproject_method=config.seasonal_snow_mask_reproject_method,
-        ).compute()
+        ).persist()
         # Check if lazily loaded (should be computed/eager after .compute())
         logging.info(f"Retrieved spatiotemporal snow cover mask dataset "
                      f"(spatiotemporal_snow_cover_mask_ds) - {dask_or_computed(spatiotemporal_snow_cover_mask_ds)}")
@@ -266,7 +251,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         s1_rtc_masked_ds = processing.apply_all_masks(
             s1_rtc_ds=s1_rtc_ds,
             gmba_clipped_gdf=gmba_clipped_gdf,
-            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":2048,"longitude":2048,"water_year":1}),
+            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":1024,"longitude":1024,"water_year":1}),
             water_years=config.water_years,
         )
 
