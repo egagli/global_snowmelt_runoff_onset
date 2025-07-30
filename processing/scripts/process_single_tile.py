@@ -186,12 +186,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         # Configure ODC for cloud access
         odc.stac.configure_rio(cloud_defaults=True)
 
-        dask.config.set({"array.chunk-size": "128MiB",
-                         "temporary-directory": "/tmp",
-                         "optimization.fuse.active": False,
-                         "scheduler": "threads",
-                         "pool": ThreadPoolExecutor(8),
-                         })
 
         # Get Sentinel-1 data
         logging.info("Retrieving Sentinel-1 data...")
@@ -201,24 +195,9 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             start_date=config.start_date,
             end_date=config.end_date,
             chunks_read=config.chunks_s1_read,
-            fail_on_error=True,
+            fail_on_error=False,
         )
 
-        time_dim_length = len(s1_rtc_ds.time)
-
-        # if time_dim_length < 1200:
-        #     thread_count = 16
-        # elif time_dim_length < 1800:
-        #     thread_count = 8
-        #     s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":30})# .chunk(config.chunks_s1_process) we don't do this with the serverless approach
-        # else:
-        #     thread_count = 4
-        # s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 1024, "longitude": 1024, "time":1})
-
-        thread_count = 16
-        which_scheduler = 'threads'
-        which_scheduler = 'processes'
-        #s1_rtc_ds['vv'] = s1_rtc_ds['vv'].chunk({"latitude": 256, "longitude": 256, "time":1})
 
         # Check if lazily loaded
         logging.info(f"Retrieved Sentinel-1 RTC dataset (s1_rtc_ds) - {dask_or_computed(s1_rtc_ds)}")
@@ -226,6 +205,26 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
 
         tile.s1_rtc_ds_dims = dict(s1_rtc_ds.sizes)
         logging.info(f"Sentinel-1 RTC dataset dimensions: {tile.s1_rtc_ds_dims}")
+
+        time_dim_length = len(s1_rtc_ds.time)
+
+        if time_dim_length < 1200:
+            thread_count = 16
+        elif time_dim_length < 2000:
+            thread_count = 8
+        else:
+            thread_count = 4
+
+        logging.info(f"Using {thread_count} threads for processing based on time dimension length: {time_dim_length}")
+
+        dask.config.set({"array.chunk-size": "128MiB",
+                         "temporary-directory": "/tmp",
+                         "optimization.fuse.active": False,
+                         "scheduler": "threads",
+                         "pool": ThreadPoolExecutor(thread_count),
+                         })
+
+
 
         # Get spatiotemporal snow cover mask
         logging.info("Getting spatiotemporal snow cover mask...")
@@ -384,21 +383,11 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         monitor_memory_and_cleanup()
 
         # Write to Zarr
-        if which_scheduler == 'threads':
-            logging.info(f"Writing to global Zarr store with threads scheduler with {thread_count} threads...")
-            with dask.config.set({"pool":ThreadPoolExecutor(thread_count), "scheduler":which_scheduler, "array.chunk-size": "512MiB"}):
-                runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
-                    config.chunks_zarr_output
-                ).to_zarr(
-                    config.global_runoff_store, region="auto", mode="r+", consolidated=True
-                )
-        else:
-            logging.info("Writing to global Zarr store with default scheduler...")
-            runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
-                config.chunks_zarr_output
-            ).to_zarr(
-                config.global_runoff_store, region="auto", mode="r+", consolidated=True
-            )
+        runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
+            config.chunks_zarr_output
+        ).to_zarr(
+            config.global_runoff_store, region="auto", mode="r+", consolidated=True
+        )
 
         logging.info("Results written to global zarr store")
         monitor_memory_and_cleanup()
