@@ -216,14 +216,14 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         else:
             thread_count = 2
 
-        logging.info(f"Using {thread_count} threads for processing based on length of time dimension: {length_of_time_dimension}")
+        # logging.info(f"Using {thread_count} threads for processing based on length of time dimension: {length_of_time_dimension}")
 
-        dask.config.set({"array.chunk-size": "128MiB",
-                         "temporary-directory": "/tmp",
-                         "optimization.fuse.active": False,
-                         "scheduler": "threads",
-                         "pool": ThreadPoolExecutor(thread_count),
-                         })        
+        # dask.config.set({"array.chunk-size": "128MiB",
+        #                  "temporary-directory": "/tmp",
+        #                  "optimization.fuse.active": False,
+        #                  "scheduler": "threads",
+        #                  "pool": ThreadPoolExecutor(thread_count),
+        #                  })        
 
         # Get spatiotemporal snow cover mask
         logging.info("Getting spatiotemporal snow cover mask...")
