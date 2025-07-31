@@ -216,15 +216,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         else:
             thread_count = 2
 
-        # logging.info(f"Using {thread_count} threads for processing based on length of time dimension: {length_of_time_dimension}")
-
-        # dask.config.set({"array.chunk-size": "128MiB",
-        #                  "temporary-directory": "/tmp",
-        #                  "optimization.fuse.active": False,
-        #                  "scheduler": "threads",
-        #                  "pool": ThreadPoolExecutor(thread_count),
-        #                  })        
-
         # Get spatiotemporal snow cover mask
         logging.info("Getting spatiotemporal snow cover mask...")
         spatiotemporal_snow_cover_mask_ds = processing.get_spatiotemporal_snow_cover_mask(
@@ -235,7 +226,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             min_consec_snow_days_for_seasonal_snow=config.min_consec_snow_days_for_seasonal_snow,
             reproject_method=config.seasonal_snow_mask_reproject_method,
         ).compute()
-        # Check if lazily loaded (should be computed/eager after .compute())
+        # Check if lazily loaded (should be computed after .compute())
         logging.info(f"Retrieved spatiotemporal snow cover mask dataset "
                      f"(spatiotemporal_snow_cover_mask_ds) - {dask_or_computed(spatiotemporal_snow_cover_mask_ds)}")
         monitor_memory_and_cleanup()
@@ -251,7 +242,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         s1_rtc_masked_ds = processing.apply_all_masks(
             s1_rtc_ds=s1_rtc_ds,
             gmba_clipped_gdf=gmba_clipped_gdf,
-            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":1024,"longitude":1024,"water_year":1}),
+            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":512,"longitude":512,"water_year":1}),
             water_years=config.water_years,
         )
 
@@ -380,11 +371,20 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         monitor_memory_and_cleanup()
 
         # Write to Zarr
-        runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
-            config.chunks_zarr_output
-        ).to_zarr(
-            config.global_runoff_store, region="auto", mode="r+", consolidated=True
-        )
+        
+        logging.info(f"Using {thread_count} threads for processing based on length of time dimension: {length_of_time_dimension}")
+
+        with dask.config.set({# "array.chunk-size": "128MiB",
+                               "temporary-directory": "/tmp",
+                               # "optimization.fuse.active": False,
+                               "scheduler": "threads",
+                               "pool": ThreadPoolExecutor(thread_count),
+                               }):
+            runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
+                config.chunks_zarr_output
+            ).to_zarr(
+                config.global_runoff_store, region="auto", mode="r+", consolidated=True
+            )
 
         logging.info("Results written to global zarr store")
         monitor_memory_and_cleanup()
