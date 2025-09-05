@@ -199,7 +199,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             fail_on_error=True,
         )
         
-        s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": 512, "longitude": 512, "time":60})
+        s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": 256, "longitude": 256, "time":60})
 
         # resources on computation and chunking.....
         # https://icclim.readthedocs.io/en/stable/how_to/dask.html
