@@ -199,6 +199,11 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             fail_on_error=True,
         )
 
+        # resources on computation and chunking.....
+        # https://icclim.readthedocs.io/en/stable/how_to/dask.html
+        # https://tutorial.xarray.dev/intermediate/xarray_and_dask.html
+        # https://gist.github.com/mrocklin/c1fd89575b40c055a9be77b2a47894df
+
         # Check if lazily loaded
         logging.info(f"Retrieved Sentinel-1 RTC dataset (s1_rtc_ds) - {dask_or_computed(s1_rtc_ds)}")
         monitor_memory_and_cleanup()
@@ -206,6 +211,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         tile.s1_rtc_ds_dims = dict(s1_rtc_ds.sizes)
         logging.info(f"Sentinel-1 RTC dataset dimensions: {tile.s1_rtc_ds_dims}")
 
+        # does this even work
         length_of_time_dimension = len(s1_rtc_ds.time)
         if length_of_time_dimension < 1200:
             thread_count = 16
@@ -215,6 +221,9 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             thread_count = 4
         else:
             thread_count = 2
+            
+        # override thread count for testing for testing
+        thread_count = 16
 
         # Get spatiotemporal snow cover mask
         logging.info("Getting spatiotemporal snow cover mask...")
