@@ -58,8 +58,8 @@ def dask_or_computed(variable):
         datatype = type(variable)
         memory_gb = sys.getsizeof(variable) * 1e-9  # Convert bytes to GB
 
-    return (f"[DASK: {memory_gb:.3f}GB, dtype: {datatype}]" if is_dask
-            else f"[COMPUTED: {memory_gb:.3f}GB, dtype: {datatype}]")
+    return (f"[DASK: {memory_gb:.3f}GB, dtype: {datatype}, chunks: {variable.chunks}]"
+            if is_dask else f"[COMPUTED: {memory_gb:.3f}GB, dtype: {datatype}]")
 
 
 def setup_logging(tile_row: int, tile_col: int) -> None:
@@ -200,7 +200,9 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         )
         
         s1_spatial_chunk_dim_gh_actions = 1024
-        s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, "longitude": s1_spatial_chunk_dim_gh_actions, "time":10})
+        s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, 
+                                               "longitude": s1_spatial_chunk_dim_gh_actions, 
+                                               "time":30})
 
         # resources on computation and chunking.....
         # https://icclim.readthedocs.io/en/stable/how_to/dask.html
