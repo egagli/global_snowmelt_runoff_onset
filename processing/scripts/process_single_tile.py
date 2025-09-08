@@ -199,11 +199,11 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             fail_on_error=True,
         )
         
-        s1_spatial_chunk_dim_gh_actions = 1024
+        s1_spatial_chunk_dim_gh_actions = 256
         mask_chunk_dim_gh_actions = 256#512
-        # s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, 
-        #                                        "longitude": s1_spatial_chunk_dim_gh_actions, 
-        #                                        "time":1})
+        s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, 
+                                               "longitude": s1_spatial_chunk_dim_gh_actions, 
+                                               "time":xr.groupers.TimeResampler('YS-OCT')}) # maybe fix if generalizing so works for SH not just NH
 
         # resources on computation and chunking.....
         # https://icclim.readthedocs.io/en/stable/how_to/dask.html
@@ -287,10 +287,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                 min_monthly_acquisitions=config.min_monthly_acquisitions,
                 max_allowed_days_gap_per_orbit=config.max_allowed_days_gap_per_orbit,
             )
-        ).chunk({"latitude":mask_chunk_dim_gh_actions,
-                 "longitude":mask_chunk_dim_gh_actions,
-                 "time":"auto"})
-        
+        )
         # Check if lazily loaded
         logging.info(f"Filtered S1 RTC dataset by acquisitions and gaps "
                      f"(s1_rtc_masked_filtered_ds) - {dask_or_computed(s1_rtc_masked_filtered_ds)}")
