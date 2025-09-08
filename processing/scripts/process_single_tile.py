@@ -200,7 +200,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         )
         
         s1_spatial_chunk_dim_gh_actions = 1024
-        mask_chunk_dim_gh_actions = 512
+        mask_chunk_dim_gh_actions = 256#512
         # s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, 
         #                                        "longitude": s1_spatial_chunk_dim_gh_actions, 
         #                                        "time":1})
