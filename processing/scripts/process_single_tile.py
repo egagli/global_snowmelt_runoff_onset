@@ -287,7 +287,10 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
                 min_monthly_acquisitions=config.min_monthly_acquisitions,
                 max_allowed_days_gap_per_orbit=config.max_allowed_days_gap_per_orbit,
             )
-        )
+        ).chunk({"latitude":mask_chunk_dim_gh_actions,
+                 "longitude":mask_chunk_dim_gh_actions,
+                 "time":"auto"})
+        
         # Check if lazily loaded
         logging.info(f"Filtered S1 RTC dataset by acquisitions and gaps "
                      f"(s1_rtc_masked_filtered_ds) - {dask_or_computed(s1_rtc_masked_filtered_ds)}")
@@ -391,7 +394,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         
         logging.info(f"Using {thread_count} threads for processing based on length of time dimension: {length_of_time_dimension}")
 
-        with dask.config.set({# "array.chunk-size": "128MiB",
+        with dask.config.set({ "array.chunk-size": "128MiB",
                                "temporary-directory": "/tmp",
                                # "optimization.fuse.active": False,
                                "scheduler": "threads",
