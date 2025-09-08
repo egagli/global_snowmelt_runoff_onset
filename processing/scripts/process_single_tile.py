@@ -391,7 +391,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         
         logging.info(f"Using {thread_count} threads for processing based on length of time dimension: {length_of_time_dimension}")
 
-        with dask.config.set({ "array.chunk-size": "128MiB",
+        with dask.config.set({ #"array.chunk-size": "128MiB",
                                "temporary-directory": "/tmp",
                                # "optimization.fuse.active": False,
                                "scheduler": "threads",
