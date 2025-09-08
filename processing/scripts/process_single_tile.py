@@ -200,9 +200,10 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         )
         
         s1_spatial_chunk_dim_gh_actions = 1024
-        s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, 
-                                               "longitude": s1_spatial_chunk_dim_gh_actions, 
-                                               "time":1})
+        mask_chunk_dim_gh_actions = 512
+        # s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, 
+        #                                        "longitude": s1_spatial_chunk_dim_gh_actions, 
+        #                                        "time":1})
 
         # resources on computation and chunking.....
         # https://icclim.readthedocs.io/en/stable/how_to/dask.html
@@ -256,7 +257,9 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         s1_rtc_masked_ds = processing.apply_all_masks(
             s1_rtc_ds=s1_rtc_ds,
             gmba_clipped_gdf=gmba_clipped_gdf,
-            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":s1_spatial_chunk_dim_gh_actions,"longitude":s1_spatial_chunk_dim_gh_actions,"water_year":1}),
+            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":mask_chunk_dim_gh_actions,
+                                                                                       "longitude":mask_chunk_dim_gh_actions,
+                                                                                       "water_year":1}),
             water_years=config.water_years,
         )
 
