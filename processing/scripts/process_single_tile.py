@@ -199,11 +199,11 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             fail_on_error=True,
         )
         
-        s1_spatial_chunk_dim_gh_actions = 256
-        mask_chunk_dim_gh_actions = 256#512
+        s1_spatial_chunk_dim_gh_actions = 512
+        mask_chunk_dim_gh_actions = 512#512
         s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, 
                                                "longitude": s1_spatial_chunk_dim_gh_actions, 
-                                               "time":xr.groupers.TimeResampler('YS-OCT')}) # maybe fix if generalizing so works for SH not just NH
+                                               "time":40}) # maybe fix if generalizing so works for SH not just NH
 
         # resources on computation and chunking.....
         # https://icclim.readthedocs.io/en/stable/how_to/dask.html
