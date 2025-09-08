@@ -195,15 +195,15 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             bands=config.bands,
             start_date=config.start_date,
             end_date=config.end_date,
-            chunks_read=config.chunks_s1_read,
+            chunks_read={'x': 2048, 'y': 2048, 'time': 2},#config.chunks_s1_read,
             fail_on_error=True,
         )
         
         s1_spatial_chunk_dim_gh_actions = 1024
         mask_chunk_dim_gh_actions = 512#512
-        s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, 
-                                               "longitude": s1_spatial_chunk_dim_gh_actions, 
-                                               "time":10}) # maybe fix if generalizing so works for SH not just NH
+        # s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, 
+        #                                        "longitude": s1_spatial_chunk_dim_gh_actions, 
+        #                                        "time":10}) # maybe fix if generalizing so works for SH not just NH
 
         # resources on computation and chunking.....
         # https://icclim.readthedocs.io/en/stable/how_to/dask.html
