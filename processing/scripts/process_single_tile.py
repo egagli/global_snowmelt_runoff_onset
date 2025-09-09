@@ -230,7 +230,6 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             
         # override thread count for testing for testing
         thread_count = 16
-        thread_count = 8
 
         # Get spatiotemporal snow cover mask
         logging.info("Getting spatiotemporal snow cover mask...")
