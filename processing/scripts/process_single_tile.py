@@ -195,7 +195,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             bands=config.bands,
             start_date=config.start_date,
             end_date=config.end_date,
-            chunks_read={'x': 256, 'y': 256, 'time': 10},#config.chunks_s1_read,
+            chunks_read={'x': 512, 'y': 512, 'time': 10},#config.chunks_s1_read,
             fail_on_error=True,
         )
         
@@ -230,6 +230,7 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
             
         # override thread count for testing for testing
         thread_count = 16
+        thread_count = 8
 
         # Get spatiotemporal snow cover mask
         logging.info("Getting spatiotemporal snow cover mask...")
