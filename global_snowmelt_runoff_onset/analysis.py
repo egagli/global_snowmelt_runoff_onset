@@ -191,14 +191,17 @@ def create_utm_datacube(tile, global_ds, mask_nodata=True):
     return tile_utm_ds
 
 
-def create_and_save_analysis_parquet(tile, filename, filesystem, global_ds, ee_credentials):
+def create_and_save_analysis_parquet(tile, filename, filesystem, global_ds, ee_credentials,base_path="snowmelt/analysis/parquets/tiles"):
     logger.info(f"Processing {filename}")
     ee.Initialize(ee_credentials, opt_url='https://earthengine-highvolume.googleapis.com')
 
     try:
         tile_utm_ds = create_utm_datacube(tile, global_ds)
         tile_utm_df = dataset_to_dataframe(tile, tile_utm_ds)
-        tile_utm_df.to_parquet(f"snowmelt/analysis/tiles/{filename}",filesystem=filesystem)
+        
+        output_path = f"{base_path}/{filename}"
+        tile_utm_df.to_parquet(output_path, filesystem=filesystem)
+        
         logger.info(f"Saved {filename}")
         return filename, True
     except Exception as e:
