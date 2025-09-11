@@ -18,6 +18,9 @@ import adlfs
 import os
 import ee
 from typing import List, Tuple, Dict, Any, Union, Optional
+import warnings
+from datetime import datetime, timezone
+from urllib.parse import parse_qs, unquote
 
 
 class Config:
@@ -220,6 +223,8 @@ class Config:
                 raise ValueError("Azure SAS token not found in environment "
                                  "variable AZURE_STORAGE_SAS_TOKEN or "
                                  "config/sas_token.txt")
+                
+        self._check_sas_token_expiration()
         
         # Azure storage account name from environment or default
         account_name = os.getenv('AZURE_STORAGE_ACCOUNT', 'snowmelt')
@@ -247,6 +252,51 @@ class Config:
         self.seasonal_snow_mask_store = self.azure_blob_fs.get_mapper(
             self.seasonal_snow_mask_zarr_store_azure_path)
         self._load_valid_tiles()
+        
+    def _check_sas_token_expiration(self) -> None:
+        """
+        Check if the SAS token is expired or about to expire.
+        
+        Parses the SAS token to extract the expiration date and warns the user
+        if the token is expired or expires within 24 hours.
+        """
+        try:
+            # Parse the SAS token parameters
+            # Remove any leading '?' if present
+            token = self.sas_token.lstrip('?')
+            params = parse_qs(token)
+            
+            if 'se' not in params:
+                warnings.warn("SAS token does not contain expiration date (se parameter)")
+                return
+            
+            # Get expiration date string and decode URL encoding
+            expiration_str = unquote(params['se'][0])
+            
+            # Parse the expiration date (format: 2025-09-15T17:18Z)
+            expiration_dt = datetime.strptime(expiration_str, '%Y-%m-%dT%H:%MZ')
+            expiration_dt = expiration_dt.replace(tzinfo=timezone.utc)
+            
+            # Get current time in UTC
+            current_dt = datetime.now(timezone.utc)
+            
+            # Calculate time difference
+            time_until_expiry = expiration_dt - current_dt
+            hours_until_expiry = time_until_expiry.total_seconds() / 3600
+            
+            if hours_until_expiry < 0:
+                # Token is expired
+                raise ValueError(f"SAS token is EXPIRED! Expired {abs(hours_until_expiry):.1f} hours ago on {expiration_dt.strftime('%Y-%m-%d %H:%M UTC')}")
+            elif hours_until_expiry < 24:
+                # Token expires soon
+                warnings.warn(f"SAS token expires in {hours_until_expiry:.1f} hours on {expiration_dt.strftime('%Y-%m-%d %H:%M UTC')}. "
+                             "Consider renewing it soon.")
+            else:
+                # Token is valid for a while
+                print(f"SAS token is valid until {expiration_dt.strftime('%Y-%m-%d %H:%M UTC')} ({hours_until_expiry:.1f} hours)")
+                
+        except Exception as e:
+            warnings.warn(f"Could not parse SAS token expiration date: {e}")
 
     def _load_valid_tiles(self) -> None:
         """
@@ -265,10 +315,12 @@ class Config:
 
     def _print_config(self) -> None:
         """Print configuration summary."""
+        print("-" * 40)
         print("Configuration loaded:")
         for section in self.config.sections():
             for key, value in self.config[section].items():
                 print(f"{key} = {value}")
+        print("-" * 40)
 
     @property
     def azure_blob_fs(self) -> adlfs.AzureBlobFileSystem:
