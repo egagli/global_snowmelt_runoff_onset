@@ -106,40 +106,54 @@ def add_mountain_range_and_basin_and_continent(tile,ds):
     url = (f"https://data.earthenv.org/mountains/standard/GMBA_Inventory_v2.0_standard_300.zip")
     gmba_clipped_gdf = gpd.read_file("zip+" + url, mask=tile.bbox_gdf).clip(tile.bbox_gdf)
 
-    out_grid = make_geocube(
-        vector_data=gmba_clipped_gdf,
-        measurements=["GMBA_V2_ID"],
-        resolution=(-0.0003, 0.0003),
-    )
+    if gmba_clipped_gdf.empty:
+        print(f"tile {tile.row},{tile.col} has no mountain ranges, filling with -9999")
+        ds['GMBA_V2_ID'] = xr.full_like(ds['dem'], fill_value=-9999, dtype=np.int16)
+    else:
+        out_grid = make_geocube(
+            vector_data=gmba_clipped_gdf,
+            measurements=["GMBA_V2_ID"],
+            resolution=(-0.0003, 0.0003),
+        )
 
-    ds['GMBA_V2_ID'] = out_grid['GMBA_V2_ID'].rio.reproject_match(ds['dem'],resampling=rasterio.enums.Resampling.mode)
+        ds['GMBA_V2_ID'] = out_grid['GMBA_V2_ID'].rio.reproject_match(ds['dem'],resampling=rasterio.enums.Resampling.mode)
 
-    basins_gdf = easysnowdata.hydroclimatology.get_hydroBASINS(level=5)
+    #basins_gdf = easysnowdata.hydroclimatology.get_hydroBASINS(level=5)
+    url = 'https://figshare.com/ndownloader/files/20082137/BasinATLAS_Data_v10.gdb.zip'
+    basins_gdf = gpd.read_file("zip+" + url, mask=tile.bbox_gdf, layer="BasinATLAS_v10_lev05")
     basins_clipped_gdf = basins_gdf.clip(tile.bbox_gdf)
 
-    out_grid = make_geocube(
-        vector_data=basins_clipped_gdf,
-        measurements=["PFAF_ID"],
-        resolution=(-0.0003, 0.0003),
-    )
-
-    ds['PFAF_ID'] = out_grid['PFAF_ID'].rio.reproject_match(ds['dem'],resampling=rasterio.enums.Resampling.mode)
-
+    if basins_clipped_gdf.empty:
+        print(f"tile {tile.row},{tile.col} has no basins, filling with -9999")
+        ds['PFAF_ID'] = xr.full_like(ds['dem'], fill_value=-9999, dtype=np.int32)
+    else:
+        out_grid = make_geocube(
+            vector_data=basins_clipped_gdf,
+            measurements=["PFAF_ID"],
+            resolution=(-0.0003, 0.0003),
+        )
+        
+        ds['PFAF_ID'] = out_grid['PFAF_ID'].rio.reproject_match(ds['dem'],resampling=rasterio.enums.Resampling.mode)
 
     continents_gdf = gpd.read_file(f"zip+https://pubs.usgs.gov/of/2006/1187/basemaps/continents/continents.zip")
     continents = list(np.unique(list(continents_gdf.CONTINENT)))
     categorical_enums = {'CONTINENT': continents}
     continents_clipped_gdf = continents_gdf.clip(tile.bbox_gdf)
-
-    out_grid = make_geocube(
-        vector_data=continents_clipped_gdf,
-        measurements=["CONTINENT"],
-        resolution=(-0.0003, 0.0003),
-        categorical_enums=categorical_enums
+    
+    if continents_clipped_gdf.empty:
+        print(f"tile {tile.row},{tile.col} has no continents, filling with -9999")
+        ds['continent'] = xr.full_like(ds['dem'], fill_value=-9999, dtype=np.int16)
         
-    ).where(lambda x: x >= 0)
+    else:
+        out_grid = make_geocube(
+            vector_data=continents_clipped_gdf,
+            measurements=["CONTINENT"],
+            resolution=(-0.0003, 0.0003),
+            categorical_enums=categorical_enums
+            
+        ).where(lambda x: x >= 0)
 
-    ds['continent'] = out_grid['CONTINENT'].rio.reproject_match(ds['dem'],resampling=rasterio.enums.Resampling.mode)
+        ds['continent'] = out_grid['CONTINENT'].rio.reproject_match(ds['dem'],resampling=rasterio.enums.Resampling.mode)
 
     return ds
 
@@ -155,9 +169,9 @@ def dataset_to_dataframe(tile,ds):
     df['tile_col'] = tile.col
 
     # change these as we include/exclude new vars
-    df = df[["tile_row","tile_col","original_lat","original_lon","runoff_onset_WY2015","runoff_onset_WY2016","runoff_onset_WY2017","runoff_onset_WY2018","runoff_onset_WY2019","runoff_onset_WY2020","runoff_onset_WY2021","runoff_onset_WY2022","runoff_onset_WY2023","runoff_onset_WY2024","runoff_onset_median","runoff_onset_mad","dem","aspect","slope","chili","snow_classification","esa_worldcover","forest_cover_fraction","GMBA_V2_ID","PFAF_ID","continent"]]
+    df = df[["tile_row","tile_col","original_lat","original_lon","runoff_onset_WY2015","runoff_onset_WY2016","runoff_onset_WY2017","runoff_onset_WY2018","runoff_onset_WY2019","runoff_onset_WY2020","runoff_onset_WY2021","runoff_onset_WY2022","runoff_onset_WY2023","runoff_onset_WY2024","runoff_onset_median","temporal_resolution_median","runoff_onset_mad","dem","aspect","slope","chili","snow_classification","esa_worldcover","forest_cover_fraction","GMBA_V2_ID","PFAF_ID","continent"]]
     
-    columns_to_round = [col for col in df.columns if col not in ['original_lat', 'original_lon', 'runoff_onset_mad', 'chili', "PFAF_ID"]]
+    columns_to_round = [col for col in df.columns if col not in ['original_lat', 'original_lon', 'runoff_onset_mad','temporal_resolution_median', 'chili', "PFAF_ID"]]
     df[columns_to_round] = df[columns_to_round].replace([np.inf, -np.inf, np.nan], -9999)
     df[columns_to_round] = df[columns_to_round].round().astype(np.int16)
 
@@ -166,6 +180,7 @@ def dataset_to_dataframe(tile,ds):
     df['original_lon'] = df['original_lon'].round(4).astype(np.float32)
     df['chili'] = df['chili'].round(4).astype(np.float32)
     df['runoff_onset_mad'] = df['runoff_onset_mad'].round(2).astype(np.float32)
+    df['temporal_resolution_median'] = df['temporal_resolution_median'].round(2).astype(np.float32)
 
     # for col in df.columns:
     #     if df[col].dtype == 'int64':
@@ -177,7 +192,7 @@ def dataset_to_dataframe(tile,ds):
 
 
 def create_utm_datacube(tile, global_ds, mask_nodata=True):
-    tile_ds = global_ds.rio.clip_box(*tile.get_geobox().boundingbox,crs='EPSG:4326')
+    tile_ds = global_ds.rio.clip_box(*tile.get_geobox().boundingbox,crs='EPSG:4326').drop_vars(['temporal_resolution'])
     tile_ds = add_coordinate_arrays(tile_ds)
     utm_crs = tile_ds.rio.estimate_utm_crs()
     tile_utm_ds = tile_ds.rio.reproject(utm_crs,resolution=80,resampling=rasterio.enums.Resampling.bilinear)
