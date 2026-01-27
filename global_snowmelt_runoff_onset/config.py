@@ -227,7 +227,7 @@ class Config:
         self._check_sas_token_expiration()
         
         # Azure storage account name from environment or default
-        account_name = os.getenv('AZURE_STORAGE_ACCOUNT', 'snowmelt')
+        account_name = os.getenv('AZURE_STORAGE_ACCOUNT', 'uwcryo')
         
         # Earth Engine credentials (optional - only used if available)
         ee_key_path = self._resolve_repo_path('config/ee_key.json')
