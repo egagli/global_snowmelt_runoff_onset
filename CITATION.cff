@@ -8,6 +8,9 @@ authors:
     email: egagli@uw.edu
     affiliation: University of Washington
     orcid: "https://orcid.org/0000-0002-4362-6260"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.19115464
 repository-code: "https://github.com/egagli/global_snowmelt_runoff_onset"
 url: "https://github.com/egagli/global_snowmelt_runoff_onset"
 abstract: "Global 80-meter resolution dataset of snowmelt runoff onset timing from Sentinel-1 SAR and MODIS snow phenology for water years 2015-2024."
