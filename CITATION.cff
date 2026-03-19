@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "Global snowmelt runoff onset from Sentinel-1 SAR, 2015-2024"
+authors:
+  - given-names: Eric
+    family-names: Gagliano
+    email: egagli@uw.edu
+    affiliation: University of Washington
+    orcid: "https://orcid.org/0000-0002-4362-6260"
+repository-code: "https://github.com/egagli/global_snowmelt_runoff_onset"
+url: "https://github.com/egagli/global_snowmelt_runoff_onset"
+abstract: "Global 80-meter resolution dataset of snowmelt runoff onset timing from Sentinel-1 SAR and MODIS snow phenology for water years 2015-2024."
+keywords:
+  - snow
+  - snowmelt
+  - runoff onset
+  - sentinel-1
+  - sar
+  - modis
+  - remote sensing
+  - hydrology
+  - cryosphere
+version: "0.1"
+date-released: "2026-03-19"
