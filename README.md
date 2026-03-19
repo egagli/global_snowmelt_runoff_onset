@@ -1,5 +1,8 @@
 # Global snowmelt runoff onset from Sentinel-1 SAR, 2015-2024
 
+[![DOI](https://zenodo.org/badge/873255484.svg)](https://doi.org/10.5281/zenodo.19115464)
+
+
 Eric Gagliano (egagli@uw.edu)
 
 ---
