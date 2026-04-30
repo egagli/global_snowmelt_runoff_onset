@@ -1,0 +1,82 @@
+"Evgeny Melnikov's legends for land-id",,
+"land-id is a 8 digit number.  The first two digits code zone, the third & fourth code landscape, the fifth-seventh code lithology, the eight codes substrate chemistry",,
+"Zones",,
+"Arc/Info code","Map code","Description"
+11,"A","high arctic tundra (subzone 1)"
+12,"AT","northern arctic tundra (subzone 2)"
+13,"AT""","northern hypoarctic tundra (subzone 3)"
+14,"T'","southern hypoarctic tundra (subzone 4)"
+15,"T""","southern hypoarctic tundra (subzone 5)"
+21,"MA","mountains high arctic tundra (subzone 1)"
+22,"MAT'","mountains northern arctic tundra (subzone 2)"
+23,"MAT""","mountains northern hypoarctic tundra (subzone 3)"
+24,"MT'","mountains southern hypoarctic tundra (subzone 4)"
+25,"MT""","mountains southern hypoarctic tundra (subzone 5)"
+26,"MFT","mountains northern forest tundra (stlanik, subzone 6))"
+20,"G","ice caps and glaciers"
+30,"L","lakes"
+,,
+"Landscape",,
+"Code",,"Description"
+"Lov plains, created mainly by most recent submergence",,
+1,,"marine and icy marine (m, gm)"
+2,,"fluvial, lacustrine-fluvial and lacustrine (a,l,la)"
+3,,"glacial (till) and glaciofluvial (g,f)"
+"High plains and plateau",,
+4,,
+5,,"fluvial, lacustrine-fluvial and lacustrine (a,l,la)"
+6,,"glacial (till) and glaciofluvial (g,f)"
+7,,"erosional-denudational"
+8,,"landscapes of tablelands and plateuas with a prevalence of most recent upwarping and block emergence"
+"Intermontane and foothill plain",,
+9,,"marine (m)"
+10,,"fluvial, lacustrine-fluvial and lacustrine (a,l,la)"
+11,,"glacial (till) and glaciofluvial (g,f)"
+12,,"deluvial, alluvial-proluvial and solifluctional (d,ap,s)"
+13,,"accumulative undifferentiated"
+"Mountains (low middle and high)",,
+14,,"erosional-denudational (melkosopochnik)"
+15,,"table mountain, mountains of denudation, mountain ranges and chain"
+,,
+,,
+"Lithology (soils/rocks)",,
+"Unlithified rocks (soils)",,
+1,"p","peat"
+2,"c","clay and silt"
+3,,
+4,"s","sand"
+5,"d","coarse clastic deposits (debris)"
+"Lithified rocks",,
+6,"r","bedrock"
+7,"k","karst-able rocks (carbonates)"
+"Arc/Info code","Map code",
+120,"pc",
+124,"pcs",
+125,"pcd",
+140,"ps",
+142,"psc",
+200,"c",
+209,"c/kr",
+240,"cs",
+245,"csd",
+250,"cd",
+258,"cd/r",
+400,"s",
+420,"sc",
+421,"scp",
+425,"scd",
+429,"sc/kr",
+450,"sd",
+458,"sd/r",
+488,"sc/r",
+500,"d",
+580,"d/r",
+590,"d/kr",
+600,"r",
+670,"rk",
+,,
+"Features of soils/rocks",,
+"Arc/Info code","Map code","Description"
+1,"cross-hatching","acidic magmatic bedrock"
+2,"bar-hatching","acidic & mafic magmatic bedrock"
+5,"x-hatching","saline"
