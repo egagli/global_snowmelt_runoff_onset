@@ -1,0 +1,84 @@
+[workspace]
+name = "global-snowmelt-runoff-onset"
+version = "0.1.0"
+description = "Global snowmelt runoff onset dataset and processing pipeline"
+authors = ["Eric Gagliano <egagli@uw.edu>"]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64"]
+
+[dependencies]
+python = ">=3.11"
+odc-stac = ">=0.4"
+rioxarray = "*"
+xarray = "*"
+bottleneck = "*"
+dask = "*"
+netcdf4 = "*"
+h5netcdf = "*"
+fsspec = "*"
+cftime = "*"
+pooch = "*"
+scipy = "*"
+zarr = "*"
+pystac = "*"
+pystac-client = "*"
+coiled = "*"
+geodatasets = "*"
+adlfs = "*"
+easysnowdata = ">=0.0.24,<0.0.25"
+flox = "*"
+geopandas = "*"
+shapely = "*"
+pyproj = "*"
+geocube = "*"
+numpy = "*"
+pandas = "*"
+tqdm = "*"
+requests = "*"
+planetary-computer = "*"
+odc-geo = "*"
+azure-storage-blob = "*"
+earthengine-api = "*"
+ipywidgets = "*"
+
+
+[pypi-dependencies]
+global-snowmelt-runoff-onset = { path = ".", editable = true }
+
+[feature.dev.dependencies]
+jupyterlab = "*"
+matplotlib = "*"
+ipywidgets = "*"
+contextily = "*"
+folium = "*"
+rasterio = "*"
+
+[feature.ci.dependencies]
+python = "3.11.*"
+numpy = "*"
+pandas = "*"
+xarray = "*"
+dask = "*"
+geopandas = "*"
+rasterio = "*"
+tqdm = "*"
+requests = "*"
+pystac-client = "*"
+planetary-computer = "*"
+odc-stac = ">=0.4"
+odc-geo = "*"
+zarr = "*"
+azure-storage-blob = "*"
+adlfs = "*"
+shapely = "*"
+earthengine-api = "*"
+easysnowdata = ">=0.0.24,<0.0.25"
+flox = "*"
+
+[environments]
+default = { features = ["dev"] }
+ci = { features = ["ci"], solve-group = "ci" }
+
+[tasks]
+lab = "jupyter lab"
+setup-kernel = "python ~/setup_kernel.py"

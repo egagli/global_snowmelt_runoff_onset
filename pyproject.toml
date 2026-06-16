@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "global-snowmelt-runoff-onset"
+version = "0.1.0"
+description = "Global snowmelt runoff onset dataset pipeline"
+authors = [{ name = "Eric Gagliano", email = "egagli@uw.edu" }]
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
