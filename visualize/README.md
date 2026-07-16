@@ -7,7 +7,7 @@ Global hillshade in robinson projection for visualization is in `data/global_hil
 Notebook to download hillshade is `data/download_and_preprocess_hillshade.ipynb`
 
 
-Manuscript figure "Figure 2. Global snowmelt runoff onset composite products." can be found at `global/figures/global_all_composites_robinson.png` and figure creation code is in `global/global_composites.ipynb`
+Manuscript figure "Figure 2. Global snowmelt runoff onset composite products." can be found at `global/figures/global_all_composites_robinson_wide.png` and figure creation code is in `global/global_composites.ipynb`
 
 Manuscript figure "Figure 3. Polar stereographic projection of 10-year median snowmelt runoff onset date for the Northern Hemisphere." can be found at `global/figures/global_composite_median_polar.png` and figure creation code is in `global/global_composites.ipynb`
 
