@@ -60,6 +60,36 @@ SAR backscatter minima from Sentinel-1 indicate snowmelt runoff onset when liqui
 - **Snow phenology:** [https://zenodo.org/records/15692530](https://zenodo.org/records/15692530)  
 - **Source code:** [https://github.com/egagli/global_snowmelt_runoff_onset](https://github.com/egagli/global_snowmelt_runoff_onset)
 
+## Repository structure
+
+This repository is the single home for everything behind the manuscript — dataset creation, dataset evaluation, and figure/table generation. Every folder has its own `README.md` with more detail; this table maps manuscript content to where it lives.
+
+```text
+global_snowmelt_runoff_onset/
+├── global_snowmelt_runoff_onset/   # core Python package (config, processing, plotting)
+├── processing/                     # tile-based dataset creation pipeline + GH Actions scripts
+├── dataset/                        # references to the published Zarr store
+├── dataset_utils/                  # utilities for accessing/subsetting/exporting the published dataset
+├── dataset_evaluation/             # evaluation against snow pillows, NorSWE, passive microwave, etc.
+├── analysis/                       # dataset-construction analyses and manuscript figures (Fig. 1)
+├── visualize/                      # global composite figures (Fig. 2, 3, A2, A3, A4)
+├── config/                         # versioned processing configuration files
+└── .github/workflows/              # GitHub Actions tile-processing pipeline
+```
+
+| Manuscript item | Where it lives |
+| --- | --- |
+| Fig. 1 (workflow diagram panels) | [`analysis/methods_fig.ipynb`](analysis/methods_fig.ipynb) |
+| Fig. 2, 3, A2, A3, A4 (global composites) | [`visualize/`](visualize/README.md) |
+| Fig. 4, 5 (station residual binning + evaluation) | [`dataset_evaluation/compare_to_all_public_snow_pillows/`](dataset_evaluation/compare_to_all_public_snow_pillows/README.md) |
+| Fig. 6 (passive microwave comparison) | [`dataset_evaluation/compare_to_passive/`](dataset_evaluation/compare_to_passive/README.md) |
+| Fig. A1 (single-station case study) | [`dataset_evaluation/compare_to_snotel/`](dataset_evaluation/compare_to_snotel/README.md) |
+| Fig. A5 (network representativeness) | [`dataset_evaluation/compare_to_all_public_snow_pillows/`](dataset_evaluation/compare_to_all_public_snow_pillows/README.md) |
+| Table 1 (spatial coverage / temporal resolution) | [`dataset_evaluation/calculate_spatial_coverage_and_temporal_resolution/`](dataset_evaluation/calculate_spatial_coverage_and_temporal_resolution/README.md) |
+| Dataset creation methodology (Sect. 2.2) | [`processing/`](processing/README.md), [`global_snowmelt_runoff_onset/`](global_snowmelt_runoff_onset/README.md) |
+
+Broader science analyses that use this dataset but aren't dataset construction/evaluation (regional case studies, climate correlation, population/basin-scale work) live in the separate [`global_snowmelt_runoff_onset_analysis`](https://github.com/egagli/global_snowmelt_runoff_onset_analysis) repository.
+
 ## Quick start
 
 ```python
@@ -80,16 +110,27 @@ western_us = ds.rio.clip_box(-125, 32, -105, 50)
 
 ## Installation
 
+This repository uses [pixi](https://pixi.sh) for environment management — no conda/mamba required.
+
 ```bash
-# For development and analysis (includes all dependencies)
-conda env create -f environment.yml
-conda activate global_snowmelt_runoff_onset
+git clone https://github.com/egagli/global_snowmelt_runoff_onset.git
+cd global_snowmelt_runoff_onset
+pixi install
+```
 
-# For GitHub Actions (minimal dependencies)
-conda env create -f environment_github_actions.yml
-conda activate global_snowmelt_runoff_onset_actions
+`pixi.toml` defines two environments:
 
-# Configure Azure credentials
+- **`default`** — full development environment (JupyterLab, plotting, notebooks, Coiled)
+- **`ci`** — minimal environment used by the GitHub Actions tile-processing workflows
+
+```bash
+pixi run lab           # launch JupyterLab (default environment)
+pixi shell -e ci        # drop into the minimal CI environment used in GitHub Actions
+```
+
+Configure Azure credentials (needed to read/write the Zarr store):
+
+```bash
 export AZURE_STORAGE_SAS_TOKEN="your_token"
 export AZURE_STORAGE_ACCOUNT="your_account"
 ```
@@ -113,5 +154,7 @@ University of Washington
 ## Related projects
 
 - [easysnowdata](https://github.com/egagli/easysnowdata): Snow data access tools
-- [sar_snowmelt_timing](https://github.com/egagli/sar_snowmelt_timing): Regional SAR methods  
-- [MODIS_seasonal_snow_mask](https://github.com/egagli/MODIS_seasonal_snow_mask): Snow phenology processing
+- [sar_snowmelt_timing](https://github.com/egagli/sar_snowmelt_timing): Regional SAR methods
+- [MODIS_seasonal_snow_mask](https://github.com/egagli/MODIS_seasonal_snow_mask): Snow phenology processing used to build this dataset's published version
+- [MODIS_snow_phenology](https://github.com/egagli/MODIS_snow_phenology): Icechunk/Zarr v3 successor to `MODIS_seasonal_snow_mask`, planned as the snow phenology input for future dataset versions
+- [global_snowmelt_runoff_onset_analysis](https://github.com/egagli/global_snowmelt_runoff_onset_analysis): Broader scientific analyses built on this dataset (regional case studies, climate correlation, basin/population-scale work) that go beyond dataset construction and evaluation
