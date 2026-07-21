@@ -8,6 +8,8 @@ Evaluates the global snowmelt runoff onset dataset against the
 NorSWE aggregates daily in-situ SWE and snow depth measurements from 10,153
 stations across the Northern Hemisphere, spanning 1979–2021.
 
+We decided not to go further down this route because outside of the SNOTEL network, there aren't many daily observations....
+
 ---
 
 ## Directory structure
