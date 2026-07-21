@@ -40,6 +40,11 @@ odc-geo = "*"
 azure-storage-blob = "*"
 earthengine-api = "*"
 ipywidgets = "*"
+seaborn = ">=0.13.2,<0.14"
+cartopy = ">=0.25.0,<0.26"
+matplotlib-scalebar = ">=0.9.0,<0.10"
+numba = ">=0.66.0,<0.67"
+icechunk = ">=1.1.21,<3"
 
 
 [pypi-dependencies]
@@ -74,6 +79,7 @@ shapely = "*"
 earthengine-api = "*"
 easysnowdata = ">=0.0.24,<0.0.25"
 flox = "*"
+icechunk = ">=1.1.21,<3"
 
 [environments]
 default = { features = ["dev"] }

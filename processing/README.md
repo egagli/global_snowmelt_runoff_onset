@@ -21,7 +21,6 @@ These should eventually converge on a single entrypoint; until then, treat the G
 | [`process_tiles_serverless.ipynb`](process_tiles_serverless.ipynb) | Same algorithm as above, using a Coiled serverless `@coiled.function` instead of a persistent cluster. |
 | [`quality_check_tiles.ipynb`](quality_check_tiles.ipynb) | Compares two dataset versions (e.g. `global_config_v8.txt` vs `v9.txt`) tile-by-tile for consistency after a config or algorithm change. |
 | [`test_chunking.ipynb`](test_chunking.ipynb) | Scratch notebook for tuning dask chunk sizes during processing. |
-| [`precompute_spatiotemporal_snow_mask_reprojection.ipynb`](precompute_spatiotemporal_snow_mask_reprojection.ipynb) | Builds a pre-reprojected (80 m, EPSG:4326) copy of the MODIS snow phenology store, used by the `'precomputed'` branch of `get_spatiotemporal_snow_cover_mask()`'s `reproject_method` option. Currently targets the *old* `MODIS_seasonal_snow_mask`-derived store; needs regenerating once the pipeline migrates to `MODIS_snow_phenology`. |
 | `download_and_compress_zarr.ipynb` | Empty (0 bytes) — stale placeholder, safe to delete. |
 
 ## Scripts (`scripts/`)
@@ -38,7 +37,7 @@ These should eventually converge on a single entrypoint; until then, treat the G
 - `global_tiles_with_seasonal_snow.geojson` — the static tile registry (row/col, bbox, snow-presence flag) produced by `select_tiles_to_process.ipynb`.
 - `tile_results_v2.csv` … `tile_results_v9.csv` — historical per-tile processing status, one row per tile (columns include `success`, `error_messages`, `start_time`, `total_time`, and per-water-year `tr_YYYY`/`pix_ct_YYYY`). `v9` is current; older versions are kept for provenance but not actively read.
 - `valid_tiles.geojson`, `valid_tiles_v2.geojson` — superseded by `global_tiles_with_seasonal_snow.geojson`.
-- `quality_check/`, `reprojected_snow_mask/` — outputs of `quality_check_tiles.ipynb` and `precompute_spatiotemporal_snow_mask_reprojection.ipynb` respectively.
+- `quality_check/` — outputs of `quality_check_tiles.ipynb`.
 
 ## Related
 

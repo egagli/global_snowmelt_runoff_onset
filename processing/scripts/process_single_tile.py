@@ -236,10 +236,9 @@ def process_tile_github_actions(tile_row: int, tile_col: int, config):
         spatiotemporal_snow_cover_mask_ds = processing.get_spatiotemporal_snow_cover_mask(
             ds=s1_rtc_ds,
             bbox_gdf=tile.bbox_gdf,
-            seasonal_snow_mask_store=config.seasonal_snow_mask_store,
+            snow_phenology_store=config.snow_phenology_store,
             extend_search_window_beyond_SDD_days=config.extend_search_window_beyond_SDD_days,
             min_consec_snow_days_for_seasonal_snow=config.min_consec_snow_days_for_seasonal_snow,
-            reproject_method=config.seasonal_snow_mask_reproject_method,
         ).compute()
         # Check if lazily loaded (should be computed after .compute())
         logging.info(f"Retrieved spatiotemporal snow cover mask dataset "

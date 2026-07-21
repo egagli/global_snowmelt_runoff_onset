@@ -5,7 +5,7 @@ This module provides the core processing pipeline for detecting snowmelt runoff 
 timing from Sentinel-1 SAR backscatter data. The pipeline includes:
 
 1. Data acquisition from Microsoft Planetary Computer
-2. Spatiotemporal snow cover masking using MODIS-derived seasonal snow masks
+2. Spatiotemporal snow cover masking using the MODIS-derived snow phenology dataset
 3. Optional mountain region filtering using GMBA mountain inventory
 4. Quality filtering and gap analysis
 5. Runoff onset detection using backscatter minima
@@ -23,6 +23,7 @@ import xarray as xr
 import rasterio
 import odc.stac
 import flox
+import icechunk
 from typing import List, Tuple, Dict, Any, Union, Optional, Callable
 
 
@@ -115,77 +116,56 @@ def get_sentinel1_rtc(
 
 
 def get_spatiotemporal_snow_cover_mask(
-    ds: xr.Dataset, 
-    bbox_gdf: gpd.GeoDataFrame, 
-    seasonal_snow_mask_store: Any, 
-    extend_search_window_beyond_SDD_days: int = 16, 
+    ds: xr.Dataset,
+    bbox_gdf: gpd.GeoDataFrame,
+    snow_phenology_store: Any,
+    extend_search_window_beyond_SDD_days: int = 16,
     min_consec_snow_days_for_seasonal_snow: int = 56,
-    reproject_method: str = 'rasterio'
 ) -> xr.Dataset:
     """
-    Generate spatiotemporal snow cover mask from MODIS-derived seasonal snow data.
-    
+    Generate spatiotemporal snow cover mask from the MODIS-derived snow phenology dataset.
+
     Creates masks that define:
     1. Spatial regions with seasonal snow (based on consecutive snow days threshold)
     2. Temporal windows for runoff onset detection (from snow accumulation to snow disappearance + buffer)
-    
+
     The search window extends from the middle of the snow accumulation period to
     several days after the snow disappearance date to capture late-season melt events.
-    
+
     Args:
         ds: Sentinel-1 dataset with dimensions ('time', 'latitude', 'longitude') used for spatial matching
-        bbox_gdf: Bounding box as GeoDataFrame for clipping snow mask
-        seasonal_snow_mask_store: Zarr store containing MODIS seasonal snow data
+        bbox_gdf: Bounding box as GeoDataFrame for clipping the snow phenology data
+        snow_phenology_store: Store containing the MODIS-derived snow phenology data.
+            Either an icechunk session store (Zarr v3, the MODIS_snow_phenology dataset)
+            or a legacy fsspec mapper (consolidated Zarr v2, the MODIS_seasonal_snow_mask
+            dataset used for configs <= v9)
         extend_search_window_beyond_SDD_days: Days to extend search window past snow disappearance
         min_consec_snow_days_for_seasonal_snow: Minimum consecutive snow days to define seasonal snow
-        reproject_method: Method for reprojection ('rasterio' or 'odc')
-        
+
     Returns:
         xarray.Dataset containing:
-        
+
         **Data variables (all with dimensions ('water_year', 'latitude', 'longitude')):**
-        - SAD_DOWY: Snow accumulation date (day of water year, float32)
-        - SDD_DOWY: Snow disappearance date (day of water year, float32)  
-        - max_consec_snow_days: Maximum consecutive snow days (float32)
         - search_window_start_DOWY: Start of runoff detection window (float32)
         - search_window_end_DOWY: End of runoff detection window (float32)
         - binary_seasonal_snow_cover_presence: Boolean mask for seasonal snow areas (bool)
         - search_window_length: Length of detection window in days (float32)
-        
+
         **Coordinates:**
-        - water_year: Water years available in the seasonal snow mask (int)
+        - water_year: Water years available in the snow phenology dataset (int)
         - latitude: Latitude coordinates matching input ds (float64)
         - longitude: Longitude coordinates matching input ds (float64)
-        
-    Raises:
-        ValueError: If reproject_method is not 'rasterio' or 'odc'
     """
 
-
-    seasonal_snow_mask = xr.open_zarr(seasonal_snow_mask_store, consolidated=True, decode_coords='all') 
-
-    if reproject_method == 'rasterio':
-
-        seasonal_snow_mask_clip_ds = seasonal_snow_mask.rio.clip_box(*bbox_gdf.total_bounds, crs='EPSG:4326')
-        spatiotemporal_snow_cover_mask_ds = seasonal_snow_mask_clip_ds.rio.reproject_match(
-            ds.isel(time=0), resampling=rasterio.enums.Resampling.bilinear
-        ).rename({'x':'longitude','y':'latitude'})
-
-    elif reproject_method == 'odc':
-
-        seasonal_snow_mask_clip_ds = seasonal_snow_mask.rio.clip_box(*bbox_gdf.total_bounds, crs='EPSG:4326')
-        spatiotemporal_snow_cover_mask_ds = seasonal_snow_mask_clip_ds.odc.reproject(ds.odc.geobox,resampling='bilinear')#.rename({'x':'longitude','y':'latitude'})
-
-    elif reproject_method == 'precomputed':
-        
-        latitudes = ds.latitude
-        longitudes = ds.longitude
-        spatiotemporal_snow_cover_mask_ds = seasonal_snow_mask.sel(latitude=latitudes, longitude=longitudes, method='nearest')
-        spatiotemporal_snow_cover_mask_ds = spatiotemporal_snow_cover_mask_ds.assign_coords(latitude=latitudes, longitude=longitudes)
-        spatiotemporal_snow_cover_mask_ds = spatiotemporal_snow_cover_mask_ds.astype(np.float32)
-
+    if isinstance(snow_phenology_store, icechunk.IcechunkStore):
+        snow_phenology_ds = xr.open_zarr(snow_phenology_store, zarr_format=3, consolidated=False, decode_coords='all')
     else:
-        raise ValueError("reproject_method must be either 'rasterio' or 'odc'.")
+        snow_phenology_ds = xr.open_zarr(snow_phenology_store, consolidated=True, decode_coords='all')
+
+    snow_phenology_clip_ds = snow_phenology_ds.rio.clip_box(*bbox_gdf.total_bounds, crs='EPSG:4326')
+    spatiotemporal_snow_cover_mask_ds = snow_phenology_clip_ds.rio.reproject_match(
+        ds.isel(time=0), resampling=rasterio.enums.Resampling.bilinear
+    ).rename({'x':'longitude','y':'latitude'})
 
     # Create search window variables
     spatiotemporal_snow_cover_mask_ds['search_window_start_DOWY'] = (

@@ -15,6 +15,7 @@ import shapely
 import odc.geo
 import odc.stac
 import adlfs
+import icechunk
 import os
 import ee
 from typing import List, Tuple, Dict, Any, Union, Optional
@@ -43,8 +44,9 @@ class Config:
         chunks_s1_read (Dict[str, int]): Dask chunks for reading S1 data
         chunks_s1_process (Dict[str, int]): Dask chunks for processing
         chunks_zarr_output (Dict[str, int]): Dask chunks for Zarr output
-        seasonal_snow_mask_reproject_method (str): Method for reprojecting
-            seasonal snow masks. Options: 'rasterio', 'odc', 'precomputed'
+        snow_phenology_store: Store for the MODIS-derived snow phenology
+            dataset. An icechunk session store (Zarr v3) for configs >= v10,
+            or a legacy fsspec mapper (consolidated Zarr v2) for configs <= v9
     """
     
     def __init__(self, config_file: Optional[str] = None) -> None:
@@ -158,11 +160,7 @@ class Config:
         self.low_backscatter_threshold: float = self.config.getfloat('VALUES', 'low_backscatter_threshold')
         self.extend_search_window_beyond_SDD_days: int = self.config.getint('VALUES', 'extend_search_window_beyond_SDD_days', fallback=16)
         self.min_consec_snow_days_for_seasonal_snow: int = self.config.getint('VALUES', 'min_consec_snow_days_for_seasonal_snow', fallback=56)
-        self.seasonal_snow_mask_reproject_method: str = self.config.get(
-            'VALUES', 'seasonal_snow_mask_reproject_method',
-            fallback='rasterio'
-        )
-        
+
         # File paths (resolve relative to repository root)
         self.valid_tiles_geojson_path: str = self._resolve_repo_path(
             self.config.get('VALUES', 'valid_tiles_geojson_path'))
@@ -170,8 +168,19 @@ class Config:
             self.config.get('VALUES', 'tile_results_path'))
         self.global_runoff_zarr_store_azure_path: str = self.config.get(
             'VALUES', 'global_runoff_zarr_store_azure_path')
-        self.seasonal_snow_mask_zarr_store_azure_path: str = self.config.get(
-            'VALUES', 'seasonal_snow_mask_zarr_store_azure_path')
+
+        # Snow phenology input. Configs >= v10 use 'snow_phenology_zarr_store_azure_path'
+        # (an icechunk repo from MODIS_snow_phenology); configs <= v9 use the legacy
+        # 'seasonal_snow_mask_zarr_store_azure_path' key (a plain consolidated Zarr v2
+        # store from MODIS_seasonal_snow_mask).
+        if self.config.has_option('VALUES', 'snow_phenology_zarr_store_azure_path'):
+            self.snow_phenology_zarr_store_azure_path: str = self.config.get(
+                'VALUES', 'snow_phenology_zarr_store_azure_path')
+            self.snow_phenology_store_is_icechunk: bool = True
+        else:
+            self.snow_phenology_zarr_store_azure_path: str = self.config.get(
+                'VALUES', 'seasonal_snow_mask_zarr_store_azure_path')
+            self.snow_phenology_store_is_icechunk: bool = False
 
         # Output fields for tile processing results
         self.fields: Tuple[str, ...] = ("row","col","percent_valid_snow_pixels","s1_rtc_ds_dims","runoff_onsets_dims",
@@ -227,7 +236,8 @@ class Config:
         self._check_sas_token_expiration()
         
         # Azure storage account name from environment or default
-        account_name = os.getenv('AZURE_STORAGE_ACCOUNT', 'uwcryo')
+        self.azure_storage_account: str = os.getenv('AZURE_STORAGE_ACCOUNT', 'uwcryo')
+        account_name = self.azure_storage_account
         
         # Earth Engine credentials (optional - only used if available)
         ee_key_path = self._resolve_repo_path('config/ee_key.json')
@@ -249,8 +259,7 @@ class Config:
         )
         self.global_runoff_store = self.azure_blob_fs.get_mapper(
             self.global_runoff_zarr_store_azure_path)
-        self.seasonal_snow_mask_store = self.azure_blob_fs.get_mapper(
-            self.seasonal_snow_mask_zarr_store_azure_path)
+        self._snow_phenology_store = None
         self._load_valid_tiles()
         
     def _check_sas_token_expiration(self) -> None:
@@ -326,12 +335,38 @@ class Config:
     def azure_blob_fs(self) -> adlfs.AzureBlobFileSystem:
         """
         Get Azure Blob File System with cache invalidation.
-        
+
         Returns:
             Azure Blob File System instance with fresh cache
         """
         self._azure_blob_fs.invalidate_cache()
         return self._azure_blob_fs
+
+    @property
+    def snow_phenology_store(self):
+        """
+        Get the store for the MODIS-derived snow phenology dataset (lazily opened).
+
+        For configs >= v10 this opens the MODIS_snow_phenology icechunk repository
+        and returns a read-only session store (Zarr v3). For configs <= v9 this
+        returns a legacy fsspec mapper onto the plain consolidated Zarr v2 store
+        from MODIS_seasonal_snow_mask.
+        """
+        if self._snow_phenology_store is None:
+            if self.snow_phenology_store_is_icechunk:
+                container, prefix = self.snow_phenology_zarr_store_azure_path.split('/', 1)
+                storage = icechunk.azure_storage(
+                    account=self.azure_storage_account,
+                    container=container,
+                    prefix=prefix,
+                    sas_token=self.sas_token,
+                )
+                repo = icechunk.Repository.open(storage)
+                self._snow_phenology_store = repo.readonly_session("main").store
+            else:
+                self._snow_phenology_store = self.azure_blob_fs.get_mapper(
+                    self.snow_phenology_zarr_store_azure_path)
+        return self._snow_phenology_store
 
     def get_config_dict(self) -> Dict[str, Any]:
         """
@@ -360,15 +395,12 @@ class Config:
             'low_backscatter_threshold': self.low_backscatter_threshold,
             'extend_search_window_beyond_SDD_days': self.extend_search_window_beyond_SDD_days,
             'min_consec_snow_days_for_seasonal_snow': self.min_consec_snow_days_for_seasonal_snow,
-            'seasonal_snow_mask_reproject_method': (
-                self.seasonal_snow_mask_reproject_method
-            ),
             'start_date': self.start_date,
             'end_date': self.end_date,
             'valid_tiles_geojson_path': self.valid_tiles_geojson_path,
             'tile_results_path': self.tile_results_path,
             'global_runoff_zarr_store_azure_path': self.global_runoff_zarr_store_azure_path,
-            'seasonal_snow_mask_zarr_store_azure_path': self.seasonal_snow_mask_zarr_store_azure_path,
+            'snow_phenology_zarr_store_azure_path': self.snow_phenology_zarr_store_azure_path,
         }
 
     def get_tile(self, row: int, col: int) -> 'Tile':
