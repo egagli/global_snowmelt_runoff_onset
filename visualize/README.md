@@ -22,6 +22,8 @@ visualize/
     └── iceland/iceland.ipynb          # exploratory regional viewer, not a manuscript figure
 ```
 
+## *************add methods folder!!**************
+
 Colorbar code comes from `global_snowmelt_runoff_onset.plot_utils`. Colorbar demo in `colorbars/create_colorbars.ipynb`.
 
 Global hillshade in Robinson projection for visualization is in `data/global_hillshade_robinson.tif`. Source: [Natural Earth](https://www.naturalearthdata.com/downloads/10m-gray-earth/gray-earth-with-shaded-relief-ocean-bottom-and-drainages/).
