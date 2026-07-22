@@ -10,7 +10,7 @@ Evaluates the global snowmelt runoff onset dataset against independent reference
 | [`compare_to_snotel/`](compare_to_snotel/README.md) | Fig. A1 (single-station case study) and earlier SNOTEL/CCSS-only evaluation work that `compare_to_all_public_snow_pillows/` has since superseded for the full network comparison | Active (case-study figure); superseded for network-wide stats |
 | [`compare_to_passive/`](compare_to_passive/README.md) | Fig. 6 (Pan et al. 2021 passive microwave comparison, Alaska Range WY2020) | Active |
 | [`calculate_spatial_coverage_and_temporal_resolution/`](calculate_spatial_coverage_and_temporal_resolution/README.md) | Table 1, and the "how much seasonal snow do we miss" text stat (Sect. 3.3) | Active |
-| [`compare_to_NorSWE/`](compare_to_NorSWE/README.md) | Not used in the manuscript | Superseded by `compare_to_all_public_snow_pillows/` (per its own README — NorSWE ends in 2021 and many sites aren't daily) |
+| [`compare_to_NorSWE/`](compare_to_NorSWE/README.md) | Not used in the manuscript | Superseded by `compare_to_all_public_snow_pillows/` (NorSWE ends in 2021 and many sites aren't daily) |
 | [`compare_to_NH-SWE/`](compare_to_NH-SWE/README.md) | Not used in the manuscript | Parked/unfinished — stub README, no processing notebook yet |
 | [`compare_to_ucla_reanalysis/`](compare_to_ucla_reanalysis/README.md) | Not used in the manuscript | Parked/unfinished — exploratory data search only |
 

@@ -160,7 +160,7 @@ University of Washington
 
 ## Remaining tasks
 
-Working checklist for finishing the repository reorganization. Completed so far: manuscript-mapped READMEs in every folder, pixi-only environments (conda `environment*.yml` files removed, GitHub Actions already pixi-based), removal of the precomputed snow-mask reprojection path, and migration of the snow phenology input to the `MODIS_snow_phenology` icechunk store (config v10, validated against the legacy store — identical structure, 0-day median timing difference, 99.6% seasonal-snow mask agreement).
+Working checklist for finishing the repository reorganization. Completed so far: manuscript-mapped READMEs in every folder, pixi-only environments (conda `environment*.yml` files removed, GitHub Actions already pixi-based), removal of the precomputed snow-mask reprojection path, migration of the snow phenology input to the `MODIS_snow_phenology` icechunk store (config v10, validated against the legacy store — identical structure, 0-day median timing difference, 99.6% seasonal-snow mask agreement), the `analysis/` → `global_snowmelt_runoff_onset_analysis` split, and a self-verifying runtime check/workaround for the odc-stac antimeridian bug (Sect. 4 below).
 
 ### 1. Move broader-science notebooks out of `analysis/`
 
@@ -170,14 +170,14 @@ Working checklist for finishing the repository reorganization. Completed so far:
 
 ### 2. Identify superseded/scratch content. Do not delete yourself.
 
-- [ ] Empty stubs: `processing/download_and_compress_zarr.ipynb`, `processing/scripts/consolidate_artifacts_clean.py`, `global_snowmelt_runoff_onset/global_snowmelt_runoff_onset.py` (0-byte file; also remove its import from `__init__.py`)
-- [ ] `dataset_evaluation/compare_to_snotel/inspect_single_station copy.ipynb` (byte-identical duplicate)
-- [ ] Decide: keep or archive `dataset_evaluation/compare_to_NorSWE/` (superseded by `compare_to_all_public_snow_pillows/`), `compare_to_NH-SWE/` and `compare_to_ucla_reanalysis/` (both parked/unfinished)
-- [ ] Decide: track or delete `processing/test_chunking.ipynb` (chunking-tuning scratch, currently untracked)
+- [x] `dataset_evaluation/compare_to_snotel/inspect_single_station copy.ipynb` — deleted
+- [ ] Empty stubs, still present, unchanged: `processing/download_and_compress_zarr.ipynb`, `processing/scripts/consolidate_artifacts_clean.py`, `global_snowmelt_runoff_onset/global_snowmelt_runoff_onset.py` (0-byte file; also remove its import from `__init__.py`)
+- [ ] Decide: keep or archive `dataset_evaluation/compare_to_NorSWE/`, `compare_to_NH-SWE/`, `compare_to_ucla_reanalysis/` — all three still present, no decision recorded yet
+- [ ] Decide: track or delete `processing/test_chunking.ipynb` (chunking-tuning scratch, still untracked)
 
 ### 3. Rebuild processing pipeline on icechunk (per-tile-per-water-year, platform-agnostic)
 
-The snow phenology *input* is migrated; the runoff onset *output* store is still the pre-allocated plain Zarr v2 with CSV-based status tracking. Following the `MODIS_snow_phenology` pattern:
+**Input side done.** The snow phenology *input* is migrated (config v10, `config.py`/`processing.py` read the `MODIS_snow_phenology` icechunk repo; `icechunk` is now a dependency in both the `default` and `ci` pixi environments). Still entirely open: the runoff onset *output* store, which is still the pre-allocated plain Zarr v2 with CSV-based status tracking (`coiled` is still a dependency and `process_tiles_serverless.ipynb` still uses it). Following the `MODIS_snow_phenology` pattern:
 
 - [ ] Decide store strategy: keep the published v9 Zarr v2 store as-is (it has a DOI) and build v10 as a new icechunk/Zarr v3 store
 - [ ] Convert the output store to icechunk: writable session per job, region write, `session.commit()` with `icechunk.ConflictDetector()` + randomized retry/backoff for concurrent disjoint-tile writes
@@ -190,29 +190,30 @@ The snow phenology *input* is migrated; the runoff onset *output* store is still
 
 ### 4. Antimeridian fix (odc-stac)
 
-`odc.stac.load()` silently drops Sentinel-1 scenes from UTM zones touching ±180°, leaving the westernmost tile column 100% nodata in all water years despite `success=True` (diagnosed in [visualize/global/test_antimeridian.ipynb](visualize/global/test_antimeridian.ipynb)).
+`odc.stac.load()` silently drops Sentinel-1 scenes from UTM zones touching ±180°, leaving the westernmost tile column 100% nodata in all water years despite `success=True` (diagnosed in [visualize/testing/test_antimeridian.ipynb](visualize/testing/test_antimeridian.ipynb)).
 
-- [ ] Until upstream [opendatacube/odc-stac#281](https://github.com/opendatacube/odc-stac/pull/281) is merged and released: apply the `wrapdateline=True` monkeypatch inside `get_sentinel1_rtc()` in `global_snowmelt_runoff_onset/processing.py` **LOOKS LIKE opendatacube/odc-stac#281 IS MERGED, WHAT DOES THIS MEAN FOR INSTALL? NEW VERSION? DEV VERSION?**
-
-- [ ] Reprocess the affected tiles (col 0, partially cols 1–2)
-- [ ] Once the fix ships in an odc-stac release: bump the `odc-stac` pin in `pixi.toml` and remove the monkeypatch
-- [ ] Remove `.agents/` from the repo (handoff notes/patches from the antimeridian investigation — cross-project scratch, not manuscript code)
+- [x] **Status of [opendatacube/odc-stac#281](https://github.com/opendatacube/odc-stac/pull/281):** merged into odc-stac's `develop` branch on 2026-07-21 — but **not yet in a tagged release**. The latest release is still v0.5.2 (Jan 2026); `develop` is 33 commits ahead including the fix and a "update version number for release" commit right before it, so a release may be imminent, but nothing is published yet. There is currently no way to get the fix via `pixi`/conda-forge — it isn't on PyPI or conda-forge either.
+- [x] **Runtime self-check + workaround implemented.** `global_snowmelt_runoff_onset/processing.py` now has `ensure_antimeridian_footprint_fix()`, called at the top of `get_sentinel1_rtc()`. It runs a functional check (reproducing odc-stac's own regression test for this bug, `tests/test_model.py::test_image_geometry_antimeridian`, using a synthetic UTM-zone-1N item — no network call) rather than a version check. If the installed odc-stac already handles it correctly (e.g. once the pin is bumped past the eventual fixed release), it's a no-op. If not, it applies the `wrapdateline=True` monkeypatch and re-verifies. If the bug is *still* present after patching (e.g. odc-stac's internals changed shape), it raises `RuntimeError` instead of silently continuing — this bug's whole danger was that it fails silently, so a broken workaround should fail loudly instead of reproducing the original problem. This is self-cleaning: no manual removal needed once a real fix is installed.
+- [ ] Reprocess the affected tiles (col 0, partially cols 1–2) — not yet done
+- [ ] Watch for the next odc-stac release; once it ships with the fix, bump the `odc-stac` pin in `pixi.toml` (the monkeypatch will then stop being applied automatically, verified by the self-check above)
+- [ ] Remove `.agents/` from the repo (handoff notes/patches from the antimeridian investigation — cross-project scratch, not manuscript code) — still present
 
 ### 5. Junk and `.gitignore` cleanup
 
-- [ ] Delete stray files: `=`, `=23.2.0` (shell-redirect accidents at repo root)
-- [ ] Add `.gitignore` entries before any broad `git add`: `dataset_evaluation/**/data/`, `dataset_evaluation/**/figures/`, `visualize/**/figures/` (except the tracked legacy READMEs), `*.ovr.tmp`, `.vscode/` (the ~22 GB `analysis/` data moved out with the July 2026 split; its stray `.ovr.tmp` and 5 GB `analysis.log` were deleted then)
-- [ ] Reclaim disk: `processing/analysis.log` 557 MB (already gitignored, but on disk)
-- [ ] Remove `src/easysnowdata/` (nested git repo inside gitignored `src/`, stray editable install)
-- [ ] Decide fate of `dataset/redistribution/` (empty) and whether to track `dataset/global_snowmelt_runoff_onset.zarr.tar.refs.json`
+- [x] Stray files `=`, `=23.2.0` — deleted
+- [x] `dataset/README.md` now documents `dataset/redistribution/` (still empty) and the tracked-vs-not status of `dataset/global_snowmelt_runoff_onset.zarr.tar.refs.json`
+- [ ] `.gitignore` — **partially done**, still open (`.pixi/` and a bare `*.tif` rule added, uncommitted) but still missing: `dataset_evaluation/**/data/`, `dataset_evaluation/**/figures/`, `*.ovr.tmp`, `.vscode/`. Several data/figures dirs are still untracked and ungitignored as of this check (`dataset_evaluation/compare_to_NH-SWE/data/`, `compare_to_NorSWE/data/`, `compare_to_all_public_snow_pillows/data/`, `compare_to_passive/passive_data/`, `visualize/colorbars/figures/`) — one broad `git add` away from being committed
+- [ ] Reclaim disk: `processing/analysis.log` still 557 MB on disk (already gitignored)
+- [ ] Remove `src/easysnowdata/` (nested git repo inside gitignored `src/`, stray editable install) — still present, unchanged
 
 ### 6. README/metadata finishing touches
 
-- [ ] Fill in the **Data access** Zenodo DOI (manuscript cites <https://doi.org/10.5281/zenodo.16953614>, v1.1.0) and replace the **Applications** and **Citation** TBD sections with manuscript-consistent text
-- [ ] Add a `CITATION.cff` check — make sure it matches the final manuscript author list/DOI
+- [ ] Fill in the **Data access** Zenodo DOI (manuscript cites <https://doi.org/10.5281/zenodo.16953614>, v1.1.0) and replace the **Applications** and **Citation** TBD sections with manuscript-consistent text — still open
+- [ ] `CITATION.cff` — checked, and it currently lists **only Eric Gagliano** as author. The manuscript has three authors (Eric Gagliano, David Shean, Scott Henderson); add the missing two authors/affiliations/ORCIDs before this is used for citation
 
 ### 7. Sync with remote
 
-- [ ] Commit the completed work in logical chunks (READMEs + pixi consolidation; precompute removal + phenology migration; then each task above as it lands)
-- [ ] Triage remaining untracked directories (`dataset_evaluation/compare_to_snotel/`, `compare_to_NH-SWE/`, etc.): track code/READMEs, gitignore data/figures
+- [ ] Commit the completed work in logical chunks — still nothing from this reorganization has been pushed (local `main` matches `origin/main` at the commit level, but everything is uncommitted working-tree state)
+- [ ] Triage remaining untracked directories: `.agents/`, `.vscode/`, `dataset/global_snowmelt_runoff_onset.zarr.tar.refs.json`, `dataset_evaluation/{compare_to_NH-SWE,compare_to_NorSWE,compare_to_all_public_snow_pillows}/data/`, `dataset_evaluation/compare_to_passive/{kennicott_glacier_comparison.ipynb,passive_data/}`, `dataset_evaluation/compare_to_snotel/`, `dataset_evaluation/compare_to_ucla_reanalysis/compare_to_ucla_reanalysis.ipynb`, `processing/download_and_compress_zarr.ipynb`, `processing/scripts/consolidate_artifacts_clean.py`, `processing/test_chunking.ipynb`, `visualize/colorbars/figures/`, `visualize/regions/rainier/` — track code/READMEs, gitignore data/figures
+- [ ] The four `.github/workflows/*.yml` files have a large uncommitted diff already sitting in the working tree (conda `setup-miniconda` → pixi `setup-pixi`, −42 net lines) — this predates this session and should be committed rather than redone
 - [ ] Push and verify GitHub Actions still pass with the pixi `ci` environment (now includes `icechunk`)
