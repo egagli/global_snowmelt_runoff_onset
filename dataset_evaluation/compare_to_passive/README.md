@@ -11,7 +11,7 @@ This directory evaluates the Global Snowmelt Runoff Onset dataset against the [O
 
 ## Data
 
-`passive_data/Main_Melt_Onset_Dates_1841/` — local copy of the ABoVE passive microwave melt onset GeoTIFFs, one file per year. Download from the ORNL DAAC link above; files are not tracked in git.
+`data/Main_Melt_Onset_Dates_1841/` — local copy of the ABoVE passive microwave melt onset GeoTIFFs, one file per year. Download from the ORNL DAAC link above; files are not tracked in git.
 
 `geometries/` — GeoJSON boundary files used for clipping (e.g., Kennicott Glacier outline).
 
