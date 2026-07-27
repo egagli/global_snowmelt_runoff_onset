@@ -1,572 +1,606 @@
 #!/usr/bin/env python3
 """
-Process a single tile using GitHub Actions.
+Process a single tile into the global icechunk store, one water year at a time.
 
-This script adapts the Coiled serverless tile processing function to run
-within GitHub Actions infrastructure. It processes a single spatial tile
-through the complete snowmelt runoff onset detection pipeline.
+Platform-agnostic entrypoint (GitHub Actions, CryoCloud, local): each water
+year of the tile is processed sequentially and committed to the icechunk
+repository individually, so memory stays bounded, a timeout mid-tile loses at
+most one year, and any single bad year can be reprocessed without redoing the
+other nine. After the annual layers, the cross-year composites
+(runoff_onset_median/mad, temporal_resolution_median) are computed -- reading
+back any years not processed in this run -- and committed last.
+
+Commit semantics (see global_snowmelt_runoff_onset.status):
+- success with data     -> commit writing the tile x water_year shard
+- verified empty        -> empty marker commit (allow_empty=True) with an
+                           empty_reason: no_seasonal_snow (snow phenology says
+                           no seasonal snow), no_s1_data (successful STAC
+                           search found no scenes), no_valid_pixels (scenes
+                           exist but nothing survives quality filtering)
+- failure               -> NO commit; the job exits nonzero and the
+                           tile x water_year stays 'missing' for redispatch
+
+A transient Planetary Computer failure is never recorded as empty: the STAC
+search is retried with backoff and, if it keeps failing, the job fails.
 """
 
 import argparse
+import gc
+import logging
+import os
+import random
 import sys
 import time
 import traceback
-import logging
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
 
-import gc
-import psutil
 import numpy as np
 import xarray as xr
-import odc.stac
 import dask
-import dask.array
-import flox
+import icechunk
+import odc.geo.xr
+import odc.stac
 
-# Add the parent directory to Python path to import our modules
+# Add the repo root to the Python path so the package imports without install
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+from global_snowmelt_runoff_onset import processing, status
+from global_snowmelt_runoff_onset.config import Config
+from global_snowmelt_runoff_onset.provenance import collect_provenance
+from global_snowmelt_runoff_onset.store import tile_region_slices
 
-def dask_or_computed(variable):
-    """
-    Check if a variable is dask-backed and return status.
-    
-    Args:
-        variable: Any variable (DataArray, Dataset, etc.)
-        
-    Returns:
-        str: "DASK" or "COMPUTED"
-    """
-    # Check if it's dask-backed
-    if hasattr(variable, 'data'):
-        # Single DataArray
-        is_dask = isinstance(variable.data, dask.array.Array)
-        datatype = variable.data.dtype
-        memory_gb = variable.nbytes * 1e-9
+log = logging.getLogger("process_single_tile")
 
-    elif hasattr(variable, 'data_vars'):
-        # Dataset - check if any data variables are dask-backed
-        is_dask = any([isinstance(variable[var].data, dask.array.Array)
-                      for var in variable.data_vars])
-        datatype = variable[list(variable.data_vars)[0]].data.dtype if variable.data_vars else None
-        datatype = {variable.name: variable.dtype for variable in variable.data_vars.values()} if is_dask else None
-        memory_gb = sum(var.nbytes for var in variable.data_vars.values()) * 1e-9 if variable.data_vars else 0
-    else:
-        # Not a dask-compatible object
-        is_dask = False
-        datatype = type(variable)
-        memory_gb = sys.getsizeof(variable) * 1e-9  # Convert bytes to GB
-
-    return (f"[DASK: {memory_gb:.3f}GB, dtype: {datatype}, chunks: {variable.chunks}]"
-            if is_dask else f"[COMPUTED: {memory_gb:.3f}GB, dtype: {datatype}]")
+COMMIT_MAX_TRIES = 8
+# Attempts per water year for load+compute; a retry re-searches so the
+# Planetary Computer asset tokens (~45 min lifetime) are freshly signed.
+YEAR_LOAD_MAX_TRIES = 2
 
 
 def setup_logging(tile_row: int, tile_col: int) -> None:
-    """Set up logging for the tile processing."""
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
-    
-    log_file = log_dir / f"tile_{tile_row}_{tile_col}.log"
-    
-    # Configure root logging
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
+        format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stdout)
-        ]
+            logging.FileHandler(log_dir / f"tile_{tile_row}_{tile_col}.log"),
+            logging.StreamHandler(sys.stdout),
+        ],
     )
-    
-    # Suppress verbose logging from cloud storage and HTTP libraries
-    verbose_loggers = [
-        'azure.storage.blob',
-        'azure.core.pipeline.policies.http_logging_policy',
-        'azure.storage.blob._base_client',
-        'azure.storage.blob._blob_client',
-        'azure.storage.blob._container_client',
-        'azure.storage.blob._download',
-        'azure.storage.blob._upload_helpers',
-        'azure.identity',
-        'urllib3.connectionpool',
-        'urllib3.util.retry',
-        'requests.packages.urllib3.connectionpool',
-        's3fs',
-        'fsspec',
-        'aiohttp.access',
-    ]
-    
-    for logger_name in verbose_loggers:
-        logging.getLogger(logger_name).setLevel(logging.WARNING)
-    
-    # Keep important zarr and xarray logs but reduce verbosity
-    logging.getLogger('zarr').setLevel(logging.WARNING)
-    logging.getLogger('xarray').setLevel(logging.INFO)
-    
-    logging.info(f"Logging configured for tile ({tile_row}, {tile_col})")
-    logging.info("Suppressed verbose cloud storage HTTP request/response logging")
-
-def setup_modules():
-    """Set up the required processing modules (now included in repository)."""
-    # The modules are now included directly in the repository
-    # so we just need to verify they exist
-    module_files = [
-        "global_snowmelt_runoff_onset/__init__.py",
-        "global_snowmelt_runoff_onset/config.py", 
-        "global_snowmelt_runoff_onset/processing.py"
-    ]
-    
-    for file_path in module_files:
-        if not Path(file_path).exists():
-            raise FileNotFoundError(f"Required module file not found: {file_path}")
-    
-    logging.info("Processing modules are available")
-
-def get_config_file(config_filename: str) -> str:
-    """Get the path to an existing configuration file."""
-    config_dir = Path("config")
-    
-    # If user provides just version (e.g., "v9"), construct filename
-    if not config_filename.endswith('.txt'):
-        config_file = config_dir / f"global_config_{config_filename}.txt"
-    else:
-        # User provided full filename
-        config_file = config_dir / config_filename
-    
-    if not config_file.exists():
-        raise FileNotFoundError(f"Configuration file not found: {config_file}")
-    
-    return str(config_file)
-
-def monitor_memory_and_cleanup():
-    """Monitor memory usage and trigger cleanup if needed."""
-    # Get current memory usage
-    memory_percent = psutil.virtual_memory().percent
-    logging.info(f"Current memory usage: {memory_percent:.1f}%")
-    
-    # if memory_percent > 85:
-    #     logging.warning(f"High memory usage: {memory_percent:.1f}%. Running cleanup...")
-    #     gc.collect()
-        
-    #     # Force garbage collection for specific types
-    #     for obj in gc.get_objects():
-    #         if hasattr(obj, 'close') and callable(obj.close):
-    #             try:
-    #                 obj.close()
-    #             except:
-    #                 pass
-        
-    #     memory_after = psutil.virtual_memory().percent
-    #     logging.info(f"Memory usage after cleanup: {memory_after:.1f}%")
-    
-    return memory_percent
+    for noisy in ("azure", "urllib3", "fsspec", "adlfs", "aiohttp", "botocore", "rasterio"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
-def process_tile_github_actions(tile_row: int, tile_col: int, config):
-    """
-    Process a single tile within GitHub Actions infrastructure.
-    
-    This function adapts the original Coiled serverless processing function
-    to work within GitHub Actions constraints.
-    """
+def log_memory(context: str) -> None:
     try:
-        # Import after modules are available
-        import global_snowmelt_runoff_onset.processing as processing
-        import pystac_client
-        import planetary_computer
+        import psutil
+        rss_gb = psutil.Process().memory_info().rss / 1e9
+        log.info(f"[mem] {context}: rss={rss_gb:.2f}GB ({psutil.virtual_memory().percent:.0f}% system)")
+    except Exception:
+        pass
 
-        start_time = time.time()
 
-        # Get the specific tile
-        tile = config.get_tile(tile_row, tile_col)
-        tile.start_time = start_time
+def open_output_repo(config: Config, local_store: str | None) -> icechunk.Repository:
+    """Open the output repo on Azure, or a local filesystem repo for testing."""
+    if local_store:
+        storage = icechunk.local_filesystem_storage(local_store)
+        return icechunk.Repository.open(storage, config=config.output_repo_config())
+    return config.open_output_repo()
 
-        logging.info(f"Processing tile ({tile_row}, {tile_col})")
-        monitor_memory_and_cleanup()
 
-        # Configure ODC for cloud access
-        odc.stac.configure_rio(cloud_defaults=True)
+def commit_with_retry(repo, branch, write_fn, message, metadata, allow_empty=False) -> str:
+    """
+    Write and commit against a fresh session, retrying on conflicts/transient errors.
 
-        # Get Sentinel-1 data
-        logging.info("Retrieving Sentinel-1 data...")
-        s1_rtc_ds = processing.get_sentinel1_rtc(
-            geobox=tile.geobox,
-            bands=config.bands,
-            start_date=config.start_date,
-            end_date=config.end_date,
-            chunks_read={'x': 512, 'y': 512, 'time': 10},#config.chunks_s1_read,
-            fail_on_error=True,
-        )
-        
-        s1_spatial_chunk_dim_gh_actions = 1024
-        mask_chunk_dim_gh_actions = 512#512
-        # s1_rtc_ds['vv']=s1_rtc_ds['vv'].chunk({"latitude": s1_spatial_chunk_dim_gh_actions, 
-        #                                        "longitude": s1_spatial_chunk_dim_gh_actions, 
-        #                                        "time":10}) # maybe fix if generalizing so works for SH not just NH
-
-        # resources on computation and chunking.....
-        # https://icclim.readthedocs.io/en/stable/how_to/dask.html
-        # https://tutorial.xarray.dev/intermediate/xarray_and_dask.html
-        # https://gist.github.com/mrocklin/c1fd89575b40c055a9be77b2a47894df
-
-        # Check if lazily loaded
-        logging.info(f"Retrieved Sentinel-1 RTC dataset (s1_rtc_ds) - {dask_or_computed(s1_rtc_ds)}")
-        monitor_memory_and_cleanup()
-
-        tile.s1_rtc_ds_dims = dict(s1_rtc_ds.sizes)
-        logging.info(f"Sentinel-1 RTC dataset dimensions: {tile.s1_rtc_ds_dims}")
-
-        # does this even work
-        length_of_time_dimension = len(s1_rtc_ds.time)
-        if length_of_time_dimension < 1200:
-            thread_count = 16
-        elif length_of_time_dimension < 2000:
-            thread_count = 8
-        elif length_of_time_dimension < 3400:
-            thread_count = 4
-        else:
-            thread_count = 2
-            
-        # override thread count for testing for testing
-        thread_count = 16
-
-        # Get spatiotemporal snow cover mask
-        logging.info("Getting spatiotemporal snow cover mask...")
-        spatiotemporal_snow_cover_mask_ds = processing.get_spatiotemporal_snow_cover_mask(
-            ds=s1_rtc_ds,
-            bbox_gdf=tile.bbox_gdf,
-            snow_phenology_store=config.snow_phenology_store,
-            extend_search_window_beyond_SDD_days=config.extend_search_window_beyond_SDD_days,
-            min_consec_snow_days_for_seasonal_snow=config.min_consec_snow_days_for_seasonal_snow,
-        ).compute()
-        # Check if lazily loaded (should be computed after .compute())
-        logging.info(f"Retrieved spatiotemporal snow cover mask dataset "
-                     f"(spatiotemporal_snow_cover_mask_ds) - {dask_or_computed(spatiotemporal_snow_cover_mask_ds)}")
-        monitor_memory_and_cleanup()
-
-        # Get mountain inventory if needed
-        if config.mountain_snow_only:
-            gmba_clipped_gdf = processing.get_gmba_mountain_inventory(tile.bbox_gdf)
-        else:
-            gmba_clipped_gdf = None
-
-        # Apply masks
-        logging.info("Applying masks...")
-        s1_rtc_masked_ds = processing.apply_all_masks(
-            s1_rtc_ds=s1_rtc_ds,
-            gmba_clipped_gdf=gmba_clipped_gdf,
-            spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds.chunk({"latitude":mask_chunk_dim_gh_actions,
-                                                                                       "longitude":mask_chunk_dim_gh_actions,
-                                                                                       "water_year":1}),
-            water_years=config.water_years,
-        )
-
-        # Check if lazily loaded
-        logging.info(f"Applied all masks to S1 RTC dataset "
-                     f"(s1_rtc_masked_ds) - {dask_or_computed(s1_rtc_masked_ds)}")
-        monitor_memory_and_cleanup()
-
-        # Remove bad scenes and border noise
-        logging.info("Removing bad scenes and border noise...")
-        s1_rtc_masked_ds = processing.remove_bad_scenes_and_border_noise(
-            s1_rtc_masked_ds, config.low_backscatter_threshold
-        )
-        # Check if lazily loaded
-        logging.info(f"Removed bad scenes and border noise from S1 RTC "
-                     f"dataset (s1_rtc_masked_ds) - {dask_or_computed(s1_rtc_masked_ds)}")
-        monitor_memory_and_cleanup()
-
-        # Filter by acquisitions and gaps
-        logging.info("Filtering by acquisitions and gaps...")
-        s1_rtc_masked_filtered_ds = s1_rtc_masked_ds.groupby("water_year").map(
-            lambda group: processing.filter_insufficient_pixels_per_orbit(
-                s1_rtc_masked_ds=group,
-                spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_ds,
-                min_monthly_acquisitions=config.min_monthly_acquisitions,
-                max_allowed_days_gap_per_orbit=config.max_allowed_days_gap_per_orbit,
-            )
-        )
-        # Check if lazily loaded
-        logging.info(f"Filtered S1 RTC dataset by acquisitions and gaps "
-                     f"(s1_rtc_masked_filtered_ds) - {dask_or_computed(s1_rtc_masked_filtered_ds)}")
-        monitor_memory_and_cleanup()
-
-        # Calculate temporal resolution
-        logging.info("Calculating temporal resolution...")
-        monitor_memory_and_cleanup()
-        temporal_resolution_da = processing.get_temporal_resolution(
-            s1_rtc_masked_filtered_ds, spatiotemporal_snow_cover_mask_ds
-        ).astype(np.float32)
-        # Check if lazily loaded
-        logging.info(f"Calculated temporal resolution data array "
-                     f"(temporal_resolution_da) - {dask_or_computed(temporal_resolution_da)}")
-
-        # Calculate runoff onsets
-        logging.info("Calculating runoff onsets...")
-        monitor_memory_and_cleanup()
-        runoff_onsets_da = s1_rtc_masked_filtered_ds.groupby("water_year").apply(
-            processing.calculate_runoff_onset,
-            returned_dates_format="dowy",
-            return_constituent_runoff_onsets=False,
-        )#.astype(np.float32)
-        # Check if lazily loaded
-        logging.info(f"Calculated runoff onsets data array "
-                     f"(runoff_onsets_da) - {dask_or_computed(runoff_onsets_da)}")
-        monitor_memory_and_cleanup()
-
-        tile.runoff_onsets_dims = dict(runoff_onsets_da.sizes)
-
-        # Calculate median and MAD
-        logging.info("Calculating statistics...")
-        monitor_memory_and_cleanup()
-        median_da, mad_da = processing.median_and_mad_with_min_obs(
-            da=runoff_onsets_da,
-            dim="water_year",
-            min_count=config.min_years_for_median_std
-        )
-
-        median_da = median_da.astype(np.float32)
-        mad_da = mad_da.astype(np.float32)
-
-        # Check if lazily loaded
-        logging.info(f"Calculated median data array (median_da) - {dask_or_computed(median_da)}")
-        logging.info(f"Calculated MAD data array (mad_da) - {dask_or_computed(mad_da)}")
-        monitor_memory_and_cleanup()
-
-        # Calculate median temporal resolution
-        median_temporal_resolution_da = processing.median_with_min_obs(
-            da=temporal_resolution_da,
-            dim="water_year",
-            min_count=config.min_years_for_median_std
-        ).astype(np.float32)
-        # Check if lazily loaded
-        logging.info(f"Calculated median temporal resolution data array "
-                     f"(median_temporal_resolution_da) - {dask_or_computed(median_temporal_resolution_da)}")
-        monitor_memory_and_cleanup()
-
-        # Create dataset
-        runoff_onsets_ds = processing.dataarrays_to_dataset(
-            runoff_onsets_da=runoff_onsets_da,
-            median_da=median_da,
-            mad_da=mad_da,
-            water_years=config.water_years,
-            temporal_resolution_da=temporal_resolution_da,
-            median_temporal_resolution_da=median_temporal_resolution_da,
-        )
-        # Check if dataset is lazy (handle chunking inconsistencies)
+    ConflictDetector rebases automatically when concurrent commits touched
+    disjoint chunks (always true across tiles, since shards align with tiles);
+    the outer bounded retry handles expired sessions and transient storage
+    errors by redoing the whole write. Bounded on purpose: a persistent error
+    (e.g. expired SAS token) should fail the job, not loop forever.
+    """
+    last_error = None
+    for attempt in range(COMMIT_MAX_TRIES):
         try:
-            status = dask_or_computed(runoff_onsets_ds)
-        except ValueError as e:
-            if "inconsistent chunks" in str(e):
-                logging.warning(f"Dataset has inconsistent chunks: {e}")
-                # Fix chunking inconsistencies
-                runoff_onsets_ds = runoff_onsets_ds.unify_chunks()
-                logging.info("Applied unify_chunks() to fix inconsistent chunking")
-                # Try again to check lazy loading
-                status = dask_or_computed(runoff_onsets_ds)
-            else:
-                raise
-
-        logging.info(f"Created runoff onsets dataset (runoff_onsets_ds) - {status}")
-        monitor_memory_and_cleanup()
-
-        # Reindex to global coordinates
-        global_ds = xr.open_zarr(config.global_runoff_store, consolidated=True)
-        global_subset_ds = global_ds.sel(
-            latitude=runoff_onsets_ds.latitude,
-            longitude=runoff_onsets_ds.longitude,
-            method="nearest",
-        )
-        runoff_onsets_reindexed_ds = runoff_onsets_ds.assign_coords(
-            latitude=global_subset_ds.latitude, 
-            longitude=global_subset_ds.longitude
-        )
-
-        logging.info(f"Reindexed to global coordinates (runoff_onsets_reindexed_ds) - {dask_or_computed(runoff_onsets_reindexed_ds)}")
-        monitor_memory_and_cleanup()
-
-        # Write to Zarr
-        
-        logging.info(f"Using {thread_count} threads for processing based on length of time dimension: {length_of_time_dimension}")
-
-        with dask.config.set({ #"array.chunk-size": "128MiB",
-                               "temporary-directory": "/tmp",
-                               # "optimization.fuse.active": False,
-                               "scheduler": "threads",
-                               "pool": ThreadPoolExecutor(thread_count),
-                               }):
-            runoff_onsets_reindexed_ds.drop_vars("spatial_ref").chunk(
-                config.chunks_zarr_output
-            ).to_zarr(
-                config.global_runoff_store, region="auto", mode="r+", consolidated=True
+            session = repo.writable_session(branch)
+            write_fn(session)
+            return session.commit(
+                message,
+                metadata=metadata,
+                rebase_with=icechunk.ConflictDetector(),
+                allow_empty=allow_empty,
             )
+        except (ValueError, KeyError, TypeError):
+            raise  # programming/schema errors: retrying won't help
+        except Exception as e:
+            last_error = e
+            delay = min(60, 2 ** attempt) * random.uniform(0.5, 1.5)
+            log.warning(
+                f"commit attempt {attempt + 1}/{COMMIT_MAX_TRIES} failed "
+                f"({type(e).__name__}: {e}); retrying in {delay:.1f}s"
+            )
+            time.sleep(delay)
+    raise RuntimeError(f"commit failed after {COMMIT_MAX_TRIES} attempts") from last_error
 
-        logging.info("Results written to global zarr store")
-        monitor_memory_and_cleanup()
 
-        global_ds = xr.open_zarr(config.global_runoff_store, consolidated=True)
-        global_subset_ds = global_ds.sel(
-            latitude=runoff_onsets_ds.latitude,
-            longitude=runoff_onsets_ds.longitude,
-            method="nearest",
+def commit_empty_year(repo, branch, config, tile_row, tile_col, water_year,
+                      reason, prov, duration_s) -> str:
+    metadata = status.build_commit_metadata(
+        status.KIND_TILE_YEAR, tile_row, tile_col, config.version,
+        status.STATUS_EMPTY, water_year=water_year, empty_reason=reason,
+        duration_s=duration_s, provenance=prov,
+    )
+    message = status.build_commit_message(
+        status.KIND_TILE_YEAR, tile_row, tile_col, status.STATUS_EMPTY,
+        water_year=water_year, empty_reason=reason,
+    )
+    snapshot_id = commit_with_retry(repo, branch, lambda s: None, message, metadata, allow_empty=True)
+    log.info(f"WY{water_year}: committed empty marker ({reason}) -> {snapshot_id}")
+    return snapshot_id
+
+
+def check_store_grid_alignment(store_ds, tile, region_2d) -> None:
+    """
+    Tripwire: the tile geobox is by construction an exact slice of the global
+    geobox the store was built from, so integer region slices are exact. Guard
+    against a store initialized from a different grid/config.
+    """
+    tolerance = abs(tile.geobox.resolution.x) / 4
+    store_lat = store_ds.latitude.isel(latitude=region_2d["latitude"]).values
+    store_lon = store_ds.longitude.isel(longitude=region_2d["longitude"]).values
+    tile_lat = tile.geobox.coordinates["latitude"].values
+    tile_lon = tile.geobox.coordinates["longitude"].values
+    if store_lat.shape != tile_lat.shape or store_lon.shape != tile_lon.shape:
+        raise RuntimeError(
+            f"Store grid mismatch for tile ({tile.row},{tile.col}): store region "
+            f"{store_lat.shape}x{store_lon.shape} vs tile geobox {tile_lat.shape}x{tile_lon.shape}"
+        )
+    np.testing.assert_allclose(store_lat, tile_lat, atol=tolerance)
+    np.testing.assert_allclose(store_lon, tile_lon, atol=tolerance)
+
+
+def process_one_year(s1_wy_ds, mask_ds, water_year, config, gmba_clipped_gdf):
+    """
+    Run the single-water-year pipeline: mask -> denoise -> per-orbit quality
+    filter -> temporal resolution + runoff onset, computed into memory.
+
+    Returns:
+        (onset_2d, tr_2d, stats) with float32 numpy arrays (NaN = nodata), or
+        (None, None, stats) when no pixel survives filtering.
+    """
+    center_lat = (s1_wy_ds.rio.bounds()[1] + s1_wy_ds.rio.bounds()[3]) / 2
+    if np.absolute(center_lat) < 3:
+        s1_wy_ds = processing.remove_equator_crossing(s1_wy_ds)
+
+    if gmba_clipped_gdf is not None:
+        s1_wy_ds = s1_wy_ds.rio.clip_box(*gmba_clipped_gdf.total_bounds, crs=gmba_clipped_gdf.crs)
+        s1_wy_ds = s1_wy_ds.rio.clip(gmba_clipped_gdf.geometry, drop=True)
+
+    crs = s1_wy_ds.rio.crs
+    s1_masked_ds = processing.apply_mask_for_year(s1_wy_ds, mask_ds)
+    s1_masked_ds.rio.write_crs(crs, inplace=True)
+
+    s1_masked_ds = processing.remove_bad_scenes_and_border_noise(
+        s1_masked_ds, config.low_backscatter_threshold
+    )
+    s1_masked_ds.attrs.update(s1_wy_ds.attrs)
+
+    s1_filtered_ds = processing.filter_insufficient_pixels_per_orbit(
+        s1_rtc_masked_ds=s1_masked_ds,
+        spatiotemporal_snow_cover_mask_ds=mask_ds,
+        min_monthly_acquisitions=config.min_monthly_acquisitions,
+        max_allowed_days_gap_per_orbit=config.max_allowed_days_gap_per_orbit,
+    )
+    s1_filtered_ds.rio.write_crs(crs, inplace=True)
+    s1_filtered_ds.attrs.update(s1_wy_ds.attrs)
+
+    temporal_resolution_da = processing.get_temporal_resolution(
+        s1_filtered_ds, mask_ds
+    ).astype(np.float32)
+
+    runoff_onset_da = processing.calculate_runoff_onset(
+        s1_filtered_ds,
+        returned_dates_format="dowy",
+        return_constituent_runoff_onsets=False,
+    )
+
+    onset_np, tr_np = dask.compute(runoff_onset_da, temporal_resolution_da)
+
+    # xr_datetime_to_DOWY encodes NaT as -9999 int16; normalize to float32/NaN
+    # so the store's CF encoding (int16, _FillValue=-9999, x10 scaling for
+    # temporal resolution) is applied uniformly on write.
+    onset_2d = onset_np.values.astype(np.float32)
+    onset_2d[onset_2d < 1] = np.nan
+    tr_2d = np.squeeze(tr_np.sel(water_year=water_year).values).astype(np.float32)
+    tr_2d[~np.isfinite(tr_2d)] = np.nan
+
+    valid_px = int(np.isfinite(onset_2d).sum())
+    stats = {
+        "valid_px": valid_px,
+        "n_scenes": int(s1_wy_ds.time.size),
+        "n_orbits": int(np.unique(s1_wy_ds["sat:relative_orbit"].values).size),
+        "median_tr_days": (round(float(np.nanmedian(tr_2d)), 2) if np.isfinite(tr_2d).any() else None),
+    }
+    if valid_px == 0:
+        return None, None, stats
+    return onset_2d, tr_2d, stats
+
+
+def process_tile(config, repo, tile_row, tile_col, water_years, branch,
+                 skip_composites, read_chunks) -> dict:
+    """
+    Process the requested water years of one tile, then refresh composites.
+
+    Args:
+        read_chunks: dask chunking for the Sentinel-1 read. Time chunking
+            only batches independent per-scene 2D reads and never affects
+            values. SPATIAL read-chunk size does not change which COG
+            overview odc reads (that follows the min-axis scale ratio, i.e.
+            latitude), but it does shift scene-footprint-EDGE warping and
+            ULP-level float noise; end-to-end vs the v9-equivalent 512:
+            99.56% identical DOWY, 0.04% coverage change, ~0.4% of pixels
+            flip between near-tied backscatter minima, tile statistics
+            unchanged. The 2048 default trades that for ~27% fewer bytes
+            and ~2x faster loading (accepted July 2026).
+
+    Returns a per-year outcome dict for the step summary.
+    """
+    prov = collect_provenance()
+    tile = config.get_tile(tile_row, tile_col)
+    region_2d = tile_region_slices(config, tile_row, tile_col)
+    all_water_years = [int(wy) for wy in config.water_years]
+    wy_to_index = {wy: i for i, wy in enumerate(all_water_years)}
+    outcomes = {}
+
+    odc.stac.configure_rio(cloud_defaults=True)
+
+    readonly_ds = xr.open_zarr(
+        repo.readonly_session(branch).store, zarr_format=3, consolidated=False,
+        mask_and_scale=True, decode_coords="all",
+    )
+    check_store_grid_alignment(readonly_ds, tile, region_2d)
+    tile_lat = readonly_ds.latitude.isel(latitude=region_2d["latitude"]).values
+    tile_lon = readonly_ds.longitude.isel(longitude=region_2d["longitude"]).values
+
+    # --- snow phenology mask, computed once for all years (also the
+    # early-exit check: no seasonal snow -> empty markers without any S1 work)
+    log.info("Loading spatiotemporal snow cover mask...")
+    tile_template = odc.geo.xr.xr_zeros(tile.geobox, dtype="float32")
+    mask_ds = processing.get_spatiotemporal_snow_cover_mask(
+        ds=tile_template,
+        bbox_gdf=tile.bbox_gdf,
+        snow_phenology_store=config.snow_phenology_store,
+        extend_search_window_beyond_SDD_days=config.extend_search_window_beyond_SDD_days,
+        min_consec_snow_days_for_seasonal_snow=config.min_consec_snow_days_for_seasonal_snow,
+    ).compute()
+    # Re-chunk the computed mask: comparing numpy mask fields against the
+    # (time,) DOWY coordinate inside apply_mask_for_year would otherwise
+    # broadcast EAGERLY to full (time, 2048, 2048) numpy booleans -- ~2.5 GB
+    # per mask term on scene-dense tiles (e.g. 598 scenes/year at 70N).
+    # Chunked, those comparisons stay lazy and memory tracks dask chunks.
+    mask_ds = mask_ds.chunk({
+        "water_year": 1,
+        "latitude": config.spatial_chunk_dim_s1_process,
+        "longitude": config.spatial_chunk_dim_s1_process,
+    })
+    log_memory("snow mask computed")
+
+    mask_years = set(int(wy) for wy in mask_ds.water_year.values)
+    missing_from_phenology = [wy for wy in water_years if wy not in mask_years]
+    if missing_from_phenology:
+        raise RuntimeError(
+            f"Water years {missing_from_phenology} not present in the snow phenology "
+            "store -- refusing to mark them empty; update the phenology input first."
         )
 
-        tile_median_temporal_resolution = global_subset_ds['temporal_resolution'].median(
-            dim=["latitude", "longitude"]
+    years_to_process = []
+    for wy in water_years:
+        t0 = time.time()
+        if not bool(mask_ds.binary_seasonal_snow_cover_presence.sel(water_year=wy).any()):
+            commit_empty_year(repo, branch, config, tile_row, tile_col, wy,
+                              status.EMPTY_NO_SEASONAL_SNOW, prov, time.time() - t0)
+            outcomes[wy] = ("empty", status.EMPTY_NO_SEASONAL_SNOW)
+        else:
+            years_to_process.append(wy)
+
+    # Hemisphere from the tile center (matches the UTM-zone-based rule the
+    # algorithm applies to loaded data); determines each water year's window.
+    center_lat = (tile.geobox.boundingbox.bottom + tile.geobox.boundingbox.top) / 2
+    hemisphere = "northern" if center_lat >= 0 else "southern"
+
+    def water_year_window(wy):
+        if hemisphere == "northern":
+            return f"{wy - 1}-10-01", f"{wy}-09-30"
+        return f"{wy}-04-01", f"{wy + 1}-03-31"
+
+    gmba_clipped_gdf = (
+        processing.get_gmba_mountain_inventory(tile.bbox_gdf)
+        if config.mountain_snow_only else None
+    )
+
+    # --- Sentinel-1, searched + signed PER WATER YEAR. Planetary Computer
+    # asset tokens expire ~45 min after signing, so one up-front search for
+    # the whole 2014-2025 period would leave later years of a 10-year job
+    # computing against expired URLs. A per-year search keeps each year's
+    # token fresh at the start of that year's load/compute, and the retry
+    # below re-searches (fresh token) if a year's compute still outlives it.
+    year_results = {}
+    for wy in years_to_process:
+        t0 = time.time()
+        year_start, year_end = water_year_window(wy)
+
+        result = None
+        for load_attempt in range(YEAR_LOAD_MAX_TRIES):
+            log.info(f"WY{wy}: searching Sentinel-1 items ({year_start} to {year_end})"
+                     + (f" [attempt {load_attempt + 1}]" if load_attempt else "") + "...")
+            items = processing.search_sentinel1_items(
+                tile.geobox, start_date=year_start, end_date=year_end
+            )
+            if len(items) == 0:
+                result = "no_items"
+                break
+            s1_year_ds = processing.load_sentinel1_rtc(
+                items, tile.geobox, bands=config.bands,
+                chunks_read=read_chunks,
+                fail_on_error=True,
+            )
+            # belt-and-braces: keep only acquisitions the WY/DOWY logic assigns
+            # to this water year (search window and WY assignment use the same
+            # timestamps, so this is normally a no-op)
+            s1_wy_ds = s1_year_ds.sel(time=s1_year_ds.water_year == wy)
+            log.info(f"WY{wy}: {int(s1_wy_ds.time.size)} scenes ({len(items)} items)")
+            if s1_wy_ds.time.size == 0:
+                result = "no_scenes"
+                break
+            try:
+                result = process_one_year(s1_wy_ds, mask_ds, wy, config, gmba_clipped_gdf)
+                break
+            except Exception as e:
+                # Typically odc "Aborting load due to failure while reading":
+                # a transient blob failure or the signed token expiring
+                # mid-compute. Nothing was committed, so retrying the whole
+                # year against a freshly signed search is safe.
+                if load_attempt + 1 >= YEAR_LOAD_MAX_TRIES:
+                    raise
+                log.warning(f"WY{wy}: load/compute failed ({type(e).__name__}: {e}); "
+                            "re-searching with fresh asset tokens and retrying")
+                del s1_year_ds, s1_wy_ds
+                gc.collect()
+
+        if result in ("no_items", "no_scenes"):
+            commit_empty_year(repo, branch, config, tile_row, tile_col, wy,
+                              status.EMPTY_NO_S1_DATA, prov, time.time() - t0)
+            outcomes[wy] = ("empty", status.EMPTY_NO_S1_DATA)
+            continue
+
+        onset_2d, tr_2d, stats = result
+        log_memory(f"WY{wy} computed")
+
+        if onset_2d is None:
+            commit_empty_year(repo, branch, config, tile_row, tile_col, wy,
+                              status.EMPTY_NO_VALID_PIXELS, prov, time.time() - t0)
+            outcomes[wy] = ("empty", status.EMPTY_NO_VALID_PIXELS)
+            gc.collect()
+            continue
+
+        year_index = wy_to_index[wy]
+        ds_write = xr.Dataset(
+            {
+                "runoff_onset": (("water_year", "latitude", "longitude"), onset_2d[None]),
+                "temporal_resolution": (("water_year", "latitude", "longitude"), tr_2d[None]),
+            },
+            coords={"water_year": [wy], "latitude": tile_lat, "longitude": tile_lon},
         )
-        tile_pixel_count = global_subset_ds['temporal_resolution'].count(
-            dim=["latitude", "longitude"]
+        region = {"water_year": slice(year_index, year_index + 1), **region_2d}
+
+        metadata = status.build_commit_metadata(
+            status.KIND_TILE_YEAR, tile_row, tile_col, config.version,
+            status.STATUS_DATA, water_year=wy, stats=stats,
+            duration_s=time.time() - t0, provenance=prov,
         )
-
-        tile_median_temporal_resolution, tile_pixel_count = dask.compute(
-            tile_median_temporal_resolution, tile_pixel_count
+        message = status.build_commit_message(
+            status.KIND_TILE_YEAR, tile_row, tile_col, status.STATUS_DATA,
+            water_year=wy, valid_px=stats["valid_px"],
         )
+        snapshot_id = commit_with_retry(
+            repo, branch,
+            lambda session: ds_write.to_zarr(
+                session.store, region=region, zarr_format=3, consolidated=False, mode="r+"
+            ),
+            message, metadata,
+        )
+        log.info(f"WY{wy}: committed {stats['valid_px']:,} valid px -> {snapshot_id}")
+        outcomes[wy] = ("data", stats["valid_px"])
 
-        # Log if these are lazy
-        logging.info(f"Tile median temporal resolution (tile_median_temporal_resolution) - "
-                     f"{dask_or_computed(tile_median_temporal_resolution)}")
-        logging.info(f"Tile pixel count (tile_pixel_count) - "
-                     f"{dask_or_computed(tile_pixel_count)}")
-        monitor_memory_and_cleanup()
+        year_results[wy] = (onset_2d, tr_2d)
+        del s1_wy_ds, s1_year_ds, ds_write
+        gc.collect()
+        log_memory(f"WY{wy} committed")
 
-        # Store temporal resolution metrics
-        for water_year in config.water_years:
-            if water_year in tile_median_temporal_resolution.water_year:
-                temporal_resolution = tile_median_temporal_resolution.sel(
-                    water_year=water_year
-                ).values
-                setattr(tile, f"tr_{water_year}", round(float(temporal_resolution), 3))
+    if skip_composites:
+        return outcomes
 
-            if water_year in tile_pixel_count.water_year:
-                pixel_count = tile_pixel_count.sel(water_year=water_year).values
-                setattr(tile, f"pix_ct_{water_year}", int(pixel_count))
+    # --- composites over ALL water years: in-memory results where available,
+    # store readback for years committed in previous runs
+    t0 = time.time()
+    n_lat = region_2d["latitude"].stop - region_2d["latitude"].start
+    n_lon = region_2d["longitude"].stop - region_2d["longitude"].start
+    onset_stack = np.full((len(all_water_years), n_lat, n_lon), np.nan, np.float32)
+    tr_stack = np.full_like(onset_stack, np.nan)
 
-        logging.info("Tile median temporal resolution and pixel count per water year stored in tile object")
-        monitor_memory_and_cleanup()
+    readback_years = [
+        wy for wy in all_water_years
+        if wy not in year_results and outcomes.get(wy, ("",))[0] != "empty"
+    ]
+    if readback_years:
+        log.info(f"Reading back WYs {readback_years} from the store for composites...")
+        # re-open at current tip so years committed by this job are visible
+        readback_ds = xr.open_zarr(
+            repo.readonly_session(branch).store, zarr_format=3, consolidated=False,
+            mask_and_scale=True,
+        ).isel(region_2d)
+        onset_readback = readback_ds.runoff_onset.sel(water_year=readback_years).values
+        tr_readback = readback_ds.temporal_resolution.sel(water_year=readback_years).values
+        for i, wy in enumerate(readback_years):
+            onset_stack[wy_to_index[wy]] = onset_readback[i]
+            tr_stack[wy_to_index[wy]] = tr_readback[i]
+    for wy, (onset_2d, tr_2d) in year_results.items():
+        onset_stack[wy_to_index[wy]] = onset_2d
+        tr_stack[wy_to_index[wy]] = tr_2d
 
-        # Record success
-        tile.total_time = time.time() - start_time
-        tile.success = True
+    coords = {"water_year": all_water_years, "latitude": tile_lat, "longitude": tile_lon}
+    onset_da = xr.DataArray(onset_stack, dims=("water_year", "latitude", "longitude"), coords=coords)
+    tr_da = xr.DataArray(tr_stack, dims=("water_year", "latitude", "longitude"), coords=coords)
 
-        logging.info(f"Tile ({tile_row}, {tile_col}) processed successfully in {tile.total_time:.2f} seconds")
+    median_da, mad_da = processing.median_and_mad_with_min_obs(
+        da=onset_da, dim="water_year", min_count=config.min_years_for_median_std
+    )
+    tr_median_da = processing.median_with_min_obs(
+        da=tr_da, dim="water_year", min_count=config.min_years_for_median_std
+    )
 
-    except Exception as e:
-        error_msg = str(e)
-        traceback_msg = traceback.format_exc()
+    composite_valid_px = int(np.isfinite(median_da.values).sum())
+    years_with_data = sorted(int(wy) for wy in all_water_years
+                             if np.isfinite(onset_stack[wy_to_index[wy]]).any())
+    composite_stats = {
+        "valid_px": composite_valid_px,
+        "years_with_data": years_with_data,
+        "n_years_with_data": len(years_with_data),
+    }
 
-        logging.error(f"Error processing tile ({tile_row}, {tile_col}): {error_msg}")
-        logging.error(f"Traceback: {traceback_msg}")
+    if composite_valid_px == 0:
+        metadata = status.build_commit_metadata(
+            status.KIND_TILE_COMPOSITE, tile_row, tile_col, config.version,
+            status.STATUS_EMPTY, empty_reason=status.EMPTY_NO_VALID_PIXELS,
+            stats=composite_stats, duration_s=time.time() - t0, provenance=prov,
+        )
+        message = status.build_commit_message(
+            status.KIND_TILE_COMPOSITE, tile_row, tile_col, status.STATUS_EMPTY,
+            empty_reason=status.EMPTY_NO_VALID_PIXELS,
+        )
+        snapshot_id = commit_with_retry(repo, branch, lambda s: None, message, metadata, allow_empty=True)
+        log.info(f"composites: committed empty marker -> {snapshot_id}")
+        outcomes["composites"] = ("empty", status.EMPTY_NO_VALID_PIXELS)
+        return outcomes
 
-        # Make sure tile is defined even if error occurs early
-        if 'tile' not in locals():
-            tile = config.get_tile(tile_row, tile_col)
-            tile.start_time = time.time()
+    composites_write_ds = xr.Dataset(
+        {
+            "runoff_onset_median": (("latitude", "longitude"), median_da.values.astype(np.float32)),
+            "runoff_onset_mad": (("latitude", "longitude"), mad_da.values.astype(np.float32)),
+            "temporal_resolution_median": (("latitude", "longitude"), tr_median_da.values.astype(np.float32)),
+        },
+        coords={"latitude": tile_lat, "longitude": tile_lon},
+    )
+    metadata = status.build_commit_metadata(
+        status.KIND_TILE_COMPOSITE, tile_row, tile_col, config.version,
+        status.STATUS_DATA, stats=composite_stats,
+        duration_s=time.time() - t0, provenance=prov,
+    )
+    message = status.build_commit_message(
+        status.KIND_TILE_COMPOSITE, tile_row, tile_col, status.STATUS_DATA,
+        valid_px=composite_valid_px,
+    )
+    snapshot_id = commit_with_retry(
+        repo, branch,
+        lambda session: composites_write_ds.to_zarr(
+            session.store, region=region_2d, zarr_format=3, consolidated=False, mode="r+"
+        ),
+        message, metadata,
+    )
+    log.info(f"composites: committed {composite_valid_px:,} valid px -> {snapshot_id}")
+    outcomes["composites"] = ("data", composite_valid_px)
+    return outcomes
 
-        tile.error_messages.append(error_msg)
-        tile.error_messages.append(traceback_msg)
-        tile.total_time = time.time() - tile.start_time
-        tile.success = False
 
-    return tile
-
-
-def save_results_csv(tile, config) -> None:
-    """Save tile results to individual CSV file for artifact upload."""
-    save_results_to_individual_csv(tile, config)
-
-
-def save_results_to_individual_csv(tile, config) -> None:
-    """Save tile results to individual CSV file for artifact upload."""
-    import pandas as pd
-    
-    # Create output directory
-    output_dir = Path("processing/tile_data/github_workflow_results")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Extract version from config file name
-    config_version = "v9"  # Default fallback
-    if hasattr(config, 'config_name'):
-        config_version = config.config_name.replace('global_config_', '')
-    
-    # Create CSV filename
-    csv_filename = f"tile_{tile.row}_{tile.col}_{config_version}.csv"
-    csv_path = output_dir / csv_filename
-    
-    # Convert None/NaN to empty string to match pandas behavior
-    import math
-    
-    def clean_value(value):
-        """Convert None, NaN, or 'nan' string to empty string for CSV consistency."""
-        if value is None:
-            return ''
-        if isinstance(value, float) and math.isnan(value):
-            return ''
-        if isinstance(value, str) and value.lower() == 'nan':
-            return ''
-        return value
-    
-    # Create row data
-    row_data = {field: clean_value(getattr(tile, field, None)) for field in config.fields}
-    
-    # Write to CSV using pandas for consistency
-    df = pd.DataFrame([row_data])
-    df.to_csv(csv_path, index=False)
-    
-    logging.info(f"Tile results saved to individual CSV: {csv_path}")
+def write_step_summary(tile_row, tile_col, outcomes) -> None:
+    """Per-year outcome table in the GitHub Actions step summary, if running there."""
+    summary_path = os.getenv("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+    lines = [f"### Tile ({tile_row}, {tile_col})", "", "| water year | outcome | detail |", "|---|---|---|"]
+    for key, (outcome, detail) in outcomes.items():
+        detail_str = f"{detail:,} valid px" if outcome == "data" else str(detail)
+        lines.append(f"| {key} | {outcome} | {detail_str} |")
+    with open(summary_path, "a") as f:
+        f.write("\n".join(lines) + "\n")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Process a single tile for snowmelt runoff onset")
-    parser.add_argument("--tile-row", type=int, required=True,
-                        help="Tile row coordinate")
-    parser.add_argument("--tile-col", type=int, required=True,
-                        help="Tile column coordinate")
-    parser.add_argument("--config-file", type=str,
-                        default="global_config_v9.txt",
-                        help="Config file (e.g., global_config_v9.txt)")
-    
+        description="Process a single tile (per water year) into the icechunk store")
+    parser.add_argument("--tile-row", type=int, required=True)
+    parser.add_argument("--tile-col", type=int, required=True)
+    parser.add_argument("--config-file", type=str, default="global_config_v10.txt",
+                        help="Config file name in config/ (e.g. global_config_v10.txt)")
+    parser.add_argument("--water-years", type=str, default="all",
+                        help="Comma-separated water years to process, 'all' (default), "
+                             "or 'none' to only (re)compute composites from committed years")
+    parser.add_argument("--skip-composites", action="store_true",
+                        help="Skip the cross-year composite commit")
+    parser.add_argument("--branch", type=str, default="main")
+    parser.add_argument("--local-store", type=str, default=None,
+                        help="Path to a local icechunk repo (testing; overrides Azure)")
+    parser.add_argument("--dask-workers", type=int, default=None,
+                        help="Threaded-scheduler worker count (default: all cores). "
+                             "Peak memory scales with workers; cap this on "
+                             "many-core machines with limited RAM.")
+    parser.add_argument("--read-chunk-dim", type=int, default=2048,
+                        help="Spatial chunk size for the Sentinel-1 read. Default 2048 "
+                             "(whole tile): ~27%% fewer bytes and ~2x faster loading "
+                             "than 512 (fewer halo re-reads/round trips). Not "
+                             "bit-reproducible against the v9-equivalent 512: "
+                             "measured 99.56%% identical DOWY, 0.04%% coverage "
+                             "change at scene-footprint edges, ~0.4%% of pixels "
+                             "flip to a different backscatter minimum (idxmin "
+                             "near-ties), tile statistics unchanged. Use 512 for "
+                             "exact v9 comparisons.")
+    parser.add_argument("--read-chunk-time", type=int, default=1,
+                        help="Time chunk size for the Sentinel-1 read (default 1: "
+                             "scenes are independent 2D reads, so this is value-"
+                             "identical to any other batching and maximizes download "
+                             "parallelism).")
     args = parser.parse_args()
-    
-    # Set up logging
+
     setup_logging(args.tile_row, args.tile_col)
-    
-    # Set up required modules
-    try:
-        setup_modules()
-    except Exception as e:
-        logging.error(f"Failed to set up required modules: {e}")
-        sys.exit(1)
-    
-    # Get configuration file and load config
-    config_file = get_config_file(args.config_file)
-    
-    # Load configuration once
-    from global_snowmelt_runoff_onset.config import Config
-    config = Config(config_file)
-    
-    # Process the tile
-    result = process_tile_github_actions(
-        args.tile_row,
-        args.tile_col,
-        config
-    )
-    
-    # result is always a tile object (matching original repository pattern)
-    # Always save results CSV, whether success or failure
-    save_results_csv(result, config)
-    
-    if result.success:
-        logging.info("Tile processing completed successfully")
-        sys.exit(0)
+    if args.dask_workers:
+        dask.config.set(scheduler="threads", num_workers=args.dask_workers)
     else:
-        logging.error("Tile processing failed")
-        if result.error_messages:
-            for error in result.error_messages:
-                logging.error(f"Error: {error}")
-        logging.info("Failed tile results saved to CSV")
-        sys.exit(0) # changed to 0 to write csv even on failure. if process crashes, that's when github actions will create a csv
+        dask.config.set(scheduler="threads")
+
+    config_name = args.config_file if args.config_file.endswith(".txt") else f"global_config_{args.config_file}.txt"
+    config = Config(str(Path(__file__).parent.parent.parent / "config" / config_name))
+    if not config.output_store_is_icechunk:
+        log.error(f"{config_name} is a legacy (pre-icechunk) config; use configs >= v10 here.")
+        sys.exit(2)
+
+    water_years_arg = args.water_years.strip().lower()
+    if water_years_arg in ("all", ""):
+        water_years = [int(wy) for wy in config.water_years]
+    elif water_years_arg in ("none", "composites_only"):
+        water_years = []  # composites-only: refresh from already-committed years
+    else:
+        water_years = sorted(int(wy) for wy in args.water_years.split(","))
+
+    repo = open_output_repo(config, args.local_store)
+
+    read_chunks = {"x": args.read_chunk_dim, "y": args.read_chunk_dim,
+                   "time": args.read_chunk_time}
+
+    start = time.time()
+    try:
+        outcomes = process_tile(
+            config, repo, args.tile_row, args.tile_col, water_years,
+            args.branch, args.skip_composites, read_chunks,
+        )
+    except Exception:
+        log.error(f"Tile ({args.tile_row}, {args.tile_col}) FAILED after "
+                  f"{time.time() - start:.0f}s:\n{traceback.format_exc()}")
+        sys.exit(1)
+
+    write_step_summary(args.tile_row, args.tile_col, outcomes)
+    log.info(f"Tile ({args.tile_row}, {args.tile_col}) done in {time.time() - start:.0f}s: "
+             + ", ".join(f"{key}={outcome}" for key, (outcome, _) in outcomes.items()))
+    sys.exit(0)
 
 
 if __name__ == "__main__":

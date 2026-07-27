@@ -1,203 +1,113 @@
 #!/usr/bin/env python3
 """
-Generate tile lists for batch processing based on config parameters.
+Generate tile work lists for batch processing from the icechunk commit history.
 
-This script uses the Config class to get filtered lists of tiles for batch processing
-in GitHub Actions workflows.
+Replaces the tile_results_*.csv-driven matrix generation (configs <= v9):
+remaining work is derived from the output repository's commit metadata via
+global_snowmelt_runoff_onset.status, so failed tiles (which never commit) are
+automatically re-dispatched and completed tile x water years are never redone.
+
+Each work item is {"row": R, "col": C, "wys": "2015,2019"} where "wys" is the
+comma-separated list of water years still missing for that tile ("all" when
+none are committed yet, "none" when only the composites need refreshing).
+
+Output modes (for GitHub Actions):
+    --list-batches      {"batch_index": [0, 1, ...]} for the batch fan-out
+    (default)           {"tile": [work items]} for one batch's job matrix
 """
 
 import argparse
+import contextlib
+import io
 import json
 import sys
-import logging
 from pathlib import Path
 
-# Add the parent directory to Python path to import our modules
+# Add the repo root to the Python path so the package imports without install
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-def get_config_file(config_file: str) -> str:
-    """
-    Get the full path to the configuration file.
-    
-    Args:
-        config_file: Name of the configuration file (with or without path)
-        
-    Returns:
-        Full path to the configuration file
-    """
-    # If the config_file already starts with "config/", use it as is
-    if config_file.startswith("config/"):
-        return config_file
-    
-    # Otherwise, prepend "config/" to the filename
-    return f"config/{config_file}"
+BATCH_SIZE = 256  # GitHub Actions matrix job limit
 
 
-def get_tiles_for_batch(config_file: str, which_tiles: str, how_many: int,
-                        output_format: str = 'list', batch_size: int = 256,
-                        batch_index: int = 0) -> list:
+def get_work_items(config_file: str, which_tiles: str, include_empty_years: bool,
+                   how_many: int, branch: str, as_of_snapshot: str | None) -> tuple:
     """
-    Get a list of tiles for batch processing.
-    
-    Args:
-        config_file: Path to configuration file
-        which_tiles: Filter criterion for tiles to process
-        how_many: Maximum number of tiles to return
-        output_format: Output format ('json', 'list', 'count') - suppresses
-                      config logging for 'json' and 'count'
-        batch_size: Number of tiles per batch (default 256 for GitHub Actions limit)
-        batch_index: Which batch to return (0-based index)
-        
-    Returns:
-        List of dictionaries with tile coordinates
+    Full ordered work list (snowiest tiles first), before batching.
+
+    Returns (items, snapshot_id): status is derived as of 'as_of_snapshot' when
+    given, otherwise as of the branch tip -- whose snapshot id is returned so a
+    fleet run can pin every batch to the same consistent work list.
     """
-    # Get the full config file path
-    config_file = get_config_file(config_file)
-    
-    # Suppress configuration logging for JSON and count outputs
-    if output_format in ['json', 'count']:
-        # Redirect stdout to suppress print statements during config loading
-        import io
-        import contextlib
-        
-        # Capture stdout during config loading
-        stdout_capture = io.StringIO()
-        with contextlib.redirect_stdout(stdout_capture):
-            # Also disable logging during config loading
-            logging.disable(logging.CRITICAL)
-            
-            # Load configuration
-            from global_snowmelt_runoff_onset.config import Config
-            config = Config(config_file)
-            
-            # Re-enable logging after config loading
-            logging.disable(logging.NOTSET)
-    else:
-        # Load configuration normally for 'list' output
+    # Config loading and the ancestry walk print progress/config chatter;
+    # keep stdout clean for the JSON output.
+    with contextlib.redirect_stdout(io.StringIO()):
         from global_snowmelt_runoff_onset.config import Config
-        config = Config(config_file)
-    
-    # Get filtered list of tiles
-    tiles = config.get_list_of_tiles(which_tiles)
-    
-    # Limit to requested number
-    if how_many > 0:
-        tiles = tiles[:how_many]
-    
-    # If batch_index is specified, slice the tiles for this batch
-    if batch_index >= 0:
-        start_idx = batch_index * batch_size
-        end_idx = start_idx + batch_size
-        tiles = tiles[start_idx:end_idx]
-    
-    # Convert to list of dictionaries for JSON serialization
-    tile_list = [{"row": tile.row, "col": tile.col} for tile in tiles]
-    
-    return tile_list
+        from global_snowmelt_runoff_onset import status
 
+        repo_root = Path(__file__).parent.parent.parent
+        config_name = config_file if config_file.endswith(".txt") else f"global_config_{config_file}.txt"
+        config = Config(str(repo_root / "config" / config_name))
+        repo = config.open_output_repo()
+        snapshot_id = as_of_snapshot or repo.lookup_branch(branch)
+        work = status.get_remaining_work(
+            config, repo=repo, which=which_tiles,
+            include_empty_years=include_empty_years,
+            branch=branch, as_of_snapshot=snapshot_id,
+        )
+        all_years = [int(wy) for wy in config.water_years]
 
-def get_batch_info(config_file: str, which_tiles: str, how_many: int,
-                   batch_size: int = 256) -> dict:
-    """
-    Get information about how many batches are needed.
-    
-    Args:
-        config_file: Path to configuration file
-        which_tiles: Filter criterion for tiles to process
-        how_many: Maximum number of tiles to return
-        batch_size: Number of tiles per batch
-        
-    Returns:
-        Dictionary with batch information
-    """
-    # Get the full config file path
-    config_file = get_config_file(config_file)
-    
-    # Load configuration (suppress output)
-    import io
-    import contextlib
-    
-    stdout_capture = io.StringIO()
-    with contextlib.redirect_stdout(stdout_capture):
-        logging.disable(logging.CRITICAL)
-        from global_snowmelt_runoff_onset.config import Config
-        config = Config(config_file)
-        logging.disable(logging.NOTSET)
-    
-    # Get filtered list of tiles
-    tiles = config.get_list_of_tiles(which_tiles)
-    
-    # Limit to requested number
     if how_many > 0:
-        tiles = tiles[:how_many]
-    
-    total_tiles = len(tiles)
-    num_batches = (total_tiles + batch_size - 1) // batch_size  # Ceiling division
-    
-    return {
-        "total_tiles": total_tiles,
-        "num_batches": num_batches,
-        "batch_size": batch_size,
-        "batches": [{"batch_index": i} for i in range(num_batches)]
-    }
+        work = work[:how_many]
+
+    items = []
+    for entry in work:
+        if entry["water_years"] == all_years:
+            wys = "all"
+        elif not entry["water_years"]:
+            wys = "none"  # composites-only refresh
+        else:
+            wys = ",".join(str(wy) for wy in entry["water_years"])
+        items.append({"row": entry["row"], "col": entry["col"], "wys": wys})
+    return items, snapshot_id
+
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate tile lists for batch processing")
-    parser.add_argument("--config-file", type=str,
-                        default="config/global_config_v9.txt",
-                        help="Config file (e.g., config/global_config_v9.txt)")
-    parser.add_argument("--which-tiles", type=str,
-                        default="unprocessed",
-                        choices=['all', 'processed', 'failed', 'unprocessed',
-                                'unprocessed_and_failed', 'unprocessed_and_failed_skip_empty_tiles',
-                                'unprocessed_and_failed_weather_stations'],
-                        help="Which tiles to process")
-    parser.add_argument("--how-many", type=int,
-                        default=10,
-                        help="Maximum number of tiles to return (0 for all)")
-    parser.add_argument("--output", type=str,
-                        choices=['json', 'list', 'count', 'batch-info'],
-                        default='json',
-                        help="Output format")
-    parser.add_argument("--batch-size", type=int,
-                        default=256,
-                        help="Number of tiles per batch")
-    parser.add_argument("--batch-index", type=int,
-                        default=-1,
-                        help="Which batch to return (0-based, -1 for all)")
-    
+    parser = argparse.ArgumentParser(description="Generate tile work lists from icechunk commit history")
+    parser.add_argument("--config-file", type=str, default="global_config_v10.txt")
+    parser.add_argument("--which-tiles", type=str, default="incomplete",
+                        choices=["incomplete", "unprocessed", "all"],
+                        help="incomplete: missing tile x water years + missing/stale composites "
+                             "(includes failed -- they never commit); unprocessed: untouched tiles "
+                             "only; all: full reprocess")
+    parser.add_argument("--include-empty-years", action="store_true",
+                        help="Also redo water years previously committed as verified-empty")
+    parser.add_argument("--how-many", type=int, default=0,
+                        help="Limit the number of tiles (0 = no limit)")
+    parser.add_argument("--branch", type=str, default="main")
+    parser.add_argument("--batch-index", type=int, default=0,
+                        help=f"Which batch of {BATCH_SIZE}-tile batches to emit")
+    parser.add_argument("--as-of-snapshot", type=str, default=None,
+                        help="Derive status as of this snapshot id (pins a consistent "
+                             "work list across the batches of one fleet run)")
+    parser.add_argument("--list-batches", action="store_true",
+                        help='Emit {"batch_index": [...], "snapshot_id": ...} instead of one batch\'s tiles')
+
     args = parser.parse_args()
-    
-    try:
-        if args.output == 'batch-info':
-            # Get batch information
-            batch_info = get_batch_info(args.config_file, args.which_tiles,
-                                       args.how_many, args.batch_size)
-            print(json.dumps(batch_info, separators=(',', ':')))
-        else:
-            # Get tile list
-            tile_list = get_tiles_for_batch(
-                args.config_file, args.which_tiles, args.how_many,
-                args.output, args.batch_size, args.batch_index)
-            
-            if args.output == 'json':
-                # Output JSON for GitHub Actions matrix
-                json_output = json.dumps(tile_list, separators=(',', ':'))
-                print(json_output)
-            elif args.output == 'list':
-                # Output human-readable list
-                print(f"Found {len(tile_list)} tiles matching criteria "
-                      f"'{args.which_tiles}':")
-                for i, tile in enumerate(tile_list, 1):
-                    print(f"{i:3d}: tile ({tile['row']}, {tile['col']})")
-            elif args.output == 'count':
-                # Output just the count
-                print(len(tile_list))
-                
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+
+    items, snapshot_id = get_work_items(args.config_file, args.which_tiles,
+                                        args.include_empty_years, args.how_many,
+                                        args.branch, args.as_of_snapshot)
+
+    if args.list_batches:
+        num_batches = (len(items) + BATCH_SIZE - 1) // BATCH_SIZE
+        print(json.dumps({"batch_index": list(range(num_batches)),
+                          "total_tiles": len(items),
+                          "snapshot_id": snapshot_id},
+                         separators=(",", ":")))
+    else:
+        start = args.batch_index * BATCH_SIZE
+        print(json.dumps({"tile": items[start:start + BATCH_SIZE]}, separators=(",", ":")))
+
 
 if __name__ == "__main__":
     main()
