@@ -4,18 +4,26 @@ on:
   workflow_dispatch:
     inputs:
       tile_row:
-        description: 'Tile row coordinate'
+        description: 'Tile row coordinate (0-95)'
         required: true
         type: number
       tile_col:
-        description: 'Tile column coordinate'
+        description: 'Tile column coordinate (0-244)'
         required: true
         type: number
-      config_file:
-        description: 'Config file to use (e.g., global_config_v9.txt)'
+      water_years:
+        description: "Water years: 'all', 'none' (composites only), or e.g. '2019,2020'"
         required: false
-        default: 'global_config_v9.txt'
+        default: 'all'
         type: string
+      config_file:
+        description: 'Config file to use'
+        required: false
+        default: 'global_config_v10.txt'
+        type: string
+
+permissions:
+  contents: read
 
 env:
   AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
@@ -25,94 +33,24 @@ jobs:
   process-tile:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    
+    name: tile-r${{ inputs.tile_row }}-c${{ inputs.tile_col }}
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      
-    - name: Set up Miniforge
-      uses: conda-incubator/setup-miniconda@v3
+
+    - name: Set up pixi
+      uses: prefix-dev/setup-pixi@v0.8.0
       with:
-        miniforge-version: latest
-        miniforge-variant: Miniforge3
-        channels: conda-forge,defaults
-        channel-priority: true
-        activate-environment: global_snowmelt_runoff_onset_actions
-        environment-file: environment_github_actions.yml
-        
-    - name: Install package
-      shell: bash -l {0}
-      run: |
-        pip install -e .
-        
+        pixi-version: v0.65.0
+        environments: ci
+        cache: true
+
     - name: Process tile
-      id: process_tile
-      shell: bash -l {0}
+      shell: bash
       run: |
-        python processing/scripts/process_single_tile.py \
-          --tile-row ${{ github.event.inputs.tile_row }} \
-          --tile-col ${{ github.event.inputs.tile_col }} \
-          --config-file ${{ github.event.inputs.config_file }}
-          
-    - name: Create failure CSV if processing failed
-      if: failure() && steps.process_tile.outcome == 'failure'
-      shell: bash -l {0}
-      run: |
-        python -c "
-        import sys
-        from pathlib import Path
-        
-        # Add the parent directory to Python path to import our modules
-        sys.path.append(str(Path.cwd()))
-        
-        from global_snowmelt_runoff_onset.config import Config
-        import pandas as pd
-        import os
-        from datetime import datetime
-        
-        # Load config to get proper field structure
-        config_file = '${{ github.event.inputs.config_file }}'
-        config = Config(f'config/{config_file}')
-        
-        # Create a failure tile object with the proper structure
-        tile = config.get_tile(${{ github.event.inputs.tile_row }}, ${{ github.event.inputs.tile_col }})
-        tile.start_time = datetime.now().isoformat()
-        tile.total_time = 0.0
-        tile.success = False
-        tile.error_messages = ['GitHub Actions runner crashed or timed out']
-        
-        # Create row data using the same logic as successful saves
-        def clean_value(value):
-            import math
-            if value is None:
-                return ''
-            if isinstance(value, float) and math.isnan(value):
-                return ''
-            if isinstance(value, str) and value.lower() == 'nan':
-                return ''
-            return value
-        
-        row_data = {field: clean_value(getattr(tile, field, None)) for field in config.fields}
-        
-        # Create output directory
-        output_dir = 'processing/tile_data/github_workflow_results'
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Extract version from config file name
-        config_version = config_file.replace('global_config_', '').replace('.txt', '')
-        
-        # Save CSV using same logic as successful case
-        csv_path = f'{output_dir}/tile_{tile.row}_{tile.col}_{config_version}.csv'
-        df = pd.DataFrame([row_data])
-        df.to_csv(csv_path, index=False)
-        print(f'Created failure CSV: {csv_path}')
-        "
-          
-    - name: Upload tile result as artifact
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: tile-result-${{ github.event.inputs.tile_row }}-${{ github.event.inputs.tile_col }}
-        path: processing/tile_data/github_workflow_results/tile_${{ github.event.inputs.tile_row }}_${{ github.event.inputs.tile_col }}_*.csv
-        retention-days: 30
-        if-no-files-found: ignore
+        pixi run -e ci python processing/scripts/process_single_tile.py \
+          --tile-row ${{ inputs.tile_row }} \
+          --tile-col ${{ inputs.tile_col }} \
+          --water-years "${{ inputs.water_years }}" \
+          --config-file ${{ inputs.config_file }}

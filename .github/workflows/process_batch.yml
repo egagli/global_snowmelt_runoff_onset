@@ -1,0 +1,134 @@
+name: Process Batch (up to 256 tiles)
+
+on:
+  workflow_dispatch:
+    inputs:
+      which_tiles:
+        description: 'Which tiles to process (derived from icechunk commit history)'
+        required: false
+        default: 'incomplete'
+        type: choice
+        options:
+        - incomplete
+        - unprocessed
+        - all
+      how_many:
+        description: 'Max tiles this run (0 = no limit; only the first 256 fit one batch)'
+        required: false
+        default: '10'
+        type: string
+      config_file:
+        description: 'Config file to use'
+        required: false
+        default: 'global_config_v10.txt'
+        type: string
+      batch_index:
+        description: 'Batch index (used by Process All Tiles; leave 0)'
+        required: false
+        default: '0'
+        type: string
+      as_of_snapshot:
+        description: 'Snapshot id pinning the work list (used by Process All Tiles; leave empty)'
+        required: false
+        default: ''
+        type: string
+
+  # Must duplicate inputs for workflow_call (https://github.com/orgs/community/discussions/39357)
+  workflow_call:
+    inputs:
+      which_tiles:
+        type: string
+        required: true
+      how_many:
+        type: string
+        required: true
+      config_file:
+        type: string
+        required: true
+      batch_index:
+        type: string
+        required: false
+        default: '0'
+      as_of_snapshot:
+        type: string
+        required: false
+        default: ''
+    secrets:
+      AZURE_STORAGE_SAS_TOKEN:
+        required: true
+      AZURE_STORAGE_ACCOUNT:
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
+  AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+
+jobs:
+  generate-tile-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.get-tiles.outputs.matrix }}
+      count: ${{ steps.get-tiles.outputs.count }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up pixi
+      uses: prefix-dev/setup-pixi@v0.8.0
+      with:
+        pixi-version: v0.65.0
+        environments: ci
+        cache: true
+
+    - name: Get tiles for this batch from icechunk commit history
+      id: get-tiles
+      shell: bash
+      run: |
+        SNAPSHOT_ARG=""
+        if [ -n "${{ inputs.as_of_snapshot }}" ]; then
+          SNAPSHOT_ARG="--as-of-snapshot ${{ inputs.as_of_snapshot }}"
+        fi
+        MATRIX=$(pixi run -e ci python processing/scripts/get_tiles_for_batch.py \
+          --config-file ${{ inputs.config_file }} \
+          --which-tiles ${{ inputs.which_tiles }} \
+          --how-many ${{ inputs.how_many }} \
+          --batch-index ${{ inputs.batch_index }} \
+          $SNAPSHOT_ARG)
+        COUNT=$(echo "$MATRIX" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['tile']))")
+        echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+        echo "count=$COUNT" >> $GITHUB_OUTPUT
+        echo "Batch ${{ inputs.batch_index }}: $COUNT tiles"
+
+  process-tiles:
+    needs: generate-tile-matrix
+    if: fromJson(needs.generate-tile-matrix.outputs.count) > 0
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-tile-matrix.outputs.matrix) }}
+    name: tile-r${{ matrix.tile.row }}-c${{ matrix.tile.col }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up pixi
+      uses: prefix-dev/setup-pixi@v0.8.0
+      with:
+        pixi-version: v0.65.0
+        environments: ci
+        cache: true
+
+    - name: Process tile
+      shell: bash
+      run: |
+        pixi run -e ci python processing/scripts/process_single_tile.py \
+          --tile-row ${{ matrix.tile.row }} \
+          --tile-col ${{ matrix.tile.col }} \
+          --water-years "${{ matrix.tile.wys }}" \
+          --config-file ${{ inputs.config_file }}

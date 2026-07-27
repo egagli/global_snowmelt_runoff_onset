@@ -1,0 +1,84 @@
+name: Process All Tiles
+
+on:
+  workflow_dispatch:
+    inputs:
+      which_tiles:
+        description: 'Which tiles to process (derived from icechunk commit history)'
+        required: false
+        default: 'incomplete'
+        type: choice
+        options:
+        - incomplete
+        - unprocessed
+        - all
+      how_many:
+        description: 'Max tiles this run (0 = no limit)'
+        required: false
+        default: '0'
+        type: string
+      config_file:
+        description: 'Config file to use'
+        required: false
+        default: 'global_config_v10.txt'
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
+  AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+
+jobs:
+  generate-batch-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.get-batches.outputs.matrix }}
+      count: ${{ steps.get-batches.outputs.count }}
+      snapshot: ${{ steps.get-batches.outputs.snapshot }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up pixi
+      uses: prefix-dev/setup-pixi@v0.8.0
+      with:
+        pixi-version: v0.65.0
+        environments: ci
+        cache: true
+
+    - name: List batches from icechunk commit history
+      id: get-batches
+      shell: bash
+      run: |
+        OUTPUT=$(pixi run -e ci python processing/scripts/get_tiles_for_batch.py \
+          --config-file ${{ inputs.config_file }} \
+          --which-tiles ${{ inputs.which_tiles }} \
+          --how-many ${{ inputs.how_many }} \
+          --list-batches)
+        MATRIX=$(echo "$OUTPUT" | python3 -c "import sys,json; print(json.dumps({'batch_index': json.load(sys.stdin)['batch_index']}))")
+        TOTAL=$(echo "$OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['total_tiles'])")
+        COUNT=$(echo "$MATRIX" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['batch_index']))")
+        SNAPSHOT=$(echo "$OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['snapshot_id'])")
+        echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+        echo "count=$COUNT" >> $GITHUB_OUTPUT
+        echo "snapshot=$SNAPSHOT" >> $GITHUB_OUTPUT
+        echo "Processing $TOTAL tiles across $COUNT batches (256 tiles/batch max), status as of snapshot $SNAPSHOT"
+
+  process-batches:
+    needs: generate-batch-matrix
+    if: fromJson(needs.generate-batch-matrix.outputs.count) > 0
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-batch-matrix.outputs.matrix) }}
+    uses: ./.github/workflows/process_batch.yml
+    with:
+      which_tiles: ${{ inputs.which_tiles }}
+      how_many: ${{ inputs.how_many }}
+      config_file: ${{ inputs.config_file }}
+      batch_index: ${{ matrix.batch_index }}
+      as_of_snapshot: ${{ needs.generate-batch-matrix.outputs.snapshot }}
+    secrets: inherit
