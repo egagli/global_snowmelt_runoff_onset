@@ -65,6 +65,10 @@ permissions:
 env:
   AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
   AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+  # cap glibc malloc arenas: the per-year compute loop otherwise accumulates
+  # per-thread arena fragmentation (~1GB/several years measured locally),
+  # which matters on long dense-tile jobs
+  MALLOC_ARENA_MAX: "2"
 
 jobs:
   generate-tile-matrix:

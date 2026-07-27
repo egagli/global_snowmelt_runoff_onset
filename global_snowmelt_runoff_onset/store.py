@@ -98,7 +98,12 @@ def build_template(config):
             "chunks": (1, *chunk_2d) if is_3d else chunk_2d,
             "compressors": [compressor],
             "dtype": "int16",
+            # _FillValue is only the DECODE attribute; fill_value sets the
+            # zarr-v3 array fill that ABSENT chunks materialize as. Without it
+            # zarr defaults to 0, and every never-written region (empty years,
+            # unprocessed tiles, ocean) reads back as valid 0.0 instead of NaN.
             "_FillValue": NODATA_INT16,
+            "fill_value": NODATA_INT16,
         }
         if var in SCALED_VARIABLES:
             encoding[var]["scale_factor"] = np.float32(0.1)
