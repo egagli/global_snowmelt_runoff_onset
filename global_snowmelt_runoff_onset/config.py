@@ -17,7 +17,6 @@ import odc.stac
 import adlfs
 import icechunk
 import os
-import ee
 from typing import List, Tuple, Dict, Any, Union, Optional
 import warnings
 from datetime import datetime, timezone
@@ -67,6 +66,12 @@ class Config:
             config_file: Path to configuration file
         """
         self.config_file_path = self._resolve_repo_path(config_file)
+        if not pathlib.Path(self.config_file_path).exists():
+            raise FileNotFoundError(
+                f"Config file not found: {self.config_file_path!r} "
+                f"(from {config_file!r}; relative paths resolve against the repo root, "
+                f"not the current working directory)"
+            )
         self.config = configparser.ConfigParser(converters={'list': lambda x: [i.strip() for i in x.split(',')]})
         self.config.read(self.config_file_path)
         self._load_metadata()
@@ -164,10 +169,27 @@ class Config:
         # File paths (resolve relative to repository root)
         self.valid_tiles_geojson_path: str = self._resolve_repo_path(
             self.config.get('VALUES', 'valid_tiles_geojson_path'))
-        self.tile_results_path: str = self._resolve_repo_path(
-            self.config.get('VALUES', 'tile_results_path'))
-        self.global_runoff_zarr_store_azure_path: str = self.config.get(
-            'VALUES', 'global_runoff_zarr_store_azure_path')
+
+        # Output store. Configs >= v10 use 'global_runoff_icechunk_azure_prefix'
+        # (an icechunk repository; processing status is derived from its commit
+        # history -- see status.py). Configs <= v9 use the legacy
+        # 'global_runoff_zarr_store_azure_path' (a pre-allocated plain Zarr v2
+        # store) plus 'tile_results_path' CSV-based status tracking.
+        if self.config.has_option('VALUES', 'global_runoff_icechunk_azure_prefix'):
+            self.output_store_is_icechunk: bool = True
+            self.global_runoff_icechunk_azure_prefix: str = self.config.get(
+                'VALUES', 'global_runoff_icechunk_azure_prefix')
+            self.tile_results_path = None
+            # Zarr v3 sharding: shard spatial dims == tile dims (one shard per
+            # tile per water year, so concurrent tile jobs never share a shard);
+            # inner chunks keep point/subset reads small.
+            self.inner_chunk_dim: int = self.config.getint('VALUES', 'inner_chunk_dim', fallback=256)
+        else:
+            self.output_store_is_icechunk: bool = False
+            self.global_runoff_zarr_store_azure_path: str = self.config.get(
+                'VALUES', 'global_runoff_zarr_store_azure_path')
+            self.tile_results_path: str = self._resolve_repo_path(
+                self.config.get('VALUES', 'tile_results_path'))
 
         # Snow phenology input. Configs >= v10 use 'snow_phenology_zarr_store_azure_path'
         # (an icechunk repo from MODIS_snow_phenology); configs <= v9 use the legacy
@@ -239,10 +261,12 @@ class Config:
         self.azure_storage_account: str = os.getenv('AZURE_STORAGE_ACCOUNT', 'uwcryo')
         account_name = self.azure_storage_account
         
-        # Earth Engine credentials (optional - only used if available)
+        # Earth Engine credentials (optional - only used if available).
+        # Imported lazily so the minimal CI environment doesn't need earthengine-api.
         ee_key_path = self._resolve_repo_path('config/ee_key.json')
         ee_key_file = pathlib.Path(ee_key_path)
         if ee_key_file.exists():
+            import ee
             self.ee_credentials = ee.ServiceAccountCredentials(
                 email='coiled@buoyant-aileron-352100.iam.gserviceaccount.com',
                 key_file=str(ee_key_file)
@@ -250,16 +274,18 @@ class Config:
         else:
             self.ee_credentials = None
         
-        self._azure_blob_fs: adlfs.AzureBlobFileSystem = (
-            adlfs.AzureBlobFileSystem(
-                account_name=account_name,
-                credential=self.sas_token,
-                skip_instance_cache=True
-            )
-        )
-        self.global_runoff_store = self.azure_blob_fs.get_mapper(
-            self.global_runoff_zarr_store_azure_path)
+        # adlfs/fsspec is only needed for the legacy (<= v9) plain-Zarr stores;
+        # icechunk does its own (Rust object-store) I/O, and Sentinel-1 COGs are
+        # read via rasterio/GDAL. Constructed lazily so icechunk-era runs never
+        # build it at all.
+        self._azure_blob_fs: Optional[adlfs.AzureBlobFileSystem] = None
+        if self.output_store_is_icechunk:
+            self.global_runoff_store = None
+        else:
+            self.global_runoff_store = self.azure_blob_fs.get_mapper(
+                self.global_runoff_zarr_store_azure_path)
         self._snow_phenology_store = None
+        self._output_repo = None
         self._load_valid_tiles()
         
     def _check_sas_token_expiration(self) -> None:
@@ -310,11 +336,15 @@ class Config:
     def _load_valid_tiles(self) -> None:
         """
         Load valid tiles from GeoJSON and merge with processing results.
-        
-        Creates or loads the tile results CSV file for tracking processing progress.
+
+        For legacy (<= v9) configs this also creates/merges the tile results CSV.
+        For icechunk (>= v10) configs the registry is loaded as-is; processing
+        status lives in the icechunk commit history (see status.py).
         """
         self.valid_tiles_gdf: gpd.GeoDataFrame = gpd.read_file(self.valid_tiles_geojson_path).drop(columns=['tile'])
         self.valid_tiles_gdf = self.valid_tiles_gdf.sort_values(by='percent_valid_snow_pixels', ascending=False)
+        if self.output_store_is_icechunk:
+            return
         if os.path.exists(self.tile_results_path):
             processed_tiles_df = pd.read_csv(self.tile_results_path).drop_duplicates(subset=['row', 'col'], keep='last')
             self.valid_tiles_gdf = self.valid_tiles_gdf.merge(processed_tiles_df.drop(columns=['percent_valid_snow_pixels']), on=['row', 'col'], how='outer').sort_values(by='percent_valid_snow_pixels', ascending=False)
@@ -334,11 +364,18 @@ class Config:
     @property
     def azure_blob_fs(self) -> adlfs.AzureBlobFileSystem:
         """
-        Get Azure Blob File System with cache invalidation.
+        Get Azure Blob File System with cache invalidation (lazily created;
+        only used for legacy <= v9 plain-Zarr store access).
 
         Returns:
             Azure Blob File System instance with fresh cache
         """
+        if self._azure_blob_fs is None:
+            self._azure_blob_fs = adlfs.AzureBlobFileSystem(
+                account_name=self.azure_storage_account,
+                credential=self.sas_token,
+                skip_instance_cache=True,
+            )
         self._azure_blob_fs.invalidate_cache()
         return self._azure_blob_fs
 
@@ -367,6 +404,71 @@ class Config:
                 self._snow_phenology_store = self.azure_blob_fs.get_mapper(
                     self.snow_phenology_zarr_store_azure_path)
         return self._snow_phenology_store
+
+    def output_repo_storage(self) -> 'icechunk.Storage':
+        """Icechunk storage handle for the (v10+) output repository on Azure."""
+        if not self.output_store_is_icechunk:
+            raise ValueError(
+                f"Config {self.config_name} uses the legacy pre-allocated Zarr v2 "
+                "output store, not icechunk (configs >= v10)."
+            )
+        container, prefix = self.global_runoff_icechunk_azure_prefix.split('/', 1)
+        return icechunk.azure_storage(
+            account=self.azure_storage_account,
+            container=container,
+            prefix=prefix,
+            sas_token=self.sas_token,
+        )
+
+    def output_repo_config(self) -> 'icechunk.RepositoryConfig':
+        """
+        RepositoryConfig for the output repository.
+
+        - Storage retries: tolerate transient Azure errors from hundreds of
+          concurrent GitHub Actions writers (same settings as MODIS_snow_phenology).
+        - Manifest splitting: one manifest per water year per array, so a
+          tile x water_year commit rewrites only that year's manifest
+          (<= ~4,700 chunk refs) instead of the full ~500k-ref manifest.
+          Persisted in the repo at creation via save_config; passing it at
+          open time too keeps behavior identical for repos created before
+          any future config change.
+        """
+        repo_config = icechunk.RepositoryConfig.default()
+        repo_config.storage = icechunk.StorageSettings(
+            retries=icechunk.StorageRetriesSettings(
+                max_tries=20,
+                initial_backoff_ms=200,
+                max_backoff_ms=60_000,
+            )
+        )
+        split_config = icechunk.ManifestSplittingConfig.from_dict({
+            icechunk.ManifestSplitCondition.AnyArray(): {
+                icechunk.ManifestSplitDimCondition.DimensionName("water_year"): 1,
+                icechunk.ManifestSplitDimCondition.Any(): 1_000_000,
+            }
+        })
+        repo_config.manifest = icechunk.ManifestConfig(splitting=split_config)
+        return repo_config
+
+    def open_output_repo(self) -> 'icechunk.Repository':
+        """Open the icechunk output repository (cached on this Config)."""
+        if self._output_repo is None:
+            self._output_repo = icechunk.Repository.open(
+                self.output_repo_storage(), config=self.output_repo_config()
+            )
+        return self._output_repo
+
+    def create_output_repo(self) -> 'icechunk.Repository':
+        """
+        Create the icechunk output repository (one-time, from the store init
+        notebook) with the manifest splitting + retry config persisted on-disk.
+        """
+        repo = icechunk.Repository.create(
+            self.output_repo_storage(), config=self.output_repo_config()
+        )
+        repo.save_config()
+        self._output_repo = repo
+        return repo
 
     def get_config_dict(self) -> Dict[str, Any]:
         """
@@ -398,9 +500,12 @@ class Config:
             'start_date': self.start_date,
             'end_date': self.end_date,
             'valid_tiles_geojson_path': self.valid_tiles_geojson_path,
-            'tile_results_path': self.tile_results_path,
-            'global_runoff_zarr_store_azure_path': self.global_runoff_zarr_store_azure_path,
             'snow_phenology_zarr_store_azure_path': self.snow_phenology_zarr_store_azure_path,
+            **({'global_runoff_icechunk_azure_prefix': self.global_runoff_icechunk_azure_prefix,
+                'inner_chunk_dim': self.inner_chunk_dim}
+               if self.output_store_is_icechunk else
+               {'global_runoff_zarr_store_azure_path': self.global_runoff_zarr_store_azure_path,
+                'tile_results_path': self.tile_results_path}),
         }
 
     def get_tile(self, row: int, col: int) -> 'Tile':
@@ -436,6 +541,12 @@ class Config:
         Raises:
             ValueError: If 'which' parameter is not recognized
         """
+        if self.output_store_is_icechunk:
+            raise ValueError(
+                "Configs >= v10 derive processing status from the icechunk commit "
+                "history. Use global_snowmelt_runoff_onset.status.get_remaining_work() "
+                "or get_tile_status_gdf() instead of get_list_of_tiles()."
+            )
         # Get base tile list based on processing status
         if which in ['all', 'unprocessed_and_failed_weather_stations']:
             base_tiles = [(row, col, success) for row, col, success in zip(self.valid_tiles_gdf.row, self.valid_tiles_gdf.col, self.valid_tiles_gdf.success)]

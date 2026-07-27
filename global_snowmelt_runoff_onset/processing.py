@@ -13,6 +13,9 @@ timing from Sentinel-1 SAR backscatter data. The pipeline includes:
 7. Output formatting and storage in Zarr format
 """
 
+import random
+import time
+import warnings
 import easysnowdata
 import pystac_client
 import planetary_computer
@@ -22,17 +25,238 @@ import geopandas as gpd
 import xarray as xr
 import rasterio
 import odc.stac
+import odc.stac.model
 import flox
 import icechunk
 from typing import List, Tuple, Dict, Any, Union, Optional, Callable
 
 
+_antimeridian_fix_verified = False
+
+
+def _odc_stac_handles_antimeridian_footprints() -> bool:
+    """
+    Functional (not version-based) check for whether ``odc.stac`` correctly computes
+    the footprint of a source item whose native UTM zone touches the antimeridian
+    (e.g. zone 1N/60N), used internally by ``odc.stac.load()`` to decide which
+    destination tile(s) an item overlaps.
+
+    When this is broken, the affected items are silently dropped during tile binning
+    with no warning or exception raised — this pipeline's westernmost tile column
+    (row col=0, straddling 180°/-180°) came back 100% nodata in every water year despite
+    a recorded ``success=True`` status. See ``visualize/testing/test_antimeridian.ipynb``
+    for the full diagnosis, and https://github.com/opendatacube/odc-geo/issues/208 /
+    https://github.com/opendatacube/odc-stac/pull/281 (merged to odc-stac's `develop`
+    branch 2026-07-21, not yet in a tagged release as of this writing) for the upstream
+    fix (``GeoBox.footprint(..., wrapdateline=True)``).
+
+    This reproduces the regression test odc-stac itself ships for the fix
+    (``tests/test_model.py::test_image_geometry_antimeridian``), so it correctly
+    reports "fixed" whether the fix came from an upstream release or from
+    ``_apply_antimeridian_footprint_patch()`` below.
+    """
+    from affine import Affine
+    from odc.geo import CRS
+    from odc.geo.geobox import GeoBox, GeoboxTiles
+    from odc.stac.testing.stac import b_, mk_parsed_item
+
+    # A UTM zone 1N source geobox straddling the antimeridian (same extent as a real
+    # Sentinel-1 RTC scene over this pipeline's Tile(8, 0)).
+    gbox = GeoBox(
+        (25129, 29486), Affine(10.0, 0.0, 281870.0, 0.0, -10.0, 7738430.0), "EPSG:32601"
+    )
+    item = mk_parsed_item([b_("b1", gbox)])
+    footprint = item.safe_geometry(CRS("EPSG:4326"))
+    if footprint is None or not footprint.geom.is_valid or footprint.geom.area > 30:
+        return False
+
+    # Destination tile grid straddling the antimeridian at the same latitude.
+    dst = GeoBox(
+        (256, 256),
+        Affine(0.00576000576, 0.0, -179.99945999946, 0.0, -0.00576000576, 69.3029493),
+        "EPSG:4326",
+    )
+    tiles = GeoboxTiles(dst, tile_shape=(256, 256))
+    return list(tiles.tiles(footprint)) == [(0, 0)]
+
+
+def _apply_antimeridian_footprint_patch() -> None:
+    """
+    Monkeypatch ``odc.stac.model.ParsedItem.image_geometry`` to pass
+    ``wrapdateline=True`` when reprojecting a source geobox's footprint — byte-equivalent
+    to the fix merged upstream in https://github.com/opendatacube/odc-stac/pull/281.
+    """
+    _osm = odc.stac.model
+
+    def _image_geometry_wrapdateline(self, crs=_osm.Unset(), bands=None):
+        if isinstance(crs, _osm.Unset):
+            crs = None
+        for gbox in self.geoboxes(bands):
+            if gbox.crs is not None:
+                if crs is None or crs == gbox.crs:
+                    return gbox.extent
+                return gbox.footprint(crs, wrapdateline=True)
+        return None
+
+    _osm.ParsedItem.image_geometry = _image_geometry_wrapdateline
+
+
+def ensure_antimeridian_footprint_fix() -> None:
+    """
+    Verify that ``odc.stac.load()`` correctly handles source items whose UTM zone
+    touches the antimeridian, applying a local monkeypatch if the installed odc-stac
+    doesn't yet ship the upstream fix. Raises ``RuntimeError`` if the bug is still
+    present even after patching, since this failure mode is silent (no exception,
+    just missing data) and has previously gone unnoticed through a full processing run.
+
+    Cheap (< 10 ms) and idempotent — safe to call at the top of every
+    ``get_sentinel1_rtc()`` invocation. Self-cleaning: once odc-stac ships a release
+    with the fix and the pin in ``pixi.toml`` is bumped, the functional check passes
+    immediately and the monkeypatch is never applied.
+    """
+    global _antimeridian_fix_verified
+    if _antimeridian_fix_verified:
+        return
+
+    if _odc_stac_handles_antimeridian_footprints():
+        _antimeridian_fix_verified = True
+        return
+
+    _apply_antimeridian_footprint_patch()
+
+    if not _odc_stac_handles_antimeridian_footprints():
+        raise RuntimeError(
+            "odc.stac antimeridian footprint bug is present and the local monkeypatch "
+            "(global_snowmelt_runoff_onset.processing._apply_antimeridian_footprint_patch) "
+            "did not fix it. Sentinel-1 scenes near 180°/-180° would silently be dropped "
+            "from tile binning, producing all-nodata output with no error — refusing to "
+            "proceed. odc.stac's internals may have changed since this workaround was "
+            "written; see https://github.com/opendatacube/odc-stac/pull/281 and "
+            "https://github.com/opendatacube/odc-geo/issues/208."
+        )
+
+    warnings.warn(
+        "Installed odc-stac does not yet include the antimeridian footprint fix "
+        "(https://github.com/opendatacube/odc-stac/pull/281, merged upstream but not "
+        "yet in a tagged release) — applied a local monkeypatch for this process. "
+        "Once odc-stac releases the fix, bump the pin in pixi.toml and this warning "
+        "will stop appearing.",
+        stacklevel=2,
+    )
+    _antimeridian_fix_verified = True
+
+
+def search_sentinel1_items(
+    geobox: 'odc.geo.GeoBox',
+    start_date: str = '2014-01-01',
+    end_date: str = pd.Timestamp.today().strftime('%Y-%m-%d'),
+    max_tries: int = 5,
+):
+    """
+    Search Microsoft Planetary Computer for Sentinel-1 RTC items over a region.
+
+    Retries transient MPC/STAC failures (HTTP errors, timeouts) with jittered
+    exponential backoff so that a flaky API response is never mistaken for
+    "no data here". Only a *successful* search that returns zero items means
+    the region/period is genuinely empty; if the search keeps failing this
+    raises, and the caller should treat the tile as failed (not empty).
+
+    Args:
+        geobox: Geographic bounding box defining the area of interest
+        start_date: Start date for the search (YYYY-MM-DD)
+        end_date: End date for the search (YYYY-MM-DD)
+        max_tries: Attempts before giving up and re-raising
+
+    Returns:
+        pystac.ItemCollection (possibly empty)
+    """
+    last_error = None
+    for attempt in range(max_tries):
+        try:
+            return (
+                pystac_client.Client.open(
+                    "https://planetarycomputer.microsoft.com/api/stac/v1",
+                    modifier=planetary_computer.sign_inplace,
+                )
+                .search(
+                    intersects=geobox.geographic_extent,
+                    collections=["sentinel-1-rtc"],
+                    datetime=(start_date, end_date),
+                )
+                .item_collection()
+            )
+        except Exception as e:
+            last_error = e
+            delay = min(60, 2 ** attempt) * random.uniform(0.5, 1.5)
+            warnings.warn(
+                f"STAC search attempt {attempt + 1}/{max_tries} failed ({e}); "
+                f"retrying in {delay:.1f}s"
+            )
+            time.sleep(delay)
+    raise RuntimeError(
+        f"Planetary Computer STAC search failed after {max_tries} attempts"
+    ) from last_error
+
+
+def load_sentinel1_rtc(
+    items,
+    geobox: 'odc.geo.GeoBox',
+    bands: List[str] = ["vv","vh"],
+    chunks_read: Dict[str, Union[int, str]] = {},
+    fail_on_error: bool = True,
+) -> xr.Dataset:
+    """
+    Lazily load already-searched Sentinel-1 RTC items into a dataset.
+
+    See get_sentinel1_rtc for the returned dataset structure. Split from the
+    search step so callers can retry the search independently and distinguish
+    an empty item collection from a failed one.
+    """
+    ensure_antimeridian_footprint_fix()
+
+    load_params = {
+        "items": items,
+        "bands": bands,
+        "nodata": -32768,
+        "chunks": chunks_read,
+        "groupby": "sat:absolute_orbit",
+        "geobox": geobox,
+        "resampling": "bilinear",
+        "fail_on_error": fail_on_error,
+    }
+
+    s1_rtc_ds = odc.stac.load(**load_params).sortby("time")
+    metadata = gpd.GeoDataFrame.from_features(items, "epsg:4326")
+    metadata_groupby_gdf = (
+        metadata.groupby(["sat:absolute_orbit"]).first().sort_values("datetime")
+    )
+
+    # .to_numpy() everywhere: pandas >= 3 backs string columns with
+    # ArrowStringArray, which xarray cannot use as a coordinate (any later
+    # sel/isel on 'time' raises "Invalid array type").
+    s1_rtc_ds = s1_rtc_ds.assign_coords({
+        "sat:orbit_state": ("time", metadata_groupby_gdf["sat:orbit_state"].to_numpy(dtype=str)),
+        "sat:relative_orbit": ("time", metadata_groupby_gdf["sat:relative_orbit"].astype("int16").to_numpy())
+    })
+
+    epsg = s1_rtc_ds.rio.estimate_utm_crs().to_epsg()
+    hemisphere = 'northern' if epsg < 32700 else 'southern'
+    s1_rtc_ds.attrs['hemisphere'] = hemisphere
+
+    s1_rtc_ds = s1_rtc_ds.assign_coords({
+        "water_year": ("time", pd.to_datetime(s1_rtc_ds.time).map(lambda x: easysnowdata.utils.datetime_to_WY(x, hemisphere=hemisphere)).to_numpy()),
+        "DOWY": ("time", pd.to_datetime(s1_rtc_ds.time).map(lambda x: easysnowdata.utils.datetime_to_DOWY(x, hemisphere=hemisphere)).to_numpy())
+    })
+
+    return s1_rtc_ds
+
+
 def get_sentinel1_rtc(
-    geobox: 'odc.geo.GeoBox', 
-    bands: List[str] = ["vv","vh"], 
-    start_date: str = '2014-01-01', 
-    end_date: str = pd.Timestamp.today().strftime('%Y-%m-%d'), 
-    chunks_read: Dict[str, Union[int, str]] = {}, 
+    geobox: 'odc.geo.GeoBox',
+    bands: List[str] = ["vv","vh"],
+    start_date: str = '2014-01-01',
+    end_date: str = pd.Timestamp.today().strftime('%Y-%m-%d'),
+    chunks_read: Dict[str, Union[int, str]] = {},
     fail_on_error: bool = True
 ) -> xr.Dataset:
     """
@@ -70,49 +294,13 @@ def get_sentinel1_rtc(
         
     Raises:
         Various exceptions from odc.stac.load if fail_on_error=True
+        RuntimeError: if odc.stac's antimeridian footprint bug is present and could
+            not be worked around (see ensure_antimeridian_footprint_fix), or if the
+            STAC search keeps failing (see search_sentinel1_items)
     """
-    items = (
-        pystac_client.Client.open("https://planetarycomputer.microsoft.com/api/stac/v1",modifier=planetary_computer.sign_inplace)
-        .search(
-            intersects=geobox.geographic_extent,
-            collections=["sentinel-1-rtc"],
-            datetime=(start_date, end_date),
-        )
-        .item_collection()
-    )
-
-    load_params = {
-        "items": items,
-        "bands": bands,
-        "nodata": -32768,
-        "chunks": chunks_read, 
-        "groupby": "sat:absolute_orbit",
-        "geobox": geobox,
-        "resampling": "bilinear",
-        "fail_on_error": fail_on_error,
-    }
-
-    s1_rtc_ds = odc.stac.load(**load_params).sortby("time")
-    metadata = gpd.GeoDataFrame.from_features(items, "epsg:4326")
-    metadata_groupby_gdf = (
-        metadata.groupby(["sat:absolute_orbit"]).first().sort_values("datetime")
-    )
-
-    s1_rtc_ds = s1_rtc_ds.assign_coords({
-        "sat:orbit_state": ("time", metadata_groupby_gdf["sat:orbit_state"]),
-        "sat:relative_orbit": ("time", metadata_groupby_gdf["sat:relative_orbit"].astype("int16"))
-    })
-
-    epsg = s1_rtc_ds.rio.estimate_utm_crs().to_epsg()
-    hemisphere = 'northern' if epsg < 32700 else 'southern'
-    s1_rtc_ds.attrs['hemisphere'] = hemisphere
-
-    s1_rtc_ds = s1_rtc_ds.assign_coords({
-        "water_year": ("time", pd.to_datetime(s1_rtc_ds.time).map(lambda x: easysnowdata.utils.datetime_to_WY(x, hemisphere=hemisphere))),
-        "DOWY": ("time", pd.to_datetime(s1_rtc_ds.time).map(lambda x: easysnowdata.utils.datetime_to_DOWY(x, hemisphere=hemisphere)))
-    })
-      
-    return s1_rtc_ds
+    items = search_sentinel1_items(geobox, start_date=start_date, end_date=end_date)
+    return load_sentinel1_rtc(items, geobox, bands=bands, chunks_read=chunks_read,
+                              fail_on_error=fail_on_error)
 
 
 def get_spatiotemporal_snow_cover_mask(
@@ -133,7 +321,11 @@ def get_spatiotemporal_snow_cover_mask(
     several days after the snow disappearance date to capture late-season melt events.
 
     Args:
-        ds: Sentinel-1 dataset with dimensions ('time', 'latitude', 'longitude') used for spatial matching
+        ds: Dataset/DataArray defining the target grid, with dimensions
+            ('latitude', 'longitude') and optionally 'time' (only the grid of the
+            first time step is used). Typically the Sentinel-1 dataset, or a
+            template built directly from the tile geobox (e.g. odc.geo.xr.xr_zeros)
+            when checking for seasonal snow before loading any Sentinel-1 data
         bbox_gdf: Bounding box as GeoDataFrame for clipping the snow phenology data
         snow_phenology_store: Store containing the MODIS-derived snow phenology data.
             Either an icechunk session store (Zarr v3, the MODIS_snow_phenology dataset)
@@ -162,9 +354,10 @@ def get_spatiotemporal_snow_cover_mask(
     else:
         snow_phenology_ds = xr.open_zarr(snow_phenology_store, consolidated=True, decode_coords='all')
 
+    target = ds.isel(time=0) if 'time' in ds.dims else ds
     snow_phenology_clip_ds = snow_phenology_ds.rio.clip_box(*bbox_gdf.total_bounds, crs='EPSG:4326')
     spatiotemporal_snow_cover_mask_ds = snow_phenology_clip_ds.rio.reproject_match(
-        ds.isel(time=0), resampling=rasterio.enums.Resampling.bilinear
+        target, resampling=rasterio.enums.Resampling.bilinear
     ).rename({'x':'longitude','y':'latitude'})
 
     # Create search window variables
@@ -694,8 +887,11 @@ def calculate_runoff_onset_from_constituent_runoff_onsets(
         **Values:** datetime64[ns] - median across orbits and polarizations
         **Processing:** Excludes zero values, computes median, converts back to datetime
     """
+    # Normalize to ns first: newer xarray/pandas return datetime64[us] from
+    # idxmin, and int64-of-microseconds reinterpreted as datetime64[ns] would
+    # silently produce 1970-era garbage dates.
     runoff_onset_da = (
-        constituent_runoff_onsets_da.astype("int64")
+        constituent_runoff_onsets_da.astype("datetime64[ns]").astype("int64")
         .where(lambda x: x > 0)
         .median(dim=["sat:relative_orbit", "polarization"], skipna=True)
         .astype("datetime64[ns]")
