@@ -111,7 +111,7 @@ jobs:
     needs: generate-tile-matrix
     if: fromJson(needs.generate-tile-matrix.outputs.count) > 0
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 330
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.generate-tile-matrix.outputs.matrix) }}
@@ -135,4 +135,5 @@ jobs:
           --tile-row ${{ matrix.tile.row }} \
           --tile-col ${{ matrix.tile.col }} \
           --water-years "${{ matrix.tile.wys }}" \
-          --config-file ${{ inputs.config_file }}
+          --config-file ${{ inputs.config_file }} \
+          --dask-workers 8

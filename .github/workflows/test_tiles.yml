@@ -80,7 +80,7 @@ jobs:
   test-tile:
     needs: matrix-setup
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 330
     strategy:
       fail-fast: false
       matrix:

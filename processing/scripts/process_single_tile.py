@@ -159,10 +159,34 @@ def check_store_grid_alignment(store_ds, tile, region_2d) -> None:
     np.testing.assert_allclose(store_lon, tile_lon, atol=tolerance)
 
 
-def process_one_year(s1_wy_ds, mask_ds, water_year, config, gmba_clipped_gdf):
+def scale_workers_by_density(n_scenes) -> int:
+    """
+    Per-year thread count from scene density (--dask-workers auto).
+
+    S1 loading is latency-bound: measured throughput scales near-linearly with
+    in-flight requests through 16 threads (local sweep 2026-07-27: 4/8/12/16
+    workers -> 5.4/9.6/10.9/16.1 MB/s). Peak RSS also scales with concurrency,
+    and the scene-densest tile-years sit at ~95% of a 16 GB GHA runner at 8
+    threads -- so light years get more concurrency, dense years less.
+    """
+    if n_scenes <= 150:
+        return 16
+    if n_scenes <= 300:
+        return 12
+    if n_scenes <= 450:
+        return 8
+    return 6
+
+
+def process_one_year(s1_wy_ds, mask_ds, water_year, config, gmba_clipped_gdf,
+                     num_workers=None):
     """
     Run the single-water-year pipeline: mask -> denoise -> per-orbit quality
     filter -> temporal resolution + runoff onset, computed into memory.
+
+    Args:
+        num_workers: optional per-compute thread count override (threaded
+            scheduler only; None = use the scheduler default).
 
     Returns:
         (onset_2d, tr_2d, stats) with float32 numpy arrays (NaN = nodata), or
@@ -204,7 +228,9 @@ def process_one_year(s1_wy_ds, mask_ds, water_year, config, gmba_clipped_gdf):
         return_constituent_runoff_onsets=False,
     )
 
-    onset_np, tr_np = dask.compute(runoff_onset_da, temporal_resolution_da)
+    compute_kwargs = {"num_workers": num_workers} if num_workers else {}
+    onset_np, tr_np = dask.compute(runoff_onset_da, temporal_resolution_da,
+                                   **compute_kwargs)
 
     # xr_datetime_to_DOWY encodes NaT as -9999 int16; normalize to float32/NaN
     # so the store's CF encoding (int16, _FillValue=-9999, x10 scaling for
@@ -227,7 +253,7 @@ def process_one_year(s1_wy_ds, mask_ds, water_year, config, gmba_clipped_gdf):
 
 
 def process_tile(config, repo, tile_row, tile_col, water_years, branch,
-                 skip_composites, read_chunks) -> dict:
+                 skip_composites, read_chunks, auto_workers=False) -> dict:
     """
     Process the requested water years of one tile, then refresh composites.
 
@@ -353,7 +379,12 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
                 result = "no_scenes"
                 break
             try:
-                result = process_one_year(s1_wy_ds, mask_ds, wy, config, gmba_clipped_gdf)
+                year_workers = None
+                if auto_workers:
+                    year_workers = scale_workers_by_density(int(s1_wy_ds.time.size))
+                    log.info(f"WY{wy}: auto dask workers -> {year_workers}")
+                result = process_one_year(s1_wy_ds, mask_ds, wy, config,
+                                          gmba_clipped_gdf, num_workers=year_workers)
                 break
             except Exception as e:
                 # Typically odc "Aborting load due to failure while reading":
@@ -374,6 +405,14 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
             continue
 
         onset_2d, tr_2d, stats = result
+        # effective throughput: destination bytes over the fused
+        # download+compute (compute is ~5% of wall, so this tracks download).
+        # Makes runner-side performance experiments (worker counts, GDAL env)
+        # measurable straight from job logs.
+        year_elapsed = time.time() - t0
+        dest_gb = sum(s1_wy_ds[v].nbytes for v in s1_wy_ds.data_vars) / 1e9
+        log.info(f"WY{wy}: {dest_gb:.2f} GB dest in {year_elapsed:.0f}s "
+                 f"({dest_gb * 1000 / max(year_elapsed, 1e-9):.1f} MB/s effective)")
         log_memory(f"WY{wy} computed")
 
         if onset_2d is None:
@@ -540,8 +579,13 @@ def main():
     parser.add_argument("--branch", type=str, default="main")
     parser.add_argument("--local-store", type=str, default=None,
                         help="Path to a local icechunk repo (testing; overrides Azure)")
-    parser.add_argument("--dask-workers", type=int, default=None,
-                        help="Threaded-scheduler worker count (default: all cores). "
+    parser.add_argument("--dask-workers", type=str, default=None,
+                        help="Threaded-scheduler worker count (default: all cores), "
+                             "or 'auto' to pick per water year from scene density "
+                             "(16/12/8/6 threads for <=150/<=300/<=450/>450 scenes: "
+                             "S1 loading is latency-bound so more in-flight requests "
+                             "= faster, but peak RSS scales with concurrency and "
+                             "dense years must stay low to fit a 16 GB runner). "
                              "Peak memory scales with workers; cap this on "
                              "many-core machines with limited RAM.")
     parser.add_argument("--read-chunk-dim", type=int, default=2048,
@@ -562,10 +606,18 @@ def main():
     args = parser.parse_args()
 
     setup_logging(args.tile_row, args.tile_col)
-    if args.dask_workers:
-        dask.config.set(scheduler="threads", num_workers=args.dask_workers)
+    auto_workers = (args.dask_workers or "").strip().lower() == "auto"
+    if args.dask_workers and not auto_workers:
+        dask.config.set(scheduler="threads", num_workers=int(args.dask_workers))
     else:
         dask.config.set(scheduler="threads")
+    # perf provenance: every log becomes a self-describing experiment
+    perf_env = {k: os.environ[k] for k in (
+        "MALLOC_ARENA_MAX", "CPL_VSIL_CURL_CHUNK_SIZE", "CPL_VSIL_CURL_CACHE_SIZE",
+        "GDAL_INGESTED_BYTES_AT_OPEN", "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES",
+        "GDAL_HTTP_VERSION", "GDAL_NUM_THREADS") if k in os.environ}
+    log.info(f"perf: dask_workers={args.dask_workers or 'all-cores'} "
+             f"cpus={os.cpu_count()} env={perf_env or '(gdal defaults)'}")
 
     config_name = args.config_file if args.config_file.endswith(".txt") else f"global_config_{args.config_file}.txt"
     config = Config(str(Path(__file__).parent.parent.parent / "config" / config_name))
@@ -591,6 +643,7 @@ def main():
         outcomes = process_tile(
             config, repo, args.tile_row, args.tile_col, water_years,
             args.branch, args.skip_composites, read_chunks,
+            auto_workers=auto_workers,
         )
     except Exception:
         log.error(f"Tile ({args.tile_row}, {args.tile_col}) FAILED after "

@@ -64,10 +64,10 @@ def main():
     parser.add_argument("--how-many", type=int, default=0, help="0 = no limit")
     parser.add_argument("--max-workers", type=int, default=1,
                         help="Tiles processed concurrently (each is a subprocess)")
-    parser.add_argument("--dask-workers", type=int, default=None,
-                        help="Per-tile dask worker count (passed through to "
-                             "process_single_tile.py; higher = faster S1 downloads, "
-                             "more memory)")
+    parser.add_argument("--dask-workers", type=str, default=None,
+                        help="Per-tile dask worker count or 'auto' (passed through "
+                             "to process_single_tile.py; higher = faster S1 "
+                             "downloads, more memory)")
     parser.add_argument("--branch", type=str, default="main")
     parser.add_argument("--local-store", type=str, default=None,
                         help="Path to a local icechunk repo (testing; overrides Azure)")

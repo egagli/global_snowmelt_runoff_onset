@@ -36,7 +36,7 @@ env:
 jobs:
   process-tile:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 330
     name: tile-r${{ inputs.tile_row }}-c${{ inputs.tile_col }}
 
     steps:
@@ -57,4 +57,5 @@ jobs:
           --tile-row ${{ inputs.tile_row }} \
           --tile-col ${{ inputs.tile_col }} \
           --water-years "${{ inputs.water_years }}" \
-          --config-file ${{ inputs.config_file }}
+          --config-file ${{ inputs.config_file }} \
+          --dask-workers 8
