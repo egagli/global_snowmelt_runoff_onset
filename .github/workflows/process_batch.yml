@@ -136,4 +136,4 @@ jobs:
           --tile-col ${{ matrix.tile.col }} \
           --water-years "${{ matrix.tile.wys }}" \
           --config-file ${{ inputs.config_file }} \
-          --dask-workers 8
+          --dask-workers auto
