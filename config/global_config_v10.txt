@@ -16,7 +16,6 @@ bbox_bottom = -59.999
 WY_start = 2015
 WY_end = 2024
 low_backscatter_threshold = 0.001
-min_monthly_acquisitions = 1
 max_allowed_days_gap_per_orbit = 30
 min_years_for_median_std = 3
 extend_search_window_beyond_SDD_days = 16

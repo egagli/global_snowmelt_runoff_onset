@@ -601,87 +601,105 @@ def remove_bad_scenes_and_border_noise(
 
 
 def calc_max_gap_pixelwise(
-    group: xr.Dataset, 
+    group: xr.Dataset,
     spatiotemporal_snow_cover_mask_ds: xr.Dataset
 ) -> xr.Dataset:
     """
-    Calculate maximum temporal gap in acquisitions for each pixel.
-    
-    Computes the maximum time gap between consecutive valid acquisitions
-    within the runoff detection window for each pixel. Used for quality
-    control to ensure adequate temporal sampling.
-    
+    Calculate maximum temporal gap in valid acquisitions for each pixel.
+
+    Computes the maximum DOWY gap between consecutive VALID acquisitions within
+    the runoff detection window, anchored at both window edges: the gap from
+    the window start to the first valid acquisition counts, as does the gap
+    from the last valid acquisition to the window end. A pixel with no valid
+    acquisitions gets the full window length (so it fails any sane threshold).
+
+    (History: through v9 this measured the spacing between consecutive INVALID
+    acquisitions — an inverted xr.where — which in practice approximated an
+    orbit-revisit check and never anchored the window edges. Corrected in v10.)
+
     Args:
-        group: Sentinel-1 data for a single water year and orbit with dimensions 
-               ('time', 'latitude', 'longitude') and DOWY coordinate
+        group: Sentinel-1 data for a single water year and orbit with dimensions
+               ('time', 'latitude', 'longitude') and DOWY coordinate; acquisitions
+               outside the per-pixel search window are already NaN (mask applied)
         spatiotemporal_snow_cover_mask_ds: Snow cover mask with search window boundaries,
-                                          dimensions ('water_year', 'latitude', 'longitude')
-        
+                                          dimensions ('latitude', 'longitude') for one water year
+
     Returns:
         Dataset with maximum gap in days for each pixel
-        
+
         **Input dimensions:** ('time', 'latitude', 'longitude')
         **Output dimensions:** ('latitude', 'longitude') - time dimension reduced via max operation
-        **Values:** Maximum consecutive gap in DOWY units between valid observations
+        **Values:** Maximum gap in DOWY units between consecutive valid observations,
+        window edges included
     """
-    group_is_null_ds = group.isnull()
-    group_valid_pixels_DOWY_ds = xr.where(
-        group_is_null_ds, group_is_null_ds.DOWY, np.nan
-    )
-
     window_start_da = spatiotemporal_snow_cover_mask_ds["search_window_start_DOWY"]
     window_end_da = spatiotemporal_snow_cover_mask_ds["search_window_end_DOWY"]
-    window_start_da["time"] = group_valid_pixels_DOWY_ds.time[0] - 1
-    window_end_da["time"] = group_valid_pixels_DOWY_ds.time[-1] + 1
-    window_start_da = window_start_da.expand_dims('time')
-    window_end_da = window_end_da.expand_dims('time')
 
-    window_start_ds = window_start_da.to_dataset(name='vv')
-    window_end_ds = window_end_da.to_dataset(name='vv')
+    # DOWY at valid acquisitions, NaN elsewhere. Valid DOWYs are within
+    # [window_start, window_end] by construction (upstream mask).
+    valid_DOWY_ds = xr.where(group.notnull(), group.DOWY, np.nan)
 
-    for data_var in group_valid_pixels_DOWY_ds.data_vars:
-        if data_var not in window_start_ds.data_vars:
-            window_start_ds[data_var] = window_start_da
-        if data_var not in window_end_ds.data_vars:
-            window_end_ds[data_var] = window_end_da
+    # DOWY of the most recent valid acquisition strictly before each time step.
+    # DOWY is monotone within a water-year group, so a forward-fill + shift
+    # gives the predecessor; bottleneck-backed ffill is dask-friendly.
+    # (a single-scene group has no predecessor; shift on a length-1 dask time
+    # axis also breaks in dask's pad, so branch explicitly)
+    if group.sizes["time"] > 1:
+        prev_valid_DOWY_ds = valid_DOWY_ds.ffill("time").shift(time=1)
+    else:
+        prev_valid_DOWY_ds = xr.full_like(valid_DOWY_ds, np.nan)
 
-    group_valid_pixels_DOWY_ds = xr.concat([
-        window_start_ds,
-        group_valid_pixels_DOWY_ds,
-        window_end_ds,
-    ], dim='time')
+    # Gap ending at each valid acquisition; the first valid acquisition anchors
+    # to the window start (leading-edge gap).
+    gaps_ds = (valid_DOWY_ds - prev_valid_DOWY_ds.fillna(window_start_da)).where(
+        valid_DOWY_ds.notnull()
+    )
+    leading_and_interior_max_ds = gaps_ds.max(dim="time")
 
-    group_max_gap_days_ds = group_valid_pixels_DOWY_ds.diff(dim="time").max(dim="time")
+    # Trailing-edge gap: last valid acquisition -> window end. With no valid
+    # acquisitions this is the full window length.
+    trailing_gap_ds = window_end_da - valid_DOWY_ds.max(dim="time").fillna(window_start_da)
+
+    group_max_gap_days_ds = xr.where(
+        leading_and_interior_max_ds.notnull()
+        & (leading_and_interior_max_ds > trailing_gap_ds),
+        leading_and_interior_max_ds,
+        trailing_gap_ds,
+    )
     return group_max_gap_days_ds
 
 
 def filter_insufficient_pixels_per_orbit(
-    s1_rtc_masked_ds: xr.Dataset, 
-    spatiotemporal_snow_cover_mask_ds: xr.Dataset, 
-    min_monthly_acquisitions: int, 
+    s1_rtc_masked_ds: xr.Dataset,
+    spatiotemporal_snow_cover_mask_ds: xr.Dataset,
     max_allowed_days_gap_per_orbit: int
 ) -> xr.Dataset:
     """
     Filter pixels with insufficient temporal sampling per orbit.
-    
-    Removes pixels that don't meet minimum data quality requirements:
-    1. Minimum acquisition frequency (scaled by detection window length)
-    2. Maximum temporal gaps between acquisitions
-    3. Presence of at least some valid data
-    
-    This ensures that runoff onset detection is based on adequate temporal sampling.
-    
+
+    Per pixel, per orbit, per polarization: the maximum gap between consecutive
+    VALID acquisitions within the search window -- with the window edges counting
+    as gap anchors (window start -> first valid acquisition, last valid
+    acquisition -> window end) -- must not exceed max_allowed_days_gap_per_orbit.
+    Pixels with no valid acquisitions at all are dropped.
+
+    This single criterion also enforces a minimum sampling density (gap <= G over
+    a window of length W implies >= W/G - 1 valid acquisitions), which is why the
+    former min_monthly_acquisitions count filter was removed: at 1/month it was
+    implied by gap <= 30 up to one acquisition, and denser requirements are
+    expressed by lowering the gap threshold (e.g. 2/month evenly = gap <= 15).
+
     Args:
-        s1_rtc_masked_ds: Masked Sentinel-1 dataset for a single water year with dimensions 
+        s1_rtc_masked_ds: Masked Sentinel-1 dataset for a single water year with dimensions
                          ('time', 'latitude', 'longitude') and sat:relative_orbit coordinate
-        spatiotemporal_snow_cover_mask_ds: Snow cover mask dataset with dimensions 
+        spatiotemporal_snow_cover_mask_ds: Snow cover mask dataset with dimensions
                                           ('water_year', 'latitude', 'longitude')
-        min_monthly_acquisitions: Minimum acquisitions per 30-day period
-        max_allowed_days_gap_per_orbit: Maximum allowed gap between acquisitions
-        
+        max_allowed_days_gap_per_orbit: Maximum allowed gap between valid acquisitions
+                                        (window edges included)
+
     Returns:
         Dataset with only adequately sampled pixels per orbit (others set to NaN)
-        
+
         **Input/Output dimensions:** ('time', 'latitude', 'longitude')
         **Grouping:** Applied per sat:relative_orbit, filtering within each orbit
         **Quality criteria:** Applied per pixel based on temporal sampling adequacy
@@ -689,24 +707,21 @@ def filter_insufficient_pixels_per_orbit(
     water_year = s1_rtc_masked_ds.water_year.values[0]
     spatiotemporal_snow_cover_mask_slice_ds = spatiotemporal_snow_cover_mask_ds.sel(water_year=water_year)
 
-    # Filter scenes by minimum acquisitions and max gaps
     pixelwise_counts_per_orbit_and_polarization_ds = s1_rtc_masked_ds.groupby(
         "sat:relative_orbit"
     ).count(dim="time", engine="flox")
 
     pixelwise_max_gaps_per_orbit_ds = s1_rtc_masked_ds.groupby("sat:relative_orbit").map(
-        calc_max_gap_pixelwise, 
+        calc_max_gap_pixelwise,
         spatiotemporal_snow_cover_mask_ds=spatiotemporal_snow_cover_mask_slice_ds
     )
 
-    sufficient_acquisitions_mask = pixelwise_counts_per_orbit_and_polarization_ds >= (
-        min_monthly_acquisitions * (spatiotemporal_snow_cover_mask_slice_ds["search_window_length"] / 30)
-    )
     acceptable_gaps_mask = pixelwise_max_gaps_per_orbit_ds <= max_allowed_days_gap_per_orbit
+    # cheap guard: a pixel with zero valid acquisitions in a window shorter than
+    # the gap threshold would otherwise pass on the trailing-edge gap alone
     has_data_mask = pixelwise_counts_per_orbit_and_polarization_ds > 0
-    
-    # Combine all criteria
-    sufficient_mask = sufficient_acquisitions_mask & acceptable_gaps_mask & has_data_mask
+
+    sufficient_mask = acceptable_gaps_mask & has_data_mask
     s1_rtc_masked_filtered_ds = s1_rtc_masked_ds.groupby("sat:relative_orbit").where(sufficient_mask)
 
     return s1_rtc_masked_filtered_ds

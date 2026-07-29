@@ -212,7 +212,6 @@ def process_one_year(s1_wy_ds, mask_ds, water_year, config, gmba_clipped_gdf,
     s1_filtered_ds = processing.filter_insufficient_pixels_per_orbit(
         s1_rtc_masked_ds=s1_masked_ds,
         spatiotemporal_snow_cover_mask_ds=mask_ds,
-        min_monthly_acquisitions=config.min_monthly_acquisitions,
         max_allowed_days_gap_per_orbit=config.max_allowed_days_gap_per_orbit,
     )
     s1_filtered_ds.rio.write_crs(crs, inplace=True)

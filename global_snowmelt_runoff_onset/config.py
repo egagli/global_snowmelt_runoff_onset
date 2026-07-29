@@ -160,7 +160,9 @@ class Config:
         
         # Processing parameters
         self.min_years_for_median_std: int = self.config.getint('VALUES', 'min_years_for_median_std')
-        self.min_monthly_acquisitions: int = self.config.getint('VALUES', 'min_monthly_acquisitions')
+        # (min_monthly_acquisitions was removed in v10: the edge-anchored max-gap
+        # criterion implies the 1/month density floor; old configs may still
+        # contain the key, which is simply ignored)
         self.max_allowed_days_gap_per_orbit: int = self.config.getint('VALUES', 'max_allowed_days_gap_per_orbit')
         self.low_backscatter_threshold: float = self.config.getfloat('VALUES', 'low_backscatter_threshold')
         self.extend_search_window_beyond_SDD_days: int = self.config.getint('VALUES', 'extend_search_window_beyond_SDD_days', fallback=16)
@@ -492,7 +494,6 @@ class Config:
             'WY_end': self.WY_end,
             'water_years': self.water_years.tolist(),
             'min_years_for_median_std': self.min_years_for_median_std,
-            'min_monthly_acquisitions': self.min_monthly_acquisitions,
             'max_allowed_days_gap_per_orbit': self.max_allowed_days_gap_per_orbit,
             'low_backscatter_threshold': self.low_backscatter_threshold,
             'extend_search_window_beyond_SDD_days': self.extend_search_window_beyond_SDD_days,
