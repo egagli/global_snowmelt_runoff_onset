@@ -277,6 +277,39 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
     wy_to_index = {wy: i for i, wy in enumerate(all_water_years)}
     outcomes = {}
 
+    # Hemisphere from the tile center (matches the UTM-zone-based rule the
+    # algorithm applies to loaded data); determines each water year's window
+    # and its eligibility date.
+    center_lat = (tile.geobox.boundingbox.bottom + tile.geobox.boundingbox.top) / 2
+    hemisphere = "northern" if center_lat >= 0 else "southern"
+
+    # Eligibility veto (belt-and-suspenders with dispatch): NEVER process --
+    # or commit ANY marker for -- a water year whose season has not fully
+    # elapsed for this hemisphere plus trailing_buffer_days. The phenology
+    # store can hold a new year's slot with this hemisphere still unwritten,
+    # and an all-fill phenology slab is indistinguishable from verified
+    # no-snow -- without this gate the year would be durably (and wrongly)
+    # committed as empty(no_seasonal_snow) below. Skipped years stay
+    # 'missing' and are dispatched automatically once eligible.
+    ineligible = [
+        wy for wy in water_years
+        if not status.wy_eligible(wy, hemisphere,
+                                  trailing_buffer_days=config.trailing_buffer_days)
+    ]
+    if ineligible:
+        log.warning(
+            f"Skipping ineligible water years {ineligible} ({hemisphere} season "
+            f"not elapsed + {config.trailing_buffer_days}d buffer); no commits "
+            "are made for them."
+        )
+        for wy in ineligible:
+            outcomes[wy] = ("skipped", "ineligible: season not elapsed + buffer")
+        water_years = [wy for wy in water_years if wy not in ineligible]
+        if not water_years:
+            log.warning("No eligible water years remain -- exiting without "
+                        "commits (composites left untouched).")
+            return outcomes
+
     odc.stac.configure_rio(cloud_defaults=True)
 
     readonly_ds = xr.open_zarr(
@@ -327,11 +360,6 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
             outcomes[wy] = ("empty", status.EMPTY_NO_SEASONAL_SNOW)
         else:
             years_to_process.append(wy)
-
-    # Hemisphere from the tile center (matches the UTM-zone-based rule the
-    # algorithm applies to loaded data); determines each water year's window.
-    center_lat = (tile.geobox.boundingbox.bottom + tile.geobox.boundingbox.top) / 2
-    hemisphere = "northern" if center_lat >= 0 else "southern"
 
     def water_year_window(wy):
         if hemisphere == "northern":

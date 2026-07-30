@@ -11,16 +11,35 @@ spatial_chunk_dim_s1_process = 512
 spatial_chunk_dim_zarr_output = 2048
 bbox_left = -179.999
 bbox_right = 179.999
-bbox_top = 81.099
-bbox_bottom = -59.999
+# Grid extended north/south relative to <= v9 (2026-07-30). The pixel lattice is
+# unchanged (edges snap to multiples of `resolution`), so pixel centers never move
+# and v9 pixel (i,j) == v10 pixel (i+4096, j), v9 tile (r,c) == v10 tile (r+2,c).
+#   top    81.099 -> 84.048  (realized 84.0485640): +4096 rows = +2 whole tile rows,
+#          covering all land on Earth (northernmost is Kaffeklubben Island, 83.67N).
+#   bottom -59.999 -> -63.4074 (realized -63.4075834): latitude is now an exact
+#          multiple of the 2048 tile/shard size (100 tile rows, no partial row in y),
+#          so any future southward extension is a clean append. Reaches South Orkney,
+#          the South Shetlands and the Antarctic Peninsula tip.
+# Both values are snap-sensitive: from_bbox expands OUTWARD to the lattice, so
+# 84.0486 would yield +4097 rows and -63.4076 a 1-pixel partial tile row. The
+# expected_* keys below are asserted at config load to catch any such drift.
+bbox_top = 84.048
+bbox_bottom = -63.4074
+expected_grid_shape = 204800, 499998
+expected_tile_grid = 100, 245
 WY_start = 2015
-WY_end = 2024
+WY_end = 2025
+# Days past a hemisphere's season end (N: Sep 30, S: Mar 31 next year) before a
+# water year may be dispatched/processed: 90 (phenology trailing buffer) + ~30
+# grace for the phenology fleet to run. Gates dispatch (status.py) AND the
+# processor (process_single_tile.py) so a half-elapsed season is never committed.
+trailing_buffer_days = 120
 low_backscatter_threshold = 0.001
 max_allowed_days_gap_per_orbit = 30
 min_years_for_median_std = 3
 extend_search_window_beyond_SDD_days = 16
 min_consec_snow_days_for_seasonal_snow = 56
-valid_tiles_geojson_path = processing/tile_data/global_tiles_with_seasonal_snow.geojson
+valid_tiles_geojson_path = processing/tile_data/global_tiles_with_seasonal_snow_v10.geojson
 global_runoff_icechunk_azure_prefix = snowmelt/snowmelt_runoff_onset/global_runoff_onset_v10
 inner_chunk_dim = 256
 snow_phenology_zarr_store_azure_path = snowmelt/modis_snow_phenology/modis_snow_phenology_v1

@@ -153,6 +153,19 @@ class Config:
         self.bbox_right: float = self.config.getfloat('VALUES', 'bbox_right')
         self.bbox_top: float = self.config.getfloat('VALUES', 'bbox_top')
         self.bbox_bottom: float = self.config.getfloat('VALUES', 'bbox_bottom')
+
+        # Optional grid tripwires (v10+). GeoBox.from_bbox snaps the bbox OUTWARD to
+        # the resolution lattice, so a bbox edit of less than one pixel can silently
+        # add or drop a row -- which would renumber every tile. When present, these
+        # are asserted against the realized geobox in _validate_grid().
+        self.expected_grid_shape: Optional[Tuple[int, int]] = None
+        self.expected_tile_grid: Optional[Tuple[int, int]] = None
+        if self.config.has_option('VALUES', 'expected_grid_shape'):
+            self.expected_grid_shape = tuple(
+                int(v) for v in self.config.getlist('VALUES', 'expected_grid_shape'))
+        if self.config.has_option('VALUES', 'expected_tile_grid'):
+            self.expected_tile_grid = tuple(
+                int(v) for v in self.config.getlist('VALUES', 'expected_tile_grid'))
         
         # Temporal parameters
         self.WY_start: int = self.config.getint('VALUES', 'WY_start')
@@ -167,6 +180,11 @@ class Config:
         self.low_backscatter_threshold: float = self.config.getfloat('VALUES', 'low_backscatter_threshold')
         self.extend_search_window_beyond_SDD_days: int = self.config.getint('VALUES', 'extend_search_window_beyond_SDD_days', fallback=16)
         self.min_consec_snow_days_for_seasonal_snow: int = self.config.getint('VALUES', 'min_consec_snow_days_for_seasonal_snow', fallback=56)
+        # Days past a hemisphere's season end before a water year is eligible for
+        # dispatch/processing (see status.wy_eligible): phenology's 90d trailing
+        # buffer + grace for its fleet to run. Gates both status.get_remaining_work
+        # and the per-tile processor so a half-elapsed season is never committed.
+        self.trailing_buffer_days: int = self.config.getint('VALUES', 'trailing_buffer_days', fallback=120)
 
         # File paths (resolve relative to repository root)
         self.valid_tiles_geojson_path: str = self._resolve_repo_path(
@@ -239,6 +257,7 @@ class Config:
         self.global_geobox: odc.geo.GeoBox = odc.geo.geobox.GeoBox.from_bbox((self.bbox_left, self.bbox_bottom,
             self.bbox_right, self.bbox_top), crs="epsg:4326", resolution=self.resolution)
         self.geobox_tiles: odc.geo.GeoboxTiles = odc.geo.geobox.GeoboxTiles(self.global_geobox, self.spatial_chunk_dims_zarr)
+        self._validate_grid()
         
         # Cloud storage setup
         # Try to get credentials from environment variables first
@@ -290,6 +309,57 @@ class Config:
         self._output_repo = None
         self._load_valid_tiles()
         
+    def _validate_grid(self) -> None:
+        """
+        Assert the realized global grid matches what the config declares.
+
+        The tile grid is the dataset's coordinate system: tile (row, col) indices are
+        baked into the icechunk commit history (see status.py) and into every published
+        tile-wise comparison, so a grid that silently shifts is unrecoverable without a
+        full rebuild. Two things are checked:
+
+        1. expected_grid_shape / expected_tile_grid (v10+ configs): the realized geobox
+           must have exactly the declared pixel and tile dimensions. GeoBox.from_bbox
+           expands the bbox outward to the resolution lattice, so a sub-pixel edit to
+           bbox_top -- e.g. 84.048 -> 84.0486 -- adds one row and renumbers every tile.
+        2. Latitude must be a whole number of tiles (v10+ / icechunk configs only).
+           With no partial row at the south edge, extending the grid southward later is
+           a pure append (zarr can only grow a dimension at its end), and every shard
+           is full-height. Legacy <= v9 configs had a 1410-row partial last tile row
+           and are left alone.
+
+        Raises:
+            ValueError: if the realized grid contradicts the config.
+        """
+        shape_yx = tuple(int(v) for v in self.global_geobox.shape.yx)
+        tile_grid_yx = tuple(int(v) for v in self.geobox_tiles.shape.yx)
+
+        if self.expected_grid_shape is not None and shape_yx != tuple(self.expected_grid_shape):
+            raise ValueError(
+                f"Grid shape mismatch in {self.config_name}: expected_grid_shape="
+                f"{tuple(self.expected_grid_shape)} but the bbox "
+                f"({self.bbox_left}, {self.bbox_bottom}, {self.bbox_right}, {self.bbox_top}) "
+                f"at resolution {self.resolution} realizes {shape_yx} (lat, lon) pixels. "
+                "The bbox edges snap outward to the resolution lattice -- a sub-pixel "
+                "change to bbox_top renumbers every tile row."
+            )
+        if self.expected_tile_grid is not None and tile_grid_yx != tuple(self.expected_tile_grid):
+            raise ValueError(
+                f"Tile grid mismatch in {self.config_name}: expected_tile_grid="
+                f"{tuple(self.expected_tile_grid)} but realized {tile_grid_yx} "
+                f"(rows, cols) at tile size {self.spatial_chunk_dim_zarr_output}."
+            )
+        if self.output_store_is_icechunk:
+            tile_dim = self.spatial_chunk_dim_zarr_output
+            if shape_yx[0] % tile_dim != 0:
+                raise ValueError(
+                    f"Latitude extent {shape_yx[0]} is not a whole number of "
+                    f"{tile_dim}-pixel tiles ({shape_yx[0] % tile_dim} px over). "
+                    "Adjust bbox_bottom so the south edge lands on a tile boundary: "
+                    "a partial last tile row means any future southward extension "
+                    "changes that row's footprint instead of being a pure append."
+                )
+
     def _check_sas_token_expiration(self) -> None:
         """
         Check if the SAS token is expired or about to expire.
@@ -343,7 +413,10 @@ class Config:
         For icechunk (>= v10) configs the registry is loaded as-is; processing
         status lives in the icechunk commit history (see status.py).
         """
-        self.valid_tiles_gdf: gpd.GeoDataFrame = gpd.read_file(self.valid_tiles_geojson_path).drop(columns=['tile'])
+        # Full registry, including any to_process == False rows (v10+ registries keep
+        # excluded tiles for documentation) so per-tile lookups (Tile, QC) always work;
+        # the work universe is filtered on to_process in status.get_tile_status_gdf.
+        self.valid_tiles_gdf: gpd.GeoDataFrame = gpd.read_file(self.valid_tiles_geojson_path).drop(columns=['tile'], errors='ignore')
         self.valid_tiles_gdf = self.valid_tiles_gdf.sort_values(by='percent_valid_snow_pixels', ascending=False)
         if self.output_store_is_icechunk:
             return
@@ -497,6 +570,7 @@ class Config:
             'max_allowed_days_gap_per_orbit': self.max_allowed_days_gap_per_orbit,
             'low_backscatter_threshold': self.low_backscatter_threshold,
             'extend_search_window_beyond_SDD_days': self.extend_search_window_beyond_SDD_days,
+            'trailing_buffer_days': self.trailing_buffer_days,
             'min_consec_snow_days_for_seasonal_snow': self.min_consec_snow_days_for_seasonal_snow,
             'start_date': self.start_date,
             'end_date': self.end_date,

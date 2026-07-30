@@ -1,0 +1,26 @@
+name: Water Year Watch
+
+# Opens a GitHub issue when a (water year, hemisphere) season has fully
+# elapsed (+ buffer) and is ready to add to the dataset. Runs ~1 month after
+# the MODIS_snow_phenology repo's equivalent reminder, since phenology must
+# extend first. Purely date-based and deduplicated by issue title, so each
+# hemisphere-year reminds exactly once.
+
+on:
+  schedule:
+    - cron: "0 12 3 * *" # monthly; eligibility dates move slowly
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Open issues for newly eligible hemisphere-years
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 processing/scripts/water_year_watch.py

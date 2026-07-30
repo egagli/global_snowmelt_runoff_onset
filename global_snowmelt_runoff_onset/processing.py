@@ -61,7 +61,8 @@ def _odc_stac_handles_antimeridian_footprints() -> bool:
     from odc.stac.testing.stac import b_, mk_parsed_item
 
     # A UTM zone 1N source geobox straddling the antimeridian (same extent as a real
-    # Sentinel-1 RTC scene over this pipeline's Tile(8, 0)).
+    # Sentinel-1 RTC scene over this pipeline's Tile(10, 0) -- Tile(8, 0) before the
+    # 2026-07-30 grid extension; the ground is the same).
     gbox = GeoBox(
         (25129, 29486), Affine(10.0, 0.0, 281870.0, 0.0, -10.0, 7738430.0), "EPSG:32601"
     )

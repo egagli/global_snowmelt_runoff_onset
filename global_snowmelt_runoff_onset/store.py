@@ -170,3 +170,87 @@ def tile_region_slices(config, tile_row: int, tile_col: int):
         "latitude": slice(y0, min(y0 + tile_dim, n_y)),
         "longitude": slice(x0, min(x0 + tile_dim, n_x)),
     }
+
+
+def grid_pixel_offset(config, other_config):
+    """
+    Integer (row, col) pixel offset from `config`'s grid to `other_config`'s.
+
+    The v10 grid was extended north and south of the <= v9 grid (2026-07-30) but
+    kept the same resolution lattice, so the two grids differ only by a whole-pixel
+    translation of their origins: v9 pixel (i, j) is v10 pixel (i + 4096, j).
+
+    Args:
+        config: Config whose grid the input indices are on.
+        other_config: Config whose grid the output indices should be on.
+
+    Returns:
+        (row_offset, col_offset) to ADD to a `config` pixel index to get the
+        `other_config` index of the same ground.
+
+    Raises:
+        ValueError: if the grids have different resolutions, or if their origins
+            differ by a non-integer number of pixels (different lattices -- no
+            exact pixel correspondence exists and data would need resampling).
+    """
+    if config.resolution != other_config.resolution:
+        raise ValueError(
+            f"Cannot map indices between grids at different resolutions: "
+            f"{config.config_name} {config.resolution} vs "
+            f"{other_config.config_name} {other_config.resolution}."
+        )
+    res = config.resolution
+    src, dst = config.global_geobox.transform, other_config.global_geobox.transform
+    # transform.f is the NORTH edge and the y step is -res, so a source row i sits at
+    # src.f - i*res and lands on destination row i + (dst.f - src.f)/res. transform.c
+    # is the WEST edge with a +res step, hence the opposite sign for columns.
+    row_exact = (dst.f - src.f) / res
+    col_exact = (src.c - dst.c) / res
+    offsets = []
+    for name, exact in (("row", row_exact), ("col", col_exact)):
+        rounded = round(exact)
+        if abs(exact - rounded) > 1e-6:
+            raise ValueError(
+                f"{config.config_name} and {other_config.config_name} are on different "
+                f"pixel lattices: their origins differ by {exact} pixels in {name} "
+                "(not a whole number), so no exact pixel mapping exists."
+            )
+        offsets.append(rounded)
+    return offsets[0], offsets[1]
+
+
+def tile_region_slices_on_grid(config, tile_row: int, tile_col: int, other_config):
+    """
+    Slices of `config`'s tile (tile_row, tile_col) expressed on `other_config`'s grid.
+
+    Use this to read the same ground from a store written on a different (but
+    lattice-compatible) grid -- e.g. comparing a v10 tile against the published v9
+    store, whose grid starts 4096 rows further south:
+
+        v10_region = tile_region_slices(config_v10, row, col)
+        v9_region  = tile_region_slices_on_grid(config_v10, row, col, config_v9)
+
+    Slices are clamped to `other_config`'s shape, so for a tile that only partially
+    overlaps the other grid the two regions have DIFFERENT lengths; compare over the
+    overlap (or check the returned lengths) rather than assuming they match.
+
+    Raises:
+        ValueError: if the tile lies entirely outside `other_config`'s grid, or the
+            grids are not lattice-compatible (see grid_pixel_offset).
+    """
+    row_off, col_off = grid_pixel_offset(config, other_config)
+    region = tile_region_slices(config, tile_row, tile_col)
+    n_y, n_x = other_config.global_geobox.shape.yx
+    out = {}
+    for dim, off, size in (("latitude", row_off, n_y), ("longitude", col_off, n_x)):
+        start = region[dim].start + off
+        stop = region[dim].stop + off
+        if stop <= 0 or start >= size:
+            raise ValueError(
+                f"Tile ({tile_row},{tile_col}) of {config.config_name} lies entirely "
+                f"outside {other_config.config_name}'s grid in {dim} "
+                f"(would be {start}:{stop} of {size}) -- it covers ground that grid "
+                "does not include."
+            )
+        out[dim] = slice(max(start, 0), min(stop, size))
+    return out

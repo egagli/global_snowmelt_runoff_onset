@@ -7,13 +7,15 @@
 # AZURE_STORAGE_SAS_TOKEN / AZURE_STORAGE_ACCOUNT must hold a current token.
 #
 # The default tile set mirrors the local validation battery, plus the
-# scene-densest tile as the definitive 16 GB-runner memory check:
-#   8,0    antimeridian (westernmost columns must contain data)
-#   7,138  densest S1 coverage (~594 scenes/yr; peak-memory acid test)
-#   23,39  Rainier reference tile (v9 cross-check)
-#   26,65  data + no_valid_pixels empty years
-#   23,190 v9 said "no S1", 2026 catalog has data (backfill case)
-#   78,240 no_seasonal_snow empty years + 2 data years
+# scene-densest tile as the definitive 16 GB-runner memory check. Rows are on the
+# EXTENDED v10 grid (2026-07-30: +2 tile rows in the north), i.e. every row index
+# here is the v9-era index + 2 -- see processing/README.md "Grid extension":
+#   10,0    antimeridian (westernmost columns must contain data)   [v9 8,0]
+#   9,138   densest S1 coverage (~594 scenes/yr; peak-memory acid test)  [v9 7,138]
+#   25,39   Rainier reference tile (v9 cross-check)                [v9 23,39]
+#   28,65   data + no_valid_pixels empty years                     [v9 26,65]
+#   25,190  v9 said "no S1", 2026 catalog has data (backfill case)  [v9 23,190]
+#   80,240  no_seasonal_snow empty years + 2 data years            [v9 78,240]
 # Running them concurrently also exercises icechunk's ConflictDetector with
 # real concurrent commits to Azure — something local testing cannot cover.
 
@@ -25,7 +27,7 @@ on:
       tiles:
         description: "Tiles as 'row,col;row,col;...'"
         required: false
-        default: '8,0;7,138;23,39;26,65;23,190;78,240'
+        default: '10,0;9,138;25,39;28,65;25,190;80,240'
         type: string
       water_years:
         description: "Water years: 'all', 'none' (composites only), or e.g. '2019,2020'"
