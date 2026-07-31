@@ -199,6 +199,35 @@ def search_sentinel1_items(
     ) from last_error
 
 
+def filter_items_with_bands(items, bands: List[str] = ["vv","vh"]) -> list:
+    """
+    Drop items that don't carry every requested band as an asset.
+
+    The STAC search is geometry + date only, so along the Arctic coast (and
+    anywhere else ESA runs HH/HV) a tile-year comes back as a *mix* of IW VV/VH
+    and IW HH/HV scenes. Two things go wrong if the HH/HV ones are left in:
+
+    1. odc.stac derives the collection's band set from the FIRST item alone
+       (``_collection(_parsed)`` returns ``_parsed[0].collection``), so a
+       leading HH/HV scene makes ``load`` raise "No such band/alias: vv" even
+       when most of the collection does have VV.
+    2. When the first item happens to have VV, the HH/HV scenes still load --
+       as acquisitions that are 100% nodata (-32768), inflating the scene count
+       and temporal resolution with observations that carry no data.
+
+    Only items with *all* requested bands are kept, so VV-only scenes (the
+    majority in many tile-years) survive while HH/HV ones are dropped.
+
+    Args:
+        items: STAC items from search_sentinel1_items
+        bands: bands the caller intends to load
+
+    Returns:
+        list of items carrying every band in ``bands``
+    """
+    return [item for item in items if all(band in item.assets for band in bands)]
+
+
 def load_sentinel1_rtc(
     items,
     geobox: 'odc.geo.GeoBox',
@@ -212,8 +241,23 @@ def load_sentinel1_rtc(
     See get_sentinel1_rtc for the returned dataset structure. Split from the
     search step so callers can retry the search independently and distinguish
     an empty item collection from a failed one.
+
+    Items lacking any requested band are dropped first (see
+    filter_items_with_bands); callers that need to tell "no usable items" apart
+    from "no items at all" should apply that filter before their own emptiness
+    check rather than relying on the ValueError raised here.
     """
     ensure_antimeridian_footprint_fix()
+
+    # also keeps the metadata GeoDataFrame below aligned with the loaded time
+    # axis -- both must see the same item set or the per-acquisition orbit
+    # coords get assigned to the wrong scenes
+    items = filter_items_with_bands(items, bands)
+    if len(items) == 0:
+        raise ValueError(
+            f"No Sentinel-1 items carry all requested bands {bands}; "
+            "the search returned only other polarizations (e.g. HH/HV)."
+        )
 
     load_params = {
         "items": items,

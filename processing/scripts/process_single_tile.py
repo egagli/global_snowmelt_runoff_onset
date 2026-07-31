@@ -389,6 +389,15 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
             items = processing.search_sentinel1_items(
                 tile.geobox, start_date=year_start, end_date=year_end
             )
+            # Arctic-coast tile-years mix IW VV/VH with IW HH/HV scenes; the
+            # latter can't serve config.bands and load as all-nodata. Filter
+            # before the emptiness check so a year with only HH/HV coverage is
+            # recorded as 'no_items' rather than raising.
+            n_found = len(items)
+            items = processing.filter_items_with_bands(items, config.bands)
+            if n_found and len(items) < n_found:
+                log.info(f"WY{wy}: dropped {n_found - len(items)}/{n_found} items "
+                         f"lacking {config.bands} (wrong polarization)")
             if len(items) == 0:
                 result = "no_items"
                 break
