@@ -32,6 +32,11 @@ on:
         required: false
         default: ''
         type: string
+      tiles_file:
+        description: 'Optional repo-relative path to a "row,col"-per-line tile list; restricts the run to those tiles'
+        required: false
+        default: ''
+        type: string
 
   # Must duplicate inputs for workflow_call (https://github.com/orgs/community/discussions/39357)
   workflow_call:
@@ -50,6 +55,10 @@ on:
         required: false
         default: '0'
       as_of_snapshot:
+        type: string
+        required: false
+        default: ''
+      tiles_file:
         type: string
         required: false
         default: ''
@@ -101,6 +110,7 @@ jobs:
           --which-tiles ${{ inputs.which_tiles }} \
           --how-many ${{ inputs.how_many }} \
           --batch-index ${{ inputs.batch_index }} \
+          --tiles-file "${{ inputs.tiles_file }}" \
           $SNAPSHOT_ARG)
         COUNT=$(echo "$MATRIX" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['tile']))")
         echo "matrix=$MATRIX" >> $GITHUB_OUTPUT

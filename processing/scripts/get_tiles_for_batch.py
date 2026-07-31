@@ -79,6 +79,11 @@ def main():
                         help="incomplete: missing tile x water years + missing/stale composites "
                              "(includes failed -- they never commit); unprocessed: untouched tiles "
                              "only; all: full reprocess")
+    parser.add_argument("--tiles-file", type=str, default="",
+                        help="Optional path (relative to repo root) to a text file of 'row,col' "
+                             "lines; the work list is restricted to these tiles (e.g. "
+                             "processing/tile_data/station_tiles_v10.txt to process station "
+                             "tiles first). Empty string = no restriction.")
     parser.add_argument("--include-empty-years", action="store_true",
                         help="Also redo water years previously committed as verified-empty")
     parser.add_argument("--how-many", type=int, default=0,
@@ -97,6 +102,16 @@ def main():
     items, snapshot_id = get_work_items(args.config_file, args.which_tiles,
                                         args.include_empty_years, args.how_many,
                                         args.branch, args.as_of_snapshot)
+
+    if args.tiles_file:
+        tiles_path = Path(__file__).parent.parent.parent / args.tiles_file
+        wanted = set()
+        for line in tiles_path.read_text().splitlines():
+            line = line.split("#")[0].strip()
+            if line:
+                r, c = line.split(",")
+                wanted.add((int(r), int(c)))
+        items = [it for it in items if (it["row"], it["col"]) in wanted]
 
     if args.list_batches:
         num_batches = (len(items) + BATCH_SIZE - 1) // BATCH_SIZE
