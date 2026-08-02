@@ -13,10 +13,14 @@ timing from Sentinel-1 SAR backscatter data. The pipeline includes:
 7. Output formatting and storage in Zarr format
 """
 
+import collections
+import contextlib
+import logging
 import random
 import time
 import warnings
 import easysnowdata
+import requests
 import pystac_client
 import planetary_computer
 import numpy as np
@@ -226,6 +230,188 @@ def filter_items_with_bands(items, bands: List[str] = ["vv","vh"]) -> list:
         list of items carrying every band in ``bands``
     """
     return [item for item in items if all(band in item.assets for band in bands)]
+
+
+#: Azure's definitive "this object does not exist" answer. Distinct from every
+#: service-failure signature (403 AuthenticationFailed, 409, 429, 5xx, timeouts),
+#: which is what makes a permanently-dead asset safely separable from an outage.
+BLOB_NOT_FOUND_ERROR_CODE = "BlobNotFound"
+
+#: Verdicts from probe_asset_availability
+ASSET_MISSING = "missing"
+ASSET_OK = "ok"
+ASSET_INCONCLUSIVE = "inconclusive"
+
+
+@contextlib.contextmanager
+def capture_failing_asset_uris():
+    """
+    Collect the asset URIs odc.loader reports before it aborts a load.
+
+    odc.loader logs "Aborting load due to failure while reading: %s:%d" with the
+    URI as a *structured* log arg and then re-raises the bare rasterio error,
+    which carries no URI of its own -- so reading the log record is the only way
+    to learn which asset broke a load.
+
+    This is a soft dependency on an odc-stac internal. If that message ever
+    changes we simply capture nothing, and the caller falls back to failing the
+    tile: the behaviour it had before this existed. Degrading to "fail loudly"
+    is the whole point -- nothing is ever dropped on a guess.
+
+    Only works while the reads happen in this process. Dask's threaded
+    scheduler (what the pipeline uses) shares the logging handlers, so worker
+    threads are captured; a process-based scheduler would not be, and the same
+    safe fallback applies.
+
+    Yields:
+        list that accumulates failing asset URIs while the context is open
+    """
+    captured: List[str] = []
+
+    class _AbortedReadHandler(logging.Handler):
+        def emit(self, record):
+            try:
+                if not isinstance(record.msg, str):
+                    return
+                if not record.msg.startswith("Aborting load"):
+                    return
+                args = record.args
+                if isinstance(args, tuple) and args:
+                    uri = args[0]
+                    if isinstance(uri, str) and uri.startswith(("http://", "https://")):
+                        captured.append(uri)
+            except Exception:  # a logging handler must never break the load
+                pass
+
+    handler = _AbortedReadHandler(level=logging.ERROR)
+    # child loggers (odc.loader._rio) propagate to this one
+    logger = logging.getLogger("odc.loader")
+    logger.addHandler(handler)
+    try:
+        yield captured
+    finally:
+        logger.removeHandler(handler)
+
+
+def probe_asset_availability(
+    url: str,
+    session: Optional['requests.Session'] = None,
+    max_tries: int = 3,
+    timeout: int = 60,
+) -> str:
+    """
+    Classify a signed asset URL as permanently missing, present, or unknown.
+
+    Default-deny: ASSET_MISSING is returned *only* for Azure's definitive
+    404 + ``x-ms-error-code: BlobNotFound``. Every other answer -- 403, 409,
+    429, 5xx, connection errors, or an unrecognised status -- is
+    ASSET_INCONCLUSIVE, because those mean "the service is unhappy", not "the
+    object is gone". That distinction is what stops a storage outage from being
+    mistaken for mass data loss.
+
+    Inconclusive answers are retried (they may be transient); a BlobNotFound is
+    authoritative and returns immediately.
+
+    Args:
+        url: signed asset href
+        session: optional requests.Session for connection reuse
+        max_tries: attempts before giving up and reporting inconclusive
+        timeout: per-request timeout in seconds
+
+    Returns:
+        ASSET_MISSING, ASSET_OK or ASSET_INCONCLUSIVE
+    """
+    http = session or requests
+    for attempt in range(max_tries):
+        try:
+            response = http.head(url, timeout=timeout, allow_redirects=True)
+        except Exception:
+            pass  # network-level failure: inconclusive, retry
+        else:
+            if response.status_code == 200:
+                return ASSET_OK
+            if (response.status_code == 404
+                    and response.headers.get("x-ms-error-code") == BLOB_NOT_FOUND_ERROR_CODE):
+                return ASSET_MISSING
+        if attempt + 1 < max_tries:
+            time.sleep(min(30, 2 ** attempt) * random.uniform(0.5, 1.5))
+    return ASSET_INCONCLUSIVE
+
+
+def confirm_missing_assets(
+    items,
+    failed_uris: List[str],
+    bands: List[str] = ["vv","vh"],
+    session: Optional['requests.Session'] = None,
+) -> Tuple[set, str]:
+    """
+    Confirm which items' assets are permanently gone from object storage.
+
+    Intended for the failure path only: given the URIs that aborted a load (see
+    capture_failing_asset_uris), re-probe them ourselves and report only those
+    Azure affirmatively says are gone.
+
+    Two safeguards beyond the per-URL default-deny rule:
+
+    * **Canary.** At least one probed asset must answer 200 before *any*
+      "missing" verdict is trusted. If nothing resolves, that is the service
+      failing, not the data -- so nothing is reported.
+    * **Attribution.** A URI is only credited to an item whose own asset href
+      matches it, so a verdict can never be applied to the wrong scene.
+
+    Callers are still expected to bound how much they drop (see the caps in
+    process_single_tile) -- this function deliberately has no opinion on how
+    many missing assets is "too many" for a given water year.
+
+    Args:
+        items: the STAC items the load was built from
+        failed_uris: asset URIs odc reported before aborting
+        bands: bands being loaded (only these assets are considered)
+        session: optional requests.Session for connection reuse
+
+    Returns:
+        (confirmed_ids, note): ids of items whose asset is confirmed missing
+        (empty whenever the evidence is inconclusive), and a human-readable
+        note explaining the verdict for logs and commit metadata
+    """
+    if not failed_uris:
+        return set(), "no failing asset URI was captured"
+
+    uri_to_item = {
+        item.assets[band].href: item
+        for item in items for band in bands if band in item.assets
+    }
+
+    confirmed, verdicts = set(), collections.Counter()
+    saw_ok = False
+    for uri in dict.fromkeys(failed_uris):  # dedupe, preserve order
+        item = uri_to_item.get(uri)
+        if item is None:
+            verdicts["unattributable"] += 1
+            continue
+        verdict = probe_asset_availability(uri, session=session)
+        verdicts[verdict] += 1
+        if verdict == ASSET_OK:
+            saw_ok = True
+        elif verdict == ASSET_MISSING:
+            confirmed.add(item.id)
+
+    if confirmed and not saw_ok:
+        # every probed asset failed -- probe untouched assets to tell "a few dead
+        # scenes" apart from "storage is down and answering BlobNotFound wrongly"
+        canary_uris = [u for u in uri_to_item if u not in set(failed_uris)][:3]
+        for uri in canary_uris:
+            if probe_asset_availability(uri, session=session) == ASSET_OK:
+                saw_ok = True
+                break
+        if not saw_ok:
+            return set(), (
+                f"refusing to drop {len(confirmed)} asset(s): no probed asset "
+                "resolved, so this looks like a storage failure, not missing data"
+            )
+
+    summary = ", ".join(f"{v}={n}" for v, n in sorted(verdicts.items()))
+    return confirmed, f"probed {len(verdicts)} failing asset(s): {summary}"
 
 
 def load_sentinel1_rtc(

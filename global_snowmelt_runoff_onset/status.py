@@ -113,6 +113,7 @@ def build_commit_metadata(
     stats: Optional[Dict[str, Any]] = None,
     duration_s: Optional[float] = None,
     provenance: Optional[Dict[str, Any]] = None,
+    missing_assets: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Build the structured metadata dictionary attached to every pipeline commit.
@@ -138,6 +139,13 @@ def build_commit_metadata(
         metadata["duration_s"] = round(float(duration_s), 1)
     if provenance is not None:
         metadata["provenance"] = provenance
+    if missing_assets:
+        # Scenes excluded because their blobs are gone from object storage
+        # (404 BlobNotFound) even though the STAC catalog still lists them. The
+        # year is otherwise complete; recording the ids here is what keeps a
+        # thinned year distinguishable from a whole one, and lets these years be
+        # found again if the upstream archive is ever repaired.
+        metadata["missing_assets"] = sorted(missing_assets)
     return metadata
 
 

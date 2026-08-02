@@ -56,6 +56,17 @@ COMMIT_MAX_TRIES = 8
 # Planetary Computer asset tokens (~45 min lifetime) are freshly signed.
 YEAR_LOAD_MAX_TRIES = 2
 
+# A handful of scenes are catalogued in the Planetary Computer STAC but their
+# blobs are gone from Azure (404 BlobNotFound), which aborts the whole tile even
+# though ~99.9% of the year loads fine. Such a scene is dropped and the year
+# retried -- but only when our own probe confirms it is permanently missing, and
+# only within these caps, so a storage outage can never quietly thin a year into
+# looking complete. A 2026-08 sweep of 5,118 assets across 10 tile-years found
+# exactly one dead scene in each affected year (0.08-0.51%) and none elsewhere,
+# so anything beyond a few is systemic and should fail loudly instead.
+MAX_MISSING_ASSET_DROPS = 3
+MAX_MISSING_ASSET_FRACTION = 0.05
+
 
 def setup_logging(tile_row: int, tile_col: int) -> None:
     log_dir = Path("logs")
@@ -383,9 +394,21 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
         year_start, year_end = water_year_window(wy)
 
         result = None
-        for load_attempt in range(YEAR_LOAD_MAX_TRIES):
+        # scenes confirmed permanently missing from object storage; re-applied
+        # after every re-search (which would otherwise hand them back)
+        dead_scene_ids = set()
+        plain_retries = 0
+        attempt_n = 0
+        # Two independent budgets: dropping a confirmed-missing scene never
+        # spends a plain retry, and a drop refreshes the plain-retry allowance.
+        # Still bounded -- every iteration either drops a scene (at most
+        # MAX_MISSING_ASSET_DROPS over the year) or spends a plain retry
+        # (< YEAR_LOAD_MAX_TRIES per drop epoch), so at most
+        # (MAX_MISSING_ASSET_DROPS + 1) * YEAR_LOAD_MAX_TRIES attempts.
+        while True:
+            attempt_n += 1
             log.info(f"WY{wy}: searching Sentinel-1 items ({year_start} to {year_end})"
-                     + (f" [attempt {load_attempt + 1}]" if load_attempt else "") + "...")
+                     + (f" [attempt {attempt_n}]" if attempt_n > 1 else "") + "...")
             items = processing.search_sentinel1_items(
                 tile.geobox, start_date=year_start, end_date=year_end
             )
@@ -398,6 +421,11 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
             if n_found and len(items) < n_found:
                 log.info(f"WY{wy}: dropped {n_found - len(items)}/{n_found} items "
                          f"lacking {config.bands} (wrong polarization)")
+            n_usable = len(items)
+            if dead_scene_ids:
+                items = [item for item in items if item.id not in dead_scene_ids]
+                log.info(f"WY{wy}: excluding {n_usable - len(items)} scene(s) with "
+                         "assets confirmed missing from storage")
             if len(items) == 0:
                 result = "no_items"
                 break
@@ -414,25 +442,71 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
             if s1_wy_ds.time.size == 0:
                 result = "no_scenes"
                 break
+            # bound before the try so the handler below can always read it, even
+            # if we fail before the capture context opens
+            failing_uris = []
             try:
                 year_workers = None
                 if auto_workers:
                     year_workers = scale_workers_by_density(int(s1_wy_ds.time.size))
                     log.info(f"WY{wy}: auto dask workers -> {year_workers}")
-                result = process_one_year(s1_wy_ds, mask_ds, wy, config,
-                                          gmba_clipped_gdf, num_workers=year_workers)
+                # records which asset URI aborts the load, if one does; odc
+                # only reports it to its logger before re-raising
+                with processing.capture_failing_asset_uris() as failing_uris:
+                    result = process_one_year(s1_wy_ds, mask_ds, wy, config,
+                                              gmba_clipped_gdf, num_workers=year_workers)
                 break
             except Exception as e:
                 # Typically odc "Aborting load due to failure while reading":
-                # a transient blob failure or the signed token expiring
-                # mid-compute. Nothing was committed, so retrying the whole
-                # year against a freshly signed search is safe.
-                if load_attempt + 1 >= YEAR_LOAD_MAX_TRIES:
-                    raise
-                log.warning(f"WY{wy}: load/compute failed ({type(e).__name__}: {e}); "
-                            "re-searching with fresh asset tokens and retrying")
+                # a transient blob failure, the signed token expiring
+                # mid-compute, or a scene whose blob is permanently gone.
+                # Nothing was committed, so retrying the whole year against a
+                # freshly signed search is safe.
                 del s1_year_ds, s1_wy_ds
                 gc.collect()
+
+                # Only a self-probed 404 BlobNotFound counts as permanently
+                # missing; every service-failure signature falls through to the
+                # ordinary retry below instead of dropping anything.
+                newly_dead, probe_note = processing.confirm_missing_assets(
+                    items, failing_uris, config.bands)
+                newly_dead -= dead_scene_ids
+                if newly_dead:
+                    candidate = dead_scene_ids | newly_dead
+                    over_count = len(candidate) > MAX_MISSING_ASSET_DROPS
+                    over_fraction = (n_usable > 0
+                                     and len(candidate) / n_usable > MAX_MISSING_ASSET_FRACTION)
+                    if over_count or over_fraction:
+                        log.error(
+                            f"WY{wy}: {len(candidate)}/{n_usable} scenes have assets "
+                            f"missing from storage, over the drop cap "
+                            f"({MAX_MISSING_ASSET_DROPS} scenes / "
+                            f"{MAX_MISSING_ASSET_FRACTION:.0%}); failing instead of "
+                            "committing a thinned year"
+                        )
+                        raise
+                    dead_scene_ids = candidate
+                    # A confirmed drop is forward progress -- the year is being
+                    # retried against a genuinely different (smaller) item set,
+                    # not re-attempted against the same one. Refresh the
+                    # transient allowance so a year that has to shed a dead
+                    # scene isn't left with less resilience to flaky reads than
+                    # one that doesn't: shedding costs extra load attempts, each
+                    # of which is another chance to hit a transient.
+                    plain_retries = 0
+                    log.warning(
+                        f"WY{wy}: {probe_note}; excluding "
+                        f"{sorted(newly_dead)} and retrying "
+                        f"({len(dead_scene_ids)}/{n_usable} scenes excluded so far)"
+                    )
+                    continue
+
+                plain_retries += 1
+                if plain_retries >= YEAR_LOAD_MAX_TRIES:
+                    raise
+                log.warning(f"WY{wy}: load/compute failed ({type(e).__name__}: {e}); "
+                            f"{probe_note}; re-searching with fresh asset tokens "
+                            "and retrying")
 
         if result in ("no_items", "no_scenes"):
             commit_empty_year(repo, branch, config, tile_row, tile_col, wy,
@@ -472,6 +546,7 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
             status.KIND_TILE_YEAR, tile_row, tile_col, config.version,
             status.STATUS_DATA, water_year=wy, stats=stats,
             duration_s=time.time() - t0, provenance=prov,
+            missing_assets=sorted(dead_scene_ids) or None,
         )
         message = status.build_commit_message(
             status.KIND_TILE_YEAR, tile_row, tile_col, status.STATUS_DATA,
@@ -484,7 +559,9 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
             ),
             message, metadata,
         )
-        log.info(f"WY{wy}: committed {stats['valid_px']:,} valid px -> {snapshot_id}")
+        log.info(f"WY{wy}: committed {stats['valid_px']:,} valid px -> {snapshot_id}"
+                 + (f" (excluding {len(dead_scene_ids)} scene(s) missing from storage)"
+                    if dead_scene_ids else ""))
         outcomes[wy] = ("data", stats["valid_px"])
 
         year_results[wy] = (onset_2d, tr_2d)

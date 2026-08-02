@@ -545,6 +545,33 @@ class Config:
         self._output_repo = repo
         return repo
 
+    def open_runoff_onset_dataset(self, branch: str = 'main'):
+        """
+        Open this config's global runoff onset dataset, read-only.
+
+        Hides the store difference between config generations: configs >= v10 read a
+        read-only icechunk session (Zarr v3, unconsolidated), configs <= v9 read the
+        legacy consolidated Zarr v2 mapper (`global_runoff_store`, which is None for
+        icechunk configs). Callers get an xarray Dataset either way, so pointing an
+        evaluation notebook at a different dataset version stays a one-line change.
+
+        Args:
+            branch: icechunk branch to read (ignored for <= v9 configs)
+
+        Returns:
+            xr.Dataset: the global runoff onset dataset
+        """
+        import xarray as xr  # local import keeps this module light for processing scripts
+
+        if self.output_store_is_icechunk:
+            return xr.open_zarr(
+                self.open_output_repo().readonly_session(branch).store,
+                zarr_format=3, consolidated=False, decode_coords='all',
+            )
+        return xr.open_zarr(
+            self.global_runoff_store, consolidated=True, decode_coords='all',
+        )
+
     def get_config_dict(self) -> Dict[str, Any]:
         """
         Get configuration as dictionary.
