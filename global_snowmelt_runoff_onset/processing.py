@@ -178,6 +178,14 @@ def search_sentinel1_items(
     last_error = None
     for attempt in range(max_tries):
         try:
+            # Force a FRESH SAS token for every search. The pc SDK reuses any
+            # cached token with >= 60 s of remaining life (sas.get_token:
+            # `token.ttl() < 60`) -- fine for quick requests, fatal for our
+            # multi-GB year loads: a (9,138) WY2019 attempt was signed with a
+            # token holding 61 s of life and burned a full 45-min load window
+            # dying at its expiry (2026-08-03 run). One extra token request
+            # per search buys every attempt the full ~45-min lifetime.
+            planetary_computer.sas.TOKEN_CACHE.clear()
             return (
                 pystac_client.Client.open(
                     "https://planetarycomputer.microsoft.com/api/stac/v1",
