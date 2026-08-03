@@ -214,9 +214,11 @@ def get_commit_records(repo, branch: str = "main", as_of_snapshot: Optional[str]
             "config_version": meta.get("config_version"),
             "stats": meta.get("stats"),
             "duration_s": meta.get("duration_s"),
+            "missing_assets": meta.get("missing_assets"),
         })
     columns = ["ancestry_index", "snapshot_id", "written_at", "kind", "row", "col",
-               "water_year", "status", "empty_reason", "config_version", "stats", "duration_s"]
+               "water_year", "status", "empty_reason", "config_version", "stats", "duration_s",
+               "missing_assets"]
     return pd.DataFrame.from_records(records, columns=columns)
 
 

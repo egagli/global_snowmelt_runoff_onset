@@ -135,11 +135,12 @@ def commit_with_retry(repo, branch, write_fn, message, metadata, allow_empty=Fal
 
 
 def commit_empty_year(repo, branch, config, tile_row, tile_col, water_year,
-                      reason, prov, duration_s) -> str:
+                      reason, prov, duration_s, missing_assets=None) -> str:
     metadata = status.build_commit_metadata(
         status.KIND_TILE_YEAR, tile_row, tile_col, config.version,
         status.STATUS_EMPTY, water_year=water_year, empty_reason=reason,
         duration_s=duration_s, provenance=prov,
+        missing_assets=missing_assets,
     )
     message = status.build_commit_message(
         status.KIND_TILE_YEAR, tile_row, tile_col, status.STATUS_EMPTY,
@@ -509,8 +510,12 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
                             "and retrying")
 
         if result in ("no_items", "no_scenes"):
+            # dead_scene_ids can be non-empty here: if every catalogued scene's
+            # blob is gone, the year ends 'no_items' -- record the ids so the
+            # empty marker stays distinguishable from a truly scene-free year.
             commit_empty_year(repo, branch, config, tile_row, tile_col, wy,
-                              status.EMPTY_NO_S1_DATA, prov, time.time() - t0)
+                              status.EMPTY_NO_S1_DATA, prov, time.time() - t0,
+                              missing_assets=sorted(dead_scene_ids) or None)
             outcomes[wy] = ("empty", status.EMPTY_NO_S1_DATA)
             continue
 
@@ -527,7 +532,8 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
 
         if onset_2d is None:
             commit_empty_year(repo, branch, config, tile_row, tile_col, wy,
-                              status.EMPTY_NO_VALID_PIXELS, prov, time.time() - t0)
+                              status.EMPTY_NO_VALID_PIXELS, prov, time.time() - t0,
+                              missing_assets=sorted(dead_scene_ids) or None)
             outcomes[wy] = ("empty", status.EMPTY_NO_VALID_PIXELS)
             gc.collect()
             continue
