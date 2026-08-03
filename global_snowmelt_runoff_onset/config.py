@@ -545,7 +545,7 @@ class Config:
         self._output_repo = repo
         return repo
 
-    def open_runoff_onset_dataset(self, branch: str = 'main'):
+    def open_runoff_onset_dataset(self, branch: str = 'main', chunks='auto'):
         """
         Open this config's global runoff onset dataset, read-only.
 
@@ -555,8 +555,18 @@ class Config:
         icechunk configs). Callers get an xarray Dataset either way, so pointing an
         evaluation notebook at a different dataset version stays a one-line change.
 
+        **Pass chunks=None when sampling many small windows** (station chips, point
+        extraction). The default 'auto' hands back a dask array with one graph entry
+        per on-disk chunk, and the v10 grid is 256x256 chunks over 11 x 204800 x
+        499998 -- about 17 million of them. Merely materialising that graph costs
+        ~3 GB and ~100 s before a single byte is read, and it is pure overhead when
+        each read touches a couple of chunks. chunks=None uses zarr's own lazy
+        indexing instead: no graph, and only the intersecting chunks are fetched.
+        Keep 'auto' for whole-grid reductions, where dask is what you want.
+
         Args:
             branch: icechunk branch to read (ignored for <= v9 configs)
+            chunks: passed to xr.open_zarr; None disables dask (see above)
 
         Returns:
             xr.Dataset: the global runoff onset dataset
@@ -566,10 +576,11 @@ class Config:
         if self.output_store_is_icechunk:
             return xr.open_zarr(
                 self.open_output_repo().readonly_session(branch).store,
-                zarr_format=3, consolidated=False, decode_coords='all',
+                zarr_format=3, consolidated=False, decode_coords='all', chunks=chunks,
             )
         return xr.open_zarr(
             self.global_runoff_store, consolidated=True, decode_coords='all',
+            chunks=chunks,
         )
 
     def get_config_dict(self) -> Dict[str, Any]:
