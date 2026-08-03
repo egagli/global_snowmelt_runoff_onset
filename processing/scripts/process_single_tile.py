@@ -151,6 +151,15 @@ def commit_empty_year(repo, branch, config, tile_row, tile_col, water_year,
     return snapshot_id
 
 
+def existing_year_commits(repo, branch, tile_row, tile_col) -> dict:
+    """Newest-wins {water_year: (status, empty_reason)} already committed for one tile."""
+    records = status.get_commit_records(repo, branch=branch)
+    year_records = records[(records.kind == status.KIND_TILE_YEAR)
+                           & (records.row == tile_row) & (records.col == tile_col)]
+    newest = year_records.drop_duplicates(subset=["water_year"], keep="first")
+    return {int(r.water_year): (r.status, r.empty_reason) for r in newest.itertuples()}
+
+
 def check_store_grid_alignment(store_ds, tile, region_2d) -> None:
     """
     Tripwire: the tile geobox is by construction an exact slice of the global
@@ -321,6 +330,24 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
             log.warning("No eligible water years remain -- exiting without "
                         "commits (composites left untouched).")
             return outcomes
+
+    # Recompute-over-existing warning: explicit-year dispatches (e.g. the TEST
+    # tiles workflow with water_years=all) happily reprocess years that already
+    # have commits. That is safe -- newest-wins supersedes, composites go stale
+    # and refresh -- but it should never happen silently: it is usually a
+    # redispatch that forgot to narrow the year list.
+    already = existing_year_commits(repo, branch, tile_row, tile_col)
+    supersede = [wy for wy in water_years if wy in already]
+    if supersede:
+        details = ", ".join(
+            f"WY{wy}={already[wy][0]}"
+            + (f"({already[wy][1]})" if already[wy][1] else "")
+            for wy in supersede)
+        log.warning(
+            f"{len(supersede)}/{len(water_years)} requested water year(s) ALREADY "
+            f"have commits and will be recomputed and superseded (newest-wins): "
+            f"{details}. Use --water-years missing (or the status-driven "
+            "workflows) to process only uncommitted years.")
 
     odc.stac.configure_rio(cloud_defaults=True)
 
@@ -692,7 +719,9 @@ def main():
                         help="Config file name in config/ (e.g. global_config_v10.txt)")
     parser.add_argument("--water-years", type=str, default="all",
                         help="Comma-separated water years to process, 'all' (default), "
-                             "or 'none' to only (re)compute composites from committed years")
+                             "'missing' (only years with no commit yet -- resume mode "
+                             "for explicit-tile runs like the TEST workflow), or 'none' "
+                             "to only (re)compute composites from committed years")
     parser.add_argument("--skip-composites", action="store_true",
                         help="Skip the cross-year composite commit")
     parser.add_argument("--branch", type=str, default="main")
@@ -749,10 +778,21 @@ def main():
         water_years = [int(wy) for wy in config.water_years]
     elif water_years_arg in ("none", "composites_only"):
         water_years = []  # composites-only: refresh from already-committed years
+    elif water_years_arg == "missing":
+        water_years = None  # resolved from commit history once the repo is open
     else:
         water_years = sorted(int(wy) for wy in args.water_years.split(","))
 
     repo = open_output_repo(config, args.local_store)
+
+    if water_years is None:
+        committed = existing_year_commits(repo, args.branch,
+                                          args.tile_row, args.tile_col)
+        water_years = [int(wy) for wy in config.water_years
+                       if int(wy) not in committed]
+        log.info(f"--water-years missing: {len(committed)} year(s) already "
+                 f"committed for this tile; processing "
+                 f"{water_years or 'none (composites refresh only)'}")
 
     read_chunks = {"x": args.read_chunk_dim, "y": args.read_chunk_dim,
                    "time": args.read_chunk_time}

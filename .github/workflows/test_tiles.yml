@@ -36,9 +36,9 @@ on:
         default: '10,0;9,138;25,39;28,65;25,190;80,240;56,69;57,69'
         type: string
       water_years:
-        description: "Water years: 'all', 'none' (composites only), or e.g. '2019,2020'"
+        description: "Water years: 'all' (recomputes + supersedes committed years!), 'missing' (resume: only uncommitted years), 'none' (composites only), or e.g. '2019,2020'"
         required: false
-        default: 'all'
+        default: 'missing'
         type: string
       config_file:
         description: 'Config file to use'
