@@ -8,7 +8,7 @@ platforms = ["linux-64", "osx-arm64"]
 
 [dependencies]
 python = ">=3.12"
-odc-stac = ">=0.4"
+odc-stac = ">=0.5.3"
 rioxarray = "*"
 xarray = "*"
 bottleneck = "*"
@@ -70,7 +70,7 @@ tqdm = "*"
 requests = "*"
 pystac-client = "*"
 planetary-computer = "*"
-odc-stac = ">=0.4"
+odc-stac = ">=0.5.3"
 odc-geo = "*"
 zarr = "*"
 azure-storage-blob = "*"
