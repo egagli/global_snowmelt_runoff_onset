@@ -17,7 +17,7 @@
 #   25,190  v9 said "no S1", 2026 catalog has data (backfill case)  [v9 23,190]
 #   80,240  no_seasonal_snow empty years + 2 data years            [v9 78,240]
 #   56,69   equator-straddling tile, Volcán Cayambe north flank    [v9 54,69]
-#           (row 56 overhangs lat 0 by 2.78 px: exercises the
+#           (row 56 overhangs lat 0 by exactly 2 px (~160 m): exercises the
 #           remove_equator_crossing sliver mask + the bilinear MODIS
 #           v8/v9 phenology seam — the only place on Earth where
 #           seasonal snow touches the equator)
