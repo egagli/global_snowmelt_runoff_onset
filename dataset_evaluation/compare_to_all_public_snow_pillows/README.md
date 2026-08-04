@@ -63,6 +63,9 @@ ones. Snow depth stays in cm.
    station, plus auxiliary layers (fcf, dem, worldcover, snow_class)
    → `data/comparison_datasets/<version>/runoff_onset_snow_pillow_station_chips.zarr`.
    Resumable batched loop.
+6. Persists the manuscript Sect. 2.3 QC counts →
+   `results/<version>/qc_station_counts.csv` (the numbers previously only
+   printed by the QC-summary cell).
 
 ### `2_compare_snow_pillows.ipynb`
 
@@ -74,7 +77,9 @@ tree / gradient boosting on |error|, station-year robustness checks, and
 (`figures/<version>/pixelwise_performance_analysis*.png`, split WUS / non-WUS) and
 the snow-class breakdowns
 (`figures/<version>/residuals_by_snow_class_all_vs_good_pixels.png`,
-`figures/<version>/performance_vs_prevalence_by_snow_class.png`).
+`figures/<version>/performance_vs_prevalence_by_snow_class.png`), and persists the
+Fig. 4 binned grids (median/MAD/count per fcf × SWE bin × temporal-resolution
+group, long format) → `results/<version>/pixelwise_binned_stats.csv`.
 
 ### `3_evaluate_snow_pillows.ipynb`
 
@@ -90,6 +95,10 @@ v10 outputs: 8,397 station-water-years across 1,135 stations (WUS 931 / 7,242
 obs; non-WUS 204 / 1,155), median residual −2.0 d, MAD 10.0 d, mean temporal
 resolution 6.87 d. (Manuscript currently cites the v9/WY2015–2024 counts —
 7,294 across 1,116 of 1,210 — so reconcile when updating it.)
+
+Persists the headline stats and filter regime →
+`results/<version>/evaluation_summary.csv` (all/WUS/nonWUS rows) and the Fig. 5
+per-water-year annotation table → `results/<version>/evaluation_per_water_year.csv`.
 
 ### `4_snow_pillow_representativeness.ipynb`
 
@@ -108,6 +117,21 @@ Table 1) →
 > `figures/v9/` — rerun the notebook to produce the v10 render. The notebook
 > also has no markdown title cell; this README is its only description.
 
+### `5_station_density.ipynb`
+
+Computes the manuscript Sect. 5.1 text stat — *"1 station per ~1,280 km² in
+mountain regions of the Western U.S."* **Station source: identical to `4_`** —
+the usable evaluation stations in
+`data/comparison_datasets/<version>/max_snow_pillow_swe_timing.zarr` (from
+`1_`), clipped to the WUS box (−125…−66°E, 24…49°N). Keeps the GMBA v2.0
+mountain ranges containing at least one station and computes the aggregate
+station count, total range area (Albers equal-area), area per station, and
+stations per 100 km² → `results/<version>/station_density.csv`. Standalone —
+not part of the `0_`–`4_` chip pipeline. Moved from `../compare_to_snotel/` and
+rewired to the shared inventory on 2026-08-04; the manuscript's current
+~1,280 km² figure came from the old SNOTEL/CCSS-only set (926 stations), so
+**rerun and reconcile the manuscript with the CSV value**.
+
 ---
 
 ## Data & outputs
@@ -116,3 +140,9 @@ Table 1) →
 - `data/coarse_snow_class_map/SnowClass_GL_05km_2.50arcmin_2021_v01.0.tif` — 5 km snow-class raster read by `4_` (distinct from the 1 km tif in `../calculate_spatial_coverage_and_temporal_resolution/data/`).
 - `data/comparison_datasets/{v9,v10}/` — the two Zarrs per version from `1_`.
 - `figures/{v9,v10}/` — version-scoped figure outputs (`figures/v10/` currently untracked in git).
+- `results/<version>/` — durable homes of the manuscript-cited numbers, written via
+  `global_snowmelt_runoff_onset.results.save_result_table` (which stamps `_version`,
+  `_git_sha`, `_written_at` columns): `qc_station_counts.csv` (from `1_`),
+  `pixelwise_binned_stats.csv` (from `2_`), `evaluation_summary.csv` +
+  `evaluation_per_water_year.csv` (from `3_`), `station_density.csv` (from `5_`).
+  Added 2026-08-04 — **rerun the notebooks to materialize them**.

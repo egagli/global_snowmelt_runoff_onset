@@ -91,4 +91,13 @@ def collect_provenance() -> Dict[str, Any]:
     prov["python"] = platform.python_version()
     prov["code_sha"] = _git_sha()
     prov["package_versions"] = _package_versions()
+    # Machine size, so bulk compute accounting (e.g. CPU-core-hours =
+    # duration_s / 3600 x cpu_count, manuscript Sect. 2.2.3) is derivable from
+    # the commit history alone.
+    prov["cpu_count"] = os.cpu_count()
+    try:
+        import psutil
+        prov["memory_gb"] = round(psutil.virtual_memory().total / 1e9, 1)
+    except Exception:
+        pass
     return {k: v for k, v in prov.items() if v is not None}

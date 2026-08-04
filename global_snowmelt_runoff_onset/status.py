@@ -189,7 +189,8 @@ def get_commit_records(repo, branch: str = "main", as_of_snapshot: Optional[str]
     Returns:
         DataFrame with columns: ancestry_index, snapshot_id, written_at, kind,
         row, col, water_year (NaN for composites), status, empty_reason,
-        config_version, stats (dict), duration_s
+        config_version, stats (dict), duration_s, missing_assets,
+        provenance (dict)
     """
     if as_of_snapshot:
         ancestry = repo.ancestry(snapshot_id=as_of_snapshot)
@@ -215,10 +216,11 @@ def get_commit_records(repo, branch: str = "main", as_of_snapshot: Optional[str]
             "stats": meta.get("stats"),
             "duration_s": meta.get("duration_s"),
             "missing_assets": meta.get("missing_assets"),
+            "provenance": meta.get("provenance"),
         })
     columns = ["ancestry_index", "snapshot_id", "written_at", "kind", "row", "col",
                "water_year", "status", "empty_reason", "config_version", "stats", "duration_s",
-               "missing_assets"]
+               "missing_assets", "provenance"]
     return pd.DataFrame.from_records(records, columns=columns)
 
 

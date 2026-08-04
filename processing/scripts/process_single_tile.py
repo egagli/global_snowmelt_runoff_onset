@@ -139,12 +139,13 @@ def commit_with_retry(repo, branch, write_fn, message, metadata, allow_empty=Fal
 
 
 def commit_empty_year(repo, branch, config, tile_row, tile_col, water_year,
-                      reason, prov, duration_s, missing_assets=None) -> str:
+                      reason, prov, duration_s, missing_assets=None,
+                      stats=None) -> str:
     metadata = status.build_commit_metadata(
         status.KIND_TILE_YEAR, tile_row, tile_col, config.version,
         status.STATUS_EMPTY, water_year=water_year, empty_reason=reason,
         duration_s=duration_s, provenance=prov,
-        missing_assets=missing_assets,
+        missing_assets=missing_assets, stats=stats,
     )
     message = status.build_commit_message(
         status.KIND_TILE_YEAR, tile_row, tile_col, status.STATUS_EMPTY,
@@ -566,12 +567,30 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
         dest_gb = sum(s1_wy_ds[v].nbytes for v in s1_wy_ds.data_vars) / 1e9
         log.info(f"WY{wy}: {dest_gb:.2f} GB dest in {year_elapsed:.0f}s "
                  f"({dest_gb * 1000 / max(year_elapsed, 1e-9):.1f} MB/s effective)")
+        # Persist volume/throughput in the commit stats (not just the log):
+        # summed over the commit history these give the fleet-wide data volume
+        # read at the 80 m overview level and the throughput/worker record
+        # (manuscript Sect. 2.2.3 bulk-processing numbers) with no log scraping.
+        # dest_gb = in-memory size of the year's S1 stack on the destination
+        # (tile) grid; peak_rss_gb = process max-so-far (Linux ru_maxrss is KB).
+        stats["dest_gb"] = round(dest_gb, 2)
+        stats["mb_s_effective"] = round(dest_gb * 1000 / max(year_elapsed, 1e-9), 1)
+        stats["dask_workers"] = year_workers
+        try:
+            import resource
+            stats["peak_rss_gb"] = round(
+                resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6, 2)
+        except Exception:
+            pass
         log_memory(f"WY{wy} computed")
 
         if onset_2d is None:
+            # a verified-empty year still downloaded the full stack -- keep its
+            # stats (incl. dest_gb) so volume accounting stays complete
             commit_empty_year(repo, branch, config, tile_row, tile_col, wy,
                               status.EMPTY_NO_VALID_PIXELS, prov, time.time() - t0,
-                              missing_assets=sorted(dead_scene_ids) or None)
+                              missing_assets=sorted(dead_scene_ids) or None,
+                              stats=stats)
             outcomes[wy] = ("empty", status.EMPTY_NO_VALID_PIXELS)
             gc.collect()
             continue

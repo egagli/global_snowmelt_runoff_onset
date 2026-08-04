@@ -23,7 +23,7 @@ derived from, so evaluating a new version never overwrites the previous one:
 | --- | --- |
 | Figures | `figures/<version>/…` (e.g. `figures/v9/pixelwise_performance_analysis.png`) |
 | Comparison datasets (Zarr) | `data/comparison_datasets/<version>/…` |
-| Result tables | `calculate_spatial_coverage_and_temporal_resolution/results/<version>/…` (the only subfolder with result tables so far) |
+| Result tables | `results/<version>/…` in `calculate_spatial_coverage_and_temporal_resolution/`, `compare_to_all_public_snow_pillows/` (QC counts, binned stats, evaluation summary, station density), and `compare_to_passive/` (Fig. 6 stats) — written via `global_snowmelt_runoff_onset.results.save_result_table` |
 | `compare_to_snotel/` NetCDFs | `comparison_datasets/…_<version>.nc` (kept flat — the filename already carries the version) |
 
 Two known exceptions: `compare_to_snotel/figures/` still holds six unscoped

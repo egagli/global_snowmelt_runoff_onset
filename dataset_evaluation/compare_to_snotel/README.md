@@ -24,7 +24,6 @@ compare_to_snotel/
 ├── inspect_single_station.ipynb
 ├── supplemental_figure_methodology.ipynb
 ├── supplemental_figure_methodology_explain_pos_bias_at_low_fcf_high_SWE.ipynb
-├── station_density.ipynb
 ├── station_plots.py
 ├── analysis.log                # untracked/gitignored scratch log — safe to delete
 ├── comparison_datasets/        # NetCDF output files (snotel_sar_differences_*_<version>.nc)
@@ -150,16 +149,12 @@ high SWE, focusing on three specific problem stations (1222_UT, 314_WY, 626_UT).
 
 ---
 
-### `station_density.ipynb`
+### `station_density.ipynb` — moved
 
-Analyses spatial coverage of SNOTEL/CCSS stations relative to Western US mountain
-ranges (no markdown cells; quick scratch analysis).
-
-1. Loads station locations and GMBA v2.0 mountain range polygons, clipped to the
-   Western US bounding box.
-2. Computes **aggregate** WUS numbers — station count, total GMBA range area,
-   area-per-station, stations per 100 km² — over all ranges combined (not per range).
-3. Two unstyled exploratory maps; nothing is saved to disk.
+Moved to
+[`../compare_to_all_public_snow_pillows/5_station_density.ipynb`](../compare_to_all_public_snow_pillows/5_station_density.ipynb)
+on 2026-08-04, gaining a title cell and a persisted output
+(`results/station_density.csv` — the manuscript Sect. 5.1 station-density stat).
 
 ---
 
@@ -178,8 +173,8 @@ Shared plotting utilities used across the analysis notebooks:
 Every figure **that is saved** goes through one `FIGURE_DIR = Path('figures') / VERSION`
 constant, where `VERSION` is `config.version` — three notebooks define it
 (`all_station_comparison_analysis`, `supplemental_figure_methodology`,
-`..._explain_pos_bias...`); `station_density` and `environmental_conditions_analysis`
-save nothing, and `inspect_single_station` defines neither. That resolved the
+`..._explain_pos_bias...`); `environmental_conditions_analysis` saves nothing, and
+`inspect_single_station` defines neither. That resolved the
 long-standing issue where several `savefig` calls
 wrote to the notebook's current working directory instead of `figures/` — fixed
 July 2026 alongside the output-versioning change (see
@@ -199,7 +194,7 @@ Two earlier path fixes, also July 2026, are still worth knowing about:
 | `rxr.open_rasterio('../../visualize/data/global_hillshade_robinson.tif', ...)` | Previously pointed at `../analysis/figures/methods/`, removed in the analysis-repo split |
 
 Which of the ~24 NetCDFs in `comparison_datasets/` are actually live:
-`..._andreq10cmSWEfor60days_v9.nc` (analysis / methodology / density notebooks),
+`..._andreq10cmSWEfor60days_v9.nc` (analysis / methodology notebooks),
 `spatial_..._v9.nc` (`environmental_conditions_analysis`), and
 `..._andreq5cmSWEfor60days_v6.nc` (`inspect_single_station`). The rest are v1–v8
 vintages kept for provenance.

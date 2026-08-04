@@ -23,6 +23,7 @@ Version-scoped under `figures/<version>/`:
 
 - `figures/v9/alaska_range_passive_comparison.png` — Fig. 6 (tracked).
 - `figures/v9/passive_comparison/` — **currently empty**: the Kennicott/Denali multipanel hasn't been regenerated since its output path was moved under `FIGURE_DIR`; rerun `kennicott_glacier_comparison.ipynb` to produce it.
+- `results/<version>/passive_comparison_stats.csv` — the Fig. 6 stats (median difference, MAD, pixel count), persisted by the final cell of `alaska_range_comparison.ipynb` (added 2026-08-04 — previously these numbers existed only as the on-figure text annotation; rerun to materialize).
 
 > **Version note:** both notebooks still load `Config('config/global_config_v9.txt')` — Fig. 6 is a **v9** product, while the snow-pillow evaluation has moved to v10. Bump the config path and rerun for v10.
 
