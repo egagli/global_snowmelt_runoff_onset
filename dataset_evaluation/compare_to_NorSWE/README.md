@@ -8,25 +8,31 @@ Evaluates the global snowmelt runoff onset dataset against the
 NorSWE aggregates daily in-situ SWE and snow depth measurements from 10,153
 stations across the Northern Hemisphere, spanning 1979–2021.
 
-We decided not to go further down this route because outside of the SNOTEL network, there aren't many daily observations....
+We decided not to go further down this route because outside of the SNOTEL network, there aren't many daily observations (see `1_create_NorSWE_comparison_dataset.ipynb`'s own conclusion: "doesn't look like enough daily data").
 
 ---
 
 ## Directory structure
 
+```text
 compare_to_NorSWE/
-├── download_and_preprocess_NorSWE.ipynb   # download, convert, and validate
-├── figures/                               # output figures
+├── 0_download_and_preprocess_NorSWE.ipynb    # download, convert to Zarr, validate
+├── 1_create_NorSWE_comparison_dataset.ipynb  # max-SWE timings + SAR chips; abandoned here
+├── analysis.log                              # 667 MB, untracked/gitignored — safe to delete
+├── figures/
+│   └── NorSWE_station_counts_histogram.png
 ├── data/
-│   └── NorSWE/
-│       └── NorSWE.zarr                   # converted dataset (see below)
+│   ├── NorSWE/
+│   │   └── NorSWE.zarr                       # converted dataset (see below)
+│   └── comparison_datasets/
+│       ├── max_NorSWE_swe_timing.zarr
+│       └── runoff_onset_NorSWE_station_chips.zarr
 └── README.md
-
-
+```
 
 ## Notebooks
 
-### `download_and_preprocess_NorSWE.ipynb`
+### `0_download_and_preprocess_NorSWE.ipynb`
 
 End-to-end pipeline that:
 
@@ -36,6 +42,15 @@ End-to-end pipeline that:
    the original NetCDF and ZIP afterwards to recover disk space.
 4. **Cross-validates** against a co-located SNOTEL station (Paradise, WA —
    SNOTEL 679) to sanity-check time-series alignment.
+
+### `1_create_NorSWE_comparison_dataset.ipynb`
+
+Builds the comparison inputs: max-SWE (95%-of-max) timing per station/water year
+(`data/comparison_datasets/max_NorSWE_swe_timing.zarr`), SAR runoff onset chips around each
+station (`data/comparison_datasets/runoff_onset_NorSWE_station_chips.zarr`), and
+`figures/NorSWE_station_counts_histogram.png`. Work stopped here — its final cell records the
+abandonment reason ("doesn't look like enough daily data"), which is what the note at the top
+of this README summarizes.
 
 ---
 
@@ -59,3 +74,4 @@ To decode a flag value:
 ds = xr.open_zarr("data/NorSWE/NorSWE.zarr")
 vocab = ds["qc_flag_snw"].attrs["vocab"]   # list of strings
 flag_str = vocab[int(ds["qc_flag_snw"][t, s])]
+```

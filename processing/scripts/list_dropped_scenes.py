@@ -7,10 +7,9 @@ history -- the single durable record -- newest-wins per (tile, water_year), and
 writes one row per (tile, water_year, scene id) plus a summary.
 
 The same physical scene can appear under several tiles (footprints span tile
-boundaries), so the summary also reports unique scene ids. Cross-reference with
-find_missing_rtc_scenes.py output if you want to know whether a dropped scene
-is also absent from the RTC catalog entirely (different failure: that script
-finds scenes never RTC-processed; this one finds RTC items whose blobs died).
+boundaries), so the summary also reports unique scene ids. Note this finds RTC
+items whose blobs died -- scenes never RTC-processed at all (absent from the
+catalog entirely) are a different failure mode that this script cannot see.
 
 Usage:
     pixi run python processing/scripts/list_dropped_scenes.py \
