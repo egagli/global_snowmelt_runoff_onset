@@ -3,7 +3,7 @@
 # the first real batches are running.
 #
 # Prereqs: the v10 store must already be initialized on Azure
-# (processing/create_icechunk_store.ipynb), and the repo secrets
+# (processing/1_create_icechunk_store.ipynb), and the repo secrets
 # AZURE_STORAGE_SAS_TOKEN / AZURE_STORAGE_ACCOUNT must hold a current token.
 #
 # The default tile set mirrors the local validation battery, plus the

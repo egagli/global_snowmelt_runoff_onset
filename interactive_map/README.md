@@ -2,7 +2,7 @@
 
 Planning document for an interactive web map of the global snowmelt runoff onset dataset, in the spirit of the [MODIS_snow_phenology map](https://egagli.github.io/MODIS_snow_phenology/) ([repo](https://github.com/egagli/MODIS_snow_phenology)). Written July 2026, while the v10 icechunk pipeline was being stood up; revisit maturity claims (marked below) before implementation.
 
-> **Status: planning only.** This directory contains no code. Phase 1 hasn't started — the v10 production store was initialized 2026-08-04 and fleet runs are in progress (live progress: `processing/check_tile_status.ipynb`), so pyramid generation waits on filled data. None of the Phase-1 deliverables named below (`create_zarr_multiscales.ipynb` copy, a `map/` app, a Pages deploy workflow) exist yet anywhere in the repo.
+> **Status: planning only.** This directory contains no code. Phase 1 hasn't started — the v10 production store was initialized 2026-08-04 and fleet runs are in progress (live progress: `processing/2_check_tile_status.ipynb`), so pyramid generation waits on filled data. None of the Phase-1 deliverables named below (`create_zarr_multiscales.ipynb` copy, a `map/` app, a Pages deploy workflow) exist yet anywhere in the repo.
 
 ## What we're starting from
 

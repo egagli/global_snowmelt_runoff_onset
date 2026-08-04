@@ -13,7 +13,7 @@ This does the mechanical part only: it shifts row indices for the evaluated tile
 and inserts placeholder rows (to_process = False) for the rows that have never been
 evaluated, so the registry is self-consistent and safe to dispatch from in the
 meantime. It does NOT compute seasonal-snow percentages or probe the S1 catalog for
-the new rows -- rerun processing/select_tiles_to_process.ipynb for that.
+the new rows -- rerun processing/0_select_tiles_to_process.ipynb for that.
 
 Usage:
     python processing/scripts/migrate_registry_to_extended_grid.py [--dry-run]
@@ -34,10 +34,10 @@ ROW_SHIFT = 2
 NEW_NORTH_ROWS = (0, 1)
 GREW_ROW = 97  # old 95, was partial in y
 PENDING_NOTE = ("new grid row (2026-07-30 north/south extension); "
-                "not yet evaluated -- rerun select_tiles_to_process.ipynb")
+                "not yet evaluated -- rerun 0_select_tiles_to_process.ipynb")
 REGREW_NOTE = ("row grew from 1410 to 2048 px when the south edge moved to a tile "
                "boundary (2026-07-30); statistics describe only the northern 1410 "
-               "px -- rerun select_tiles_to_process.ipynb")
+               "px -- rerun 0_select_tiles_to_process.ipynb")
 
 
 def main() -> int:
