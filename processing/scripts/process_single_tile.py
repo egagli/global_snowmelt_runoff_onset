@@ -54,7 +54,11 @@ log = logging.getLogger("process_single_tile")
 COMMIT_MAX_TRIES = 8
 # Attempts per water year for load+compute; a retry re-searches so the
 # Planetary Computer asset tokens (~45 min lifetime) are freshly signed.
-YEAR_LOAD_MAX_TRIES = 2
+# 3 (raised from 2, 2026-08-04): each attempt on a dense Arctic year is a
+# ~45-min coin flip against runner throughput; the densest years sit right
+# at the token wall, and a third window materially improves the odds of one
+# attempt landing while committed years make any eventual failure cheap.
+YEAR_LOAD_MAX_TRIES = 3
 
 # A handful of scenes are catalogued in the Planetary Computer STAC but their
 # blobs are gone from Azure (404 BlobNotFound), which aborts the whole tile even
@@ -189,14 +193,21 @@ def scale_workers_by_density(n_scenes) -> int:
     workers -> 5.4/9.6/10.9/16.1 MB/s). Peak RSS also scales with concurrency,
     and the scene-densest tile-years sit at ~95% of a 16 GB GHA runner at 8
     threads -- so light years get more concurrency, dense years less.
+
+    The densest tier is 8, not 6 (raised 2026-08-04): a ~594-scene Arctic year
+    is ~10 GB at the x2 overview, and at tier-6 throughput on a median runner
+    that exceeds one ~45-min MPC token lifetime -- four attempts across three
+    runs of (9,138) WY2019 each died at exactly token expiry, while WY2018
+    (582 scenes) squeaked in with 90 s to spare. 8 threads was measured at
+    14.2-14.7 GB RSS (95%) on this exact tile with MALLOC_ARENA_MAX=2 (run #3,
+    2026-07-27, full year set, survived) -- tight but the alternative is a
+    year that structurally cannot finish inside a token window.
     """
     if n_scenes <= 150:
         return 16
     if n_scenes <= 300:
         return 12
-    if n_scenes <= 450:
-        return 8
-    return 6
+    return 8
 
 
 def process_one_year(s1_wy_ds, mask_ds, water_year, config, gmba_clipped_gdf,
