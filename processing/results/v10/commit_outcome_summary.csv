@@ -1,0 +1,4 @@
+status,empty_reason,n_year_commits,total_duration_min,last_commit_at,n_thinned_years,total_valid_px,max_scenes_per_year,median_tr_days,platforms,_version,_git_sha,_written_at
+data,,1691,3310.6,2026-08-05 00:54:14.619095+00:00,1,5399802480.0,478.0,8.2,github-actions,v10,04fdc65,2026-08-05T00:54:23+00:00
+empty,no_s1_data,4,0.0,2026-08-05 00:31:50.308288+00:00,0,0.0,,,github-actions,v10,04fdc65,2026-08-05T00:54:23+00:00
+empty,no_valid_pixels,2,1.1,2026-08-05 00:48:12.036566+00:00,0,0.0,9.0,,github-actions,v10,04fdc65,2026-08-05T00:54:23+00:00
