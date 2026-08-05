@@ -1,0 +1,15 @@
+calendar_year,n_vv_items,n_sampled,mean_vv_asset_gb,est_volume_tb,se_total_tb,window,scope,_version,_git_sha,_written_at
+2014,10040,3,2.15,21.59,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2015,50322,15,1.743,87.71,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2016,69440,21,1.877,130.32,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2017,138490,42,1.825,252.72,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2018,151205,46,1.868,282.43,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2019,161058,49,1.854,298.56,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2020,157834,48,1.816,286.67,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2021,153990,47,1.86,286.36,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2022,82282,25,1.887,155.27,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2023,82592,25,1.84,151.97,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2024,76994,23,1.843,141.93,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2025,141675,43,1.87,264.9,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+2026,36832,11,1.963,72.31,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
+TOTAL,1312754,398,1.853,2432.7,11.1,2014-10-01..2026-03-31,unique VV IW RTC assets intersecting to_process tiles,v10,bcf372e,2026-08-05T00:21:30+00:00
