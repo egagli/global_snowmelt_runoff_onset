@@ -87,17 +87,18 @@ Applies the chosen filter regime (fcf ≤ 50, max SWE ≥ 200 mm, temporal
 resolution ≤ 14 d, radius ≤ 1000 m, excluding built-up/water pixels),
 aggregates to per-station-water-year medians, and produces the evaluation
 figure (**manuscript Fig. 5**) — a per-year residual histogram strip plus an
-NH polar bias map with three equal-area regional zoom insets — rendered three
-times in `figures/<version>/` (all stations, `_WUS`, `_nonWUS`). The earlier
-split-violin variant was dropped; only `figures/v9/` still has it.
+NH polar bias map with equal-area regional zoom insets — rendered once, for
+all stations combined, in `figures/<version>/` (the `_WUS` / `_nonWUS` split
+variants were dropped 2026-08-10, as was the earlier split-violin variant;
+only `figures/v9/` still has the latter).
 
-v10 outputs: 8,397 station-water-years across 1,135 stations (WUS 931 / 7,242
-obs; non-WUS 204 / 1,155), median residual −2.0 d, MAD 10.0 d, mean temporal
-resolution 6.87 d. (Manuscript currently cites the v9/WY2015–2024 counts —
-7,294 across 1,116 of 1,210 — so reconcile when updating it.)
+v10 outputs: 8,407 station-water-years across 1,136 stations, median residual
+−2.0 d, MAD 10.0 d, mean temporal resolution 7.19 d. (Manuscript currently
+cites the v9/WY2015–2024 counts — 7,294 across 1,116 of 1,210 — so reconcile
+when updating it.)
 
 Persists the headline stats and filter regime →
-`results/<version>/evaluation_summary.csv` (all/WUS/nonWUS rows) and the Fig. 5
+`results/<version>/evaluation_summary.csv` (single combined row) and the Fig. 5
 per-water-year annotation table → `results/<version>/evaluation_per_water_year.csv`.
 
 ### `4_snow_pillow_representativeness.ipynb`

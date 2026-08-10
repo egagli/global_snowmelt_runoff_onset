@@ -1,0 +1,2 @@
+subset,n_stations,n_station_water_years,median_residual_days,mad_residual_days,mean_temporal_resolution_days,fcf_lte,max_swe_gte_mm,temp_res_lte_days,radius_lte_m,exclude_worldcover,valid_cnt,swe_pct_threshold,_version,_git_sha,_written_at
+all,1136,8407,-2.0,10.0,7.19,50,200,14,1000,50_80,1,95,v10,dd5d6d6,2026-08-10T22:58:55+00:00
