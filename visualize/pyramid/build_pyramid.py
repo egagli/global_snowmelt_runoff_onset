@@ -84,8 +84,10 @@ LAYER_HINTS = {
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--config-file", default="config/global_config_v10.txt",
-                   help="Path to config file (resolved against the repo root)")
+    p.add_argument("--config-file", default="global_config_v10.txt",
+                   help="Config file name in config/ (e.g. global_config_v10.txt, "
+                        "matching the fleet scripts); values containing '/' are "
+                        "treated as explicit paths instead")
     p.add_argument("--source-tag", default="v10.0",
                    help="Icechunk tag to build from (never a branch -- the "
                         "pyramid must come from a pinned, released snapshot)")
@@ -188,7 +190,14 @@ def main():
     if (args.job is None) == (args.variables is None):
         raise SystemExit("pass exactly one of --job / --variables")
 
-    config = Config(args.config_file)
+    if "/" in args.config_file:
+        config = Config(args.config_file)
+    else:
+        # mirror process_single_tile.py: the arg is a file name in config/
+        config_name = (args.config_file if args.config_file.endswith(".txt")
+                       else f"global_config_{args.config_file}.txt")
+        config = Config(str(Path(__file__).parent.parent.parent
+                            / "config" / config_name))
     if args.dest_prefix is None:
         args.dest_prefix = ("snowmelt/snowmelt_runoff_onset/"
                             f"global_runoff_onset_{args.source_tag}_multiscale_1")
