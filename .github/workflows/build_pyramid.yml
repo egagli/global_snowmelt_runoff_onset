@@ -1,0 +1,89 @@
+name: Build Visualization Pyramid
+
+# Builds the multiscale visualization pyramid (visualize/pyramid/) from a
+# tagged icechunk snapshot: the composites job runs first, alone, creating the
+# store structure and convention attrs; the two yearly-variable jobs then run
+# in parallel (they own disjoint zarr arrays, so they never conflict). Jobs
+# are idempotent -- rerun a failed job whole. Runners sit next to the Azure
+# data, so this beats any home-connection run by ~an order of magnitude.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag:
+        description: 'Icechunk tag to build from (a tag, never a branch)'
+        required: false
+        default: 'v10.0'
+        type: string
+      dest_prefix:
+        description: 'container/prefix for the pyramid store (empty = global_runoff_onset_<tag>_multiscale_1)'
+        required: false
+        default: ''
+        type: string
+      levels:
+        description: 'Number of pyramid levels'
+        required: false
+        default: '10'
+        type: string
+      config_file:
+        description: 'Config file to use'
+        required: false
+        default: 'global_config_v10.txt'
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+  AZURE_STORAGE_SAS_TOKEN: ${{ secrets.AZURE_STORAGE_SAS_TOKEN }}
+
+jobs:
+  composites:
+    name: composites (creates store structure)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: prefix-dev/setup-pixi@v0.8.0
+        with:
+          environments: ci
+
+      - name: Build composite-variable pyramid
+        run: |
+          pixi run -e ci python visualize/pyramid/build_pyramid.py \
+            --job composites \
+            --source-tag "${{ inputs.source_tag }}" \
+            --levels "${{ inputs.levels }}" \
+            --config-file ${{ inputs.config_file }} \
+            ${DEST_PREFIX:+--dest-prefix "$DEST_PREFIX"}
+        env:
+          DEST_PREFIX: ${{ inputs.dest_prefix }}
+
+  yearly:
+    name: ${{ matrix.job }}
+    needs: composites
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [runoff_onset, temporal_resolution]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: prefix-dev/setup-pixi@v0.8.0
+        with:
+          environments: ci
+
+      - name: Build ${{ matrix.job }} pyramid
+        run: |
+          pixi run -e ci python visualize/pyramid/build_pyramid.py \
+            --job ${{ matrix.job }} \
+            --source-tag "${{ inputs.source_tag }}" \
+            --levels "${{ inputs.levels }}" \
+            --config-file ${{ inputs.config_file }} \
+            ${DEST_PREFIX:+--dest-prefix "$DEST_PREFIX"}
+        env:
+          DEST_PREFIX: ${{ inputs.dest_prefix }}

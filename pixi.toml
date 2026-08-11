@@ -43,10 +43,16 @@ cartopy = ">=0.25.0,<0.26"
 matplotlib-scalebar = ">=0.9.0,<0.10"
 numba = ">=0.66.0,<0.67"
 icechunk = ">=2.0.0,<3"
+obstore = "*"
 
 
 [pypi-dependencies]
 global-snowmelt-runoff-onset = { path = ".", editable = true }
+
+[feature.dev.pypi-dependencies]
+# pyramid structure/attrs generation only (visualize/pyramid/); populate path has no
+# runtime dependency on it. Experimental package -- keep the exact pin.
+topozarr = "==0.1.4"
 
 [feature.dev.dependencies]
 jupyterlab = "*"
@@ -57,6 +63,10 @@ folium = "*"
 rasterio = "*"
 earthengine-api = "*"
 exactextract = "*"
+
+[feature.ci.pypi-dependencies]
+# needs zarr >= 3.2.1 (pinned below -- the solver otherwise picks 3.1.6 for ci)
+topozarr = "==0.1.4"
 
 [feature.ci.dependencies]
 python = "3.12.*"
@@ -72,7 +82,7 @@ pystac-client = "*"
 planetary-computer = "*"
 odc-stac = ">=0.5.3"
 odc-geo = "*"
-zarr = "*"
+zarr = ">=3.2.1"
 azure-storage-blob = "*"
 adlfs = "*"
 shapely = "*"
