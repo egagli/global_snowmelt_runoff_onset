@@ -1,0 +1,2 @@
+region,water_year,comparison,n_pixels,median_difference_days,mad_days,_version,_git_sha,_written_at
+Alaska Range,2020,ours_minus_passive_microwave_Pan_et_al_2021,15053672,8.0,22.0,v10,f4e60eb,2026-08-11T00:49:30+00:00
