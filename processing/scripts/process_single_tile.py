@@ -27,6 +27,7 @@ search is retried with backoff and, if it keeps failing, the job fails.
 import argparse
 import gc
 import logging
+import math
 import os
 import random
 import sys
@@ -514,8 +515,17 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
                 if newly_dead:
                     candidate = dead_scene_ids | newly_dead
                     over_count = len(candidate) > MAX_MISSING_ASSET_DROPS
-                    over_fraction = (n_usable > 0
-                                     and len(candidate) / n_usable > MAX_MISSING_ASSET_FRACTION)
+                    # The fraction cap rounds UP and always permits at least
+                    # one drop: in sparse High Arctic years a single dead blob
+                    # exceeds 5% by itself (Severnaya Zemlya (2,175) WY2022:
+                    # 1/13 = 7.7%; (3,173) WY2021: 2/26 = 7.7%), which made
+                    # those tiles fail deterministically on every dispatch
+                    # (2026-08-10/11) -- the exact confirmed-dead-scene case
+                    # the drop machinery was built for. Every drop here was
+                    # individually 404-probed; the count cap above remains the
+                    # storage-outage backstop for scene-rich years.
+                    max_by_fraction = max(1, math.ceil(MAX_MISSING_ASSET_FRACTION * n_usable))
+                    over_fraction = len(candidate) > max_by_fraction
                     if over_count or over_fraction:
                         log.error(
                             f"WY{wy}: {len(candidate)}/{n_usable} scenes have assets "
