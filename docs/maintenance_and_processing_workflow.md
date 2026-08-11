@@ -11,7 +11,8 @@ lives in [`processing/README.md`](../processing/README.md).
 
 Numbered notebooks in `processing/` are the lifecycle, in order:
 `0_select_tiles_to_process` → `1_create_icechunk_store` → (fleet runs) →
-`2_check_tile_status` → `3_quality_check_tiles`.
+`2_check_tile_status` → `3_quality_check_tiles` → `4_finalize_icechunk_store`
+(release) → `5_add_water_year` (extension).
 
 ## 0. Credentials
 
@@ -56,8 +57,9 @@ full-extent arrays, shards `(1 water_year, 2048, 2048)` (= exactly one tile × w
 year), inner chunks `(1, 256, 256)`, `fill_value = -9999`, water years from the
 config (`WY_start`–`WY_end`). Re-initializing **destroys all processed data** — it is
 only for new store versions or pre-fleet schema changes. Sanity checks afterward:
-`extend_store_water_years.py --dry-run` (should say nothing to do) and
-`verify_grid_alignment.py`.
+the dry-run cell of `processing/5_add_water_year.ipynb`
+(`store.extend_water_years(config, repo, dry_run=True)` — should report nothing to
+append) and `verify_grid_alignment.py`.
 
 ## 3. Running the fleet
 
@@ -130,20 +132,23 @@ Order of operations (also in the issue template):
 1. **Upstream first**: the [`MODIS_snow_phenology`](https://github.com/egagli/MODIS_snow_phenology)
    store must have the new year committed for the eligible hemisphere(s) (it has the
    same watch workflow + its own extend script).
-2. `pixi run python processing/scripts/extend_store_water_years.py` — in-place,
-   shard-aligned `resize` of the `water_year` axis (append-only; metadata-only;
-   verifies the new slab reads as fill).
+2. Run `processing/5_add_water_year.ipynb`: checks hemisphere eligibility, spot-checks
+   that the phenology store actually holds the new year (known snowy windows per
+   hemisphere), dry-runs the plan, then does the shard-aligned metadata-only append
+   via `store.extend_water_years` (discovers `water_year`-dimensioned arrays by their
+   zarr `dimension_names`; verifies the new slab reads as fill).
 3. Bump `WY_end` in `config/global_config_v10.txt`, commit, push.
 4. Dispatch **Process All Tiles** (`incomplete`) — the new (tile, year) pairs appear
    in the work list automatically; composites go stale and refresh per tile.
 
 ## 6. Store & repo maintenance
 
-- **After a full fleet run**: `expire_snapshots` + `garbage_collect` to compact the
-  commit history, then `repo.create_tag("v10.x")` to pin the release state.
-  Regenerate `processing/results/v10/bulk_processing_stats.csv` (final section of
-  `2_check_tile_status.ipynb`) so the manuscript's compute-accounting numbers are
-  final.
+- **After a full fleet run**: `processing/4_finalize_icechunk_store.ipynb` — freezes
+  the ledger (lossless export of every commit's metadata), tags the release (`v10.x`;
+  tags are GC roots), garbage-collects (dry-run first, then real), sweeps repo-info
+  backups, and verifies. Regenerate `processing/results/v10/bulk_processing_stats.csv`
+  (final section of `2_check_tile_status.ipynb`) so the manuscript's
+  compute-accounting numbers are final (done 2026-08-11 for the initial fleet).
 - **Reprocessing after an algorithm change**: newest-wins — just dispatch with
   explicit years (`all` for full recompute); superseded commits remain in history
   until expired. Store-schema changes (new variable, grid change) require a new
@@ -157,7 +162,7 @@ Order of operations (also in the issue template):
   CSV via `results.save_result_table` (see
   [`results_and_figures.md`](results_and_figures.md)).
 
-## Known seams (documented, deliberate)
+## Known caveats (documented, deliberate)
 
 - **Equator**: tile row 56 overhangs lat 0 by ~2.8 px; the sliver is masked
   (~223 m no-data strip) and the phenology reproject blends hemisphere conventions
