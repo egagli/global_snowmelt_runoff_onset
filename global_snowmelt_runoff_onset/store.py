@@ -150,6 +150,93 @@ def initialize_store(repo, config, extra_metadata=None) -> str:
     )
 
 
+def extend_water_years(config, repo, through_wy=None, branch="main",
+                       dry_run=False):
+    """
+    Append new water-year slots to the output store (non-destructively).
+
+    Resizes every water_year-dimensioned array and rewrites the water_year
+    coordinate up to ``through_wy``, then commits. This is the prerequisite
+    for processing a new water year: process_single_tile.py writes with
+    region-selected to_zarr, which can only place years that already exist
+    in the store coordinate. (2-D composite arrays have no water_year
+    dimension and are untouched.)
+
+    The append is cheap and safe: shards are (1 water_year, tile, tile), so
+    an axis-0 append is shard-aligned and metadata-only -- no existing chunk
+    is touched, and the new slots read as fill (-9999 -> NaN after decode)
+    until tiles write them. The commit carries no status metadata, so status
+    derivation ignores it and every (tile, new year) simply shows up as
+    'missing' work once its hemisphere-eligibility date passes (see
+    status.wy_eligible). Orchestrated by processing/5_add_water_year.ipynb.
+
+    Args:
+        config: Config for a >= v10 (icechunk) configuration.
+        repo: The output icechunk repository (config.open_output_repo()).
+        through_wy: Extend the water_year coordinate through this year
+            (default: config.WY_end).
+        branch: Icechunk branch to commit to.
+        dry_run: Report what would be appended without writing or committing.
+
+    Returns:
+        Dict with 'current_years', 'new_years', 'arrays' (the water_year-
+        dimensioned array names), and 'snapshot_id' (None on a dry run, or
+        when the store already extends through ``through_wy``).
+    """
+    through_wy = int(through_wy if through_wy is not None else config.WY_end)
+
+    session = repo.writable_session(branch)
+    group = zarr.open_group(session.store, mode="r+")
+
+    current = [int(wy) for wy in group["water_year"][:]]
+    if current != list(range(current[0], current[-1] + 1)):
+        raise ValueError(f"store water_year is not contiguous: {current}")
+    if through_wy < current[-1]:
+        raise ValueError(
+            f"through_wy {through_wy} < store max {current[-1]}: "
+            "shrinking the water_year dimension is not supported"
+        )
+
+    wy_arrays = sorted(
+        name for name, arr in group.arrays()
+        if name != "water_year"
+        and (arr.metadata.dimension_names or [None])[0] == "water_year"
+    )
+    new_years = list(range(current[-1] + 1, through_wy + 1))
+    result = {"current_years": current, "new_years": new_years,
+              "arrays": wy_arrays, "snapshot_id": None}
+    if dry_run or not new_years:
+        return result
+
+    n_new = len(current) + len(new_years)
+    for name in wy_arrays:
+        arr = group[name]
+        arr.resize((n_new, *arr.shape[1:]))
+    wy_arr = group["water_year"]
+    wy_arr.resize((n_new,))
+    wy_arr[len(current):] = np.array(new_years, dtype=wy_arr.dtype)
+
+    result["snapshot_id"] = session.commit(
+        f"Extend water_year through WY{through_wy} "
+        f"(appended {', '.join(f'WY{wy}' for wy in new_years)})"
+    )
+
+    # Verify before returning: coordinate reads back as expected, and a
+    # sample of the first new slab is raw fill (nothing has written it yet).
+    ds = xr.open_zarr(repo.readonly_session(branch).store, zarr_format=3,
+                      consolidated=False, mask_and_scale=False)
+    got = [int(wy) for wy in ds.water_year.values]
+    expected = list(range(current[0], through_wy + 1))
+    assert got == expected, f"water_year mismatch after extend: {got}"
+    sample = ds[wy_arrays[0]].sel(water_year=new_years[0])
+    fill = sample.attrs.get("_FillValue", NODATA_INT16)
+    sample_vals = sample.isel(
+        latitude=slice(0, 64), longitude=slice(0, 64)).values
+    assert (sample_vals == fill).all(), (
+        f"new water-year slab of {wy_arrays[0]} is not all-fill")
+    return result
+
+
 def tile_region_slices(config, tile_row: int, tile_col: int):
     """
     Explicit integer index slices of a tile within the global store grid.

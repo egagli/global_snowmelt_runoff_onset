@@ -1,4 +1,5 @@
 status,empty_reason,n_year_commits,total_duration_min,last_commit_at,n_thinned_years,total_valid_px,max_scenes_per_year,median_tr_days,platforms,_version,_git_sha,_written_at
-data,,1691,3310.6,2026-08-05 00:54:14.619095+00:00,1,5399802480.0,478.0,8.2,github-actions,v10,04fdc65,2026-08-05T00:54:23+00:00
-empty,no_s1_data,4,0.0,2026-08-05 00:31:50.308288+00:00,0,0.0,,,github-actions,v10,04fdc65,2026-08-05T00:54:23+00:00
-empty,no_valid_pixels,2,1.1,2026-08-05 00:48:12.036566+00:00,0,0.0,9.0,,github-actions,v10,04fdc65,2026-08-05T00:54:23+00:00
+data,,43705,88048.4,2026-08-11 14:12:02.594910+00:00,126,75486838233.0,598.0,9.36,github-actions,v10,9cda90e,2026-08-11T16:12:16+00:00
+empty,no_s1_data,3419,44.6,2026-08-11 01:33:07.101970+00:00,0,0.0,,,github-actions,v10,9cda90e,2026-08-11T16:12:16+00:00
+empty,no_seasonal_snow,480,0.0,2026-08-11 07:31:25.438201+00:00,0,0.0,,,github-actions,v10,9cda90e,2026-08-11T16:12:16+00:00
+empty,no_valid_pixels,1654,843.9,2026-08-11 07:15:40.997157+00:00,7,0.0,143.0,,github-actions,v10,9cda90e,2026-08-11T16:12:16+00:00
