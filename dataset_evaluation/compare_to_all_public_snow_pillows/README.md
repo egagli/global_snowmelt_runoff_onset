@@ -113,10 +113,9 @@ Table 1) →
 `figures/<version>/snow_pillow_representativeness_snow_class_map_and_pixel_counts.png`
 (**manuscript Fig. A5**).
 
-> Note: this notebook's `VERSION` constant sat at `v9` after `1_`–`3_` moved to
-> v10 (fixed 2026-08-04), so the Fig. A5 PNG currently exists only under
-> `figures/v9/` — rerun the notebook to produce the v10 render. The notebook
-> also has no markdown title cell; this README is its only description.
+> Note: the v10 render was regenerated 2026-08-10 (the notebook's `VERSION`
+> constant had sat at `v9` after `1_`–`3_` moved to v10; fixed 2026-08-04).
+> The notebook has no markdown title cell; this README is its only description.
 
 ### `5_station_density.ipynb`
 

@@ -1,2 +1,2 @@
 n_stations,total_mountain_area_km2,area_per_station_km2,stations_per_100km2,station_source,range_source,_version,_git_sha,_written_at
-994,1191380.6,1198.6,0.0834,"max_snow_pillow_swe_timing.zarr (v10) usable stations, WUS box -125..-66E / 24..49N","GMBA Inventory v2.0 standard, ranges containing >=1 station, Albers EPSG:5070 areas",v10,23d8097,2026-08-04T22:02:56+00:00
+994,1191380.6,1198.6,0.0834,"max_snow_pillow_swe_timing.zarr (v10) usable stations, WUS box -125..-66E / 24..49N","GMBA Inventory v2.0 standard, ranges containing >=1 station, Albers EPSG:5070 areas",v10,ac6f3b3,2026-08-11T00:43:02+00:00
