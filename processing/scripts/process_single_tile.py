@@ -692,6 +692,9 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
         "years_with_data": years_with_data,
         "n_years_with_data": len(years_with_data),
     }
+    # the readback log above lists only years fetched from the store (not the
+    # in-memory years from this run); this is the composite's actual input set
+    log.info(f"composites over {len(years_with_data)} years with data: {years_with_data}")
 
     if composite_valid_px == 0:
         metadata = status.build_commit_metadata(
