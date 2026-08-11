@@ -1,0 +1,201 @@
+# Manual to_process additions for the v10 registry ("row,col" per line, v10 indices).
+# Applied on top of the catalog rule (has_seasonal_snow & n_vv_items > 40) by
+# 0_select_tiles_to_process.ipynb at registry-build time, or standalone (without
+# re-probing the catalog) by scripts/apply_manual_tiles.py.
+#
+# Rationale (2026-08-11): 165 tiles processed in v9 that produced data (1,585
+# tile-water-years) but fall out of the v10 Sturm & Liston-based registry because
+# their only snow is class 4 (ephemeral), which valid_snow_classes excludes.
+# The pipeline's real per-pixel gate is the MODIS >=56-consecutive-day phenology
+# mask, which found seasonal snow here in at least some years. v9 tile (r,c) ==
+# v10 tile (r+2,c); per-tile comments give tile-center lat/lon and the number of
+# v9 water years (of 10) that produced data.
+
+# --- S Scandinavia, Denmark & Baltic coast (28 tiles) ---
+17,134  #   58.2N    18.3E  v9 WYs: 10
+17,135  #   58.2N    19.8E  v9 WYs: 10
+17,136  #   58.2N    21.3E  v9 WYs: 10
+18,127  #   56.8N     8.0E  v9 WYs: 10
+18,128  #   56.8N     9.5E  v9 WYs: 10
+18,129  #   56.8N    11.0E  v9 WYs: 10
+18,130  #   56.8N    12.4E  v9 WYs: 10
+18,133  #   56.8N    16.9E  v9 WYs: 10
+19,127  #   55.3N     8.0E  v9 WYs: 10
+19,128  #   55.3N     9.5E  v9 WYs: 10
+19,129  #   55.3N    11.0E  v9 WYs: 10
+19,130  #   55.3N    12.4E  v9 WYs: 10
+19,131  #   55.3N    13.9E  v9 WYs: 10
+19,132  #   55.3N    15.4E  v9 WYs: 10
+19,133  #   55.3N    16.9E  v9 WYs: 10
+19,134  #   55.3N    18.3E  v9 WYs: 10
+19,135  #   55.3N    19.8E  v9 WYs: 10
+20,126  #   53.8N     6.5E  v9 WYs: 10
+20,127  #   53.8N     8.0E  v9 WYs: 10
+20,128  #   53.8N     9.5E  v9 WYs: 10
+20,129  #   53.8N    11.0E  v9 WYs: 10
+20,130  #   53.8N    12.4E  v9 WYs: 10
+20,131  #   53.8N    13.9E  v9 WYs: 10
+20,132  #   53.8N    15.4E  v9 WYs: 10
+20,133  #   53.8N    16.9E  v9 WYs: 10
+20,134  #   53.8N    18.3E  v9 WYs: 10
+20,135  #   53.8N    19.8E  v9 WYs: 10
+20,136  #   53.8N    21.3E  v9 WYs: 10
+
+# --- E Europe (Ukraine steppe, Black Sea & lower Volga) (27 tiles) ---
+22,140  #   50.9N    27.2E  v9 WYs: 10
+23,141  #   49.4N    28.7E  v9 WYs: 9
+23,142  #   49.4N    30.1E  v9 WYs: 10
+24,141  #   47.9N    28.7E  v9 WYs: 10
+24,142  #   47.9N    30.1E  v9 WYs: 10
+24,143  #   47.9N    31.6E  v9 WYs: 10
+24,144  #   47.9N    33.1E  v9 WYs: 10
+24,145  #   47.9N    34.5E  v9 WYs: 10
+24,146  #   47.9N    36.0E  v9 WYs: 10
+25,141  #   46.4N    28.7E  v9 WYs: 10
+25,142  #   46.4N    30.1E  v9 WYs: 10
+25,143  #   46.4N    31.6E  v9 WYs: 10
+25,144  #   46.4N    33.1E  v9 WYs: 10
+25,145  #   46.4N    34.5E  v9 WYs: 10
+25,146  #   46.4N    36.0E  v9 WYs: 10
+25,147  #   46.4N    37.5E  v9 WYs: 10
+25,148  #   46.4N    39.0E  v9 WYs: 10
+25,149  #   46.4N    40.4E  v9 WYs: 10
+25,150  #   46.4N    41.9E  v9 WYs: 10
+25,151  #   46.4N    43.4E  v9 WYs: 10
+25,152  #   46.4N    44.9E  v9 WYs: 10
+25,153  #   46.4N    46.3E  v9 WYs: 8
+25,154  #   46.4N    47.8E  v9 WYs: 10
+26,152  #   45.0N    44.9E  v9 WYs: 10
+26,153  #   45.0N    46.3E  v9 WYs: 10
+26,154  #   45.0N    47.8E  v9 WYs: 10
+27,140  #   43.5N    27.2E  v9 WYs: 10
+
+# --- UK & Ireland (Shetland, Scotland, Pennines, Irish uplands) (25 tiles) ---
+15,120  #   61.2N    -2.3E  v9 WYs: 10
+15,121  #   61.2N    -0.8E  v9 WYs: 10
+16,119  #   59.7N    -3.8E  v9 WYs: 10
+16,120  #   59.7N    -2.3E  v9 WYs: 10
+16,121  #   59.7N    -0.8E  v9 WYs: 10
+17,120  #   58.2N    -2.3E  v9 WYs: 10
+19,116  #   55.3N    -8.2E  v9 WYs: 10
+19,117  #   55.3N    -6.7E  v9 WYs: 10
+19,121  #   55.3N    -0.8E  v9 WYs: 10
+20,115  #   53.8N    -9.7E  v9 WYs: 10
+20,116  #   53.8N    -8.2E  v9 WYs: 10
+20,117  #   53.8N    -6.7E  v9 WYs: 10
+20,121  #   53.8N    -0.8E  v9 WYs: 10
+20,122  #   53.8N     0.6E  v9 WYs: 10
+21,118  #   52.3N    -5.3E  v9 WYs: 10
+21,120  #   52.3N    -2.3E  v9 WYs: 10
+21,121  #   52.3N    -0.8E  v9 WYs: 10
+21,122  #   52.3N     0.6E  v9 WYs: 10
+21,123  #   52.3N     2.1E  v9 WYs: 10
+22,118  #   50.9N    -5.3E  v9 WYs: 9
+22,119  #   50.9N    -3.8E  v9 WYs: 10
+22,120  #   50.9N    -2.3E  v9 WYs: 10
+22,121  #   50.9N    -0.8E  v9 WYs: 10
+22,122  #   50.9N     0.6E  v9 WYs: 10
+22,123  #   50.9N     2.1E  v9 WYs: 10
+
+# --- Central Europe (Benelux, N Germany, Poland) (25 tiles) ---
+21,125  #   52.3N     5.1E  v9 WYs: 10
+21,126  #   52.3N     6.5E  v9 WYs: 10
+21,127  #   52.3N     8.0E  v9 WYs: 10
+21,128  #   52.3N     9.5E  v9 WYs: 10
+21,130  #   52.3N    12.4E  v9 WYs: 10
+21,131  #   52.3N    13.9E  v9 WYs: 10
+21,132  #   52.3N    15.4E  v9 WYs: 10
+21,133  #   52.3N    16.9E  v9 WYs: 10
+21,134  #   52.3N    18.3E  v9 WYs: 10
+21,135  #   52.3N    19.8E  v9 WYs: 10
+21,136  #   52.3N    21.3E  v9 WYs: 10
+21,137  #   52.3N    22.8E  v9 WYs: 10
+22,124  #   50.9N     3.6E  v9 WYs: 10
+22,125  #   50.9N     5.1E  v9 WYs: 10
+22,126  #   50.9N     6.5E  v9 WYs: 10
+22,134  #   50.9N    18.3E  v9 WYs: 10
+22,135  #   50.9N    19.8E  v9 WYs: 10
+22,137  #   50.9N    22.8E  v9 WYs: 10
+22,138  #   50.9N    24.2E  v9 WYs: 10
+23,125  #   49.4N     5.1E  v9 WYs: 10
+23,126  #   49.4N     6.5E  v9 WYs: 10
+23,128  #   49.4N     9.5E  v9 WYs: 10
+23,129  #   49.4N    11.0E  v9 WYs: 10
+24,124  #   47.9N     3.6E  v9 WYs: 10
+24,125  #   47.9N     5.1E  v9 WYs: 10
+
+# --- Japan & Korea (Kyushu, San'in snow country, Noto, Kanto) (13 tiles) ---
+31,214  #   37.6N   136.3E  v9 WYs: 10
+32,212  #   36.1N   133.3E  v9 WYs: 10
+32,213  #   36.1N   134.8E  v9 WYs: 9
+32,217  #   36.1N   140.7E  v9 WYs: 9
+33,209  #   34.7N   128.9E  v9 WYs: 10
+33,210  #   34.7N   130.4E  v9 WYs: 10
+33,211  #   34.7N   131.9E  v9 WYs: 10
+33,217  #   34.7N   140.7E  v9 WYs: 6
+34,209  #   33.2N   128.9E  v9 WYs: 4
+34,210  #   33.2N   130.4E  v9 WYs: 10
+34,214  #   33.2N   136.3E  v9 WYs: 9
+35,210  #   31.7N   130.4E  v9 WYs: 10
+35,211  #   31.7N   131.9E  v9 WYs: 10
+
+# --- Caspian-Aral steppe, Crete, central France (12 tiles) ---
+25,123  #   46.4N     2.1E  v9 WYs: 9
+25,155  #   46.4N    49.3E  v9 WYs: 10
+25,156  #   46.4N    50.8E  v9 WYs: 10
+26,157  #   45.0N    52.2E  v9 WYs: 10
+26,158  #   45.0N    53.7E  v9 WYs: 10
+27,160  #   43.5N    56.7E  v9 WYs: 7
+27,162  #   43.5N    59.6E  v9 WYs: 10
+27,163  #   43.5N    61.1E  v9 WYs: 10
+27,164  #   43.5N    62.6E  v9 WYs: 9
+27,165  #   43.5N    64.0E  v9 WYs: 6
+27,166  #   43.5N    65.5E  v9 WYs: 6
+33,139  #   34.7N    25.7E  v9 WYs: 10
+
+# --- North America (US Pacific coast, lower Great Lakes, Haida Gwaii) (9 tiles) ---
+21,33  #   52.3N  -130.6E  v9 WYs: 8
+25,37  #   46.4N  -124.7E  v9 WYs: 10
+26,37  #   45.0N  -124.7E  v9 WYs: 10
+27,37  #   43.5N  -124.7E  v9 WYs: 9
+28,37  #   42.0N  -124.7E  v9 WYs: 9
+28,63  #   42.0N   -86.4E  v9 WYs: 8
+28,64  #   42.0N   -84.9E  v9 WYs: 8
+28,65  #   42.0N   -83.4E  v9 WYs: 8
+29,37  #   40.5N  -124.7E  v9 WYs: 9
+
+# --- New Zealand (9 tiles) ---
+80,239  #  -34.7N   173.2E  v9 WYs: 10
+80,240  #  -34.7N   174.6E  v9 WYs: 2
+81,240  #  -36.1N   174.6E  v9 WYs: 9
+82,240  #  -37.6N   174.6E  v9 WYs: 10
+82,241  #  -37.6N   176.1E  v9 WYs: 10
+83,242  #  -39.1N   177.6E  v9 WYs: 10
+85,240  #  -42.0N   174.6E  v9 WYs: 10
+85,241  #  -42.0N   176.1E  v9 WYs: 10
+86,239  #  -43.5N   173.2E  v9 WYs: 10
+
+# --- S Chile (coast ranges, Chiloe) (7 tiles) ---
+79,73  #  -33.2N   -71.6E  v9 WYs: 9
+81,72  #  -36.1N   -73.1E  v9 WYs: 10
+82,72  #  -37.6N   -73.1E  v9 WYs: 10
+83,72  #  -39.1N   -73.1E  v9 WYs: 10
+84,71  #  -40.6N   -74.6E  v9 WYs: 10
+85,71  #  -42.0N   -74.6E  v9 WYs: 10
+86,71  #  -43.5N   -74.6E  v9 WYs: 10
+
+# --- Tasmania (5 tiles) ---
+84,220  #  -40.6N   145.1E  v9 WYs: 9
+84,221  #  -40.6N   146.6E  v9 WYs: 8
+84,222  #  -40.6N   148.1E  v9 WYs: 8
+86,220  #  -43.5N   145.1E  v9 WYs: 9
+86,222  #  -43.5N   148.1E  v9 WYs: 9
+
+# --- SE Australia (Victoria/NSW) (4 tiles) ---
+81,220  #  -36.1N   145.1E  v9 WYs: 3
+81,223  #  -36.1N   149.6E  v9 WYs: 10
+82,220  #  -37.6N   145.1E  v9 WYs: 10
+82,222  #  -37.6N   148.1E  v9 WYs: 10
+
+# --- Thrace (Bulgaria/Turkey) (1 tiles) ---
+28,140  #   42.0N    27.2E  v9 WYs: 10
