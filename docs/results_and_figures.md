@@ -8,7 +8,7 @@ reconcile to v10. Links are written relative to this file's location in `docs/`,
 
 ## Manuscript figures
 
-Two preview columns: **v10 (latest)** first, then **v9 (the manuscript renders)**. v10 renders now exist for **every figure**: Figs. 4, 5, A5 regenerated 2026-08-10 (`figures/v10/`), Fig. 6 on 2026-08-11, the global `visualize/` figures (Figs. 2, 3, A2–A4) on 2026-08-12 from the completed v10 store, Fig. 1 on 2026-08-12 (the `visualize/methods/` notebooks are now version-parametrized: `figures/<v>/` folders, one stack sheet per water year, "N-year composites" title), and Fig. A1 on 2026-08-12 via the new [`6_station_high_swe_low_swe_comparison.ipynb`](../dataset_evaluation/compare_to_all_public_snow_pillows/6_station_high_swe_low_swe_comparison.ipynb) in the snow-pillow framework. ⚠️ The true v9 Fig. A1 assets — `compare_to_snotel/supplemental_figure_methodology.ipynb` and `figures/v9/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png` — are still **untracked**; `git add` them before tagging a release (the `_explain_pos_bias_` notebook + `supplemental_figure_methodology.png` tracked 2026-08-12 are an older iteration). The rest of `compare_to_snotel/` (other notebooks, `station_plots.py`, remaining figures, `comparison_datasets/`) is also untracked — decide track-vs-ignore.
+Two preview columns: **v10 (latest)** first, then **v9 (the manuscript renders)**. 
 
 | Figure | Preview (v10, latest) | Preview (v9, manuscript) | Created in | Output file |
 | --- | --- | --- | --- | --- |
