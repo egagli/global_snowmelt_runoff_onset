@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite both the accompanying paper (see preferred-citation) and the software itself using the metadata from this file."
 type: software
-title: "Global snowmelt runoff onset from Sentinel-1 SAR, 2015-2024"
+title: "Global snowmelt runoff onset from Sentinel-1 SAR"
 authors:
   - given-names: Eric
     family-names: Gagliano

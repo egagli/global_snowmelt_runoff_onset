@@ -5399,8 +5399,8 @@ packages:
   timestamp: 1712692611426
 - pypi: ./
   name: global-snowmelt-runoff-onset
-  version: 0.1.0
-  sha256: a043036db89d99d35406182984bf69d7df9dc3d86f18ece4529bc8599408008f
+  version: 1.0.0
+  sha256: b08b9e0cd670b533a9c9f2c37e5e138e2e7148e71b408700378f052fa9c07c5f
   requires_python: '>=3.11'
 - conda: https://conda.anaconda.org/conda-forge/linux-64/glog-0.7.1-hbabe93e_0.conda
   sha256: dc824dc1d0aa358e28da2ecbbb9f03d932d976c8dca11214aa1dcdfcbd054ba2
