@@ -41,13 +41,16 @@ Prerequisite:
       one — check it's closed, or spot-check the phenology store).
 
 Checklist:
-- [ ] Extend the runoff store's `water_year` dimension through {wy}
-      (see processing/README.md "Adding new water years").
 - [ ] Bump `WY_end` in `config/global_config_v10.txt` (end_date derives
       automatically, covering the southern S1 window).
+- [ ] Run `processing/5_add_water_year.ipynb` — checks eligibility and the
+      phenology store (hemisphere trap), extends the store's `water_year`
+      dimension through {wy}, and verifies the new work items appear.
 - [ ] Dispatch the fleet — `get_remaining_work` emits (tile, {wy}) only for
       {hemi}-hemisphere tiles; the other hemisphere stays untouched until
       its own season closes. Composites refresh via the staleness rule.
+- [ ] After the fleet: re-run `processing/4_finalize_icechunk_store.ipynb`
+      (GC + backup sweep) with a bumped tag.
 
 *Opened automatically by water_year_watch.yml.*
 """

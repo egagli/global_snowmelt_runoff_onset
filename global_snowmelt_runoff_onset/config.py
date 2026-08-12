@@ -565,7 +565,8 @@ class Config:
         self._output_repo = repo
         return repo
 
-    def open_runoff_onset_dataset(self, branch: str = 'main', chunks='auto'):
+    def open_runoff_onset_dataset(self, branch: str = 'main', chunks='auto',
+                                  mask_and_scale: bool = True):
         """
         Open this config's global runoff onset dataset, read-only.
 
@@ -584,9 +585,19 @@ class Config:
         indexing instead: no graph, and only the intersecting chunks are fetched.
         Keep 'auto' for whole-grid reductions, where dask is what you want.
 
+        **Pass mask_and_scale=False for whole-grid reductions.** Every data variable
+        is int16 on disk, and CF decoding turns the scaled ones (temporal_resolution,
+        temporal_resolution_median, runoff_onset_mad) into float64 -- a 4x memory
+        inflation on read. Undecoded, nodata is the raw `_FillValue` (-9999) rather
+        than NaN and values are in raw counts, so mask with `da != -9999` and rescale
+        sums by `da.attrs['scale_factor']` yourself (with decoding off, scale_factor
+        and _FillValue stay in .attrs instead of moving to .encoding). Verified to
+        give identical counts and sums to the decoded path.
+
         Args:
             branch: icechunk branch to read (ignored for <= v9 configs)
             chunks: passed to xr.open_zarr; None disables dask (see above)
+            mask_and_scale: False keeps variables as raw int16 (see above)
 
         Returns:
             xr.Dataset: the global runoff onset dataset
@@ -597,10 +608,11 @@ class Config:
             return xr.open_zarr(
                 self.open_output_repo().readonly_session(branch).store,
                 zarr_format=3, consolidated=False, decode_coords='all', chunks=chunks,
+                mask_and_scale=mask_and_scale,
             )
         return xr.open_zarr(
             self.global_runoff_store, consolidated=True, decode_coords='all',
-            chunks=chunks,
+            chunks=chunks, mask_and_scale=mask_and_scale,
         )
 
     def get_config_dict(self) -> Dict[str, Any]:
