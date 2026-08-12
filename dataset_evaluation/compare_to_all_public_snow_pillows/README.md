@@ -13,7 +13,7 @@ Notebooks `0_`/`1_` began as mirrors of `../compare_to_NorSWE/`'s `0_`/`1_`;
 `2_`–`4_` have no NorSWE counterpart. This is now the primary in-situ
 evaluation — the source of manuscript **Fig. 4, Fig. 5, Fig. A5** and the
 headline evaluation stats (v10 run: median residual **−2.0 d**, MAD
-**10.0 d**, 8,397 station-water-years across 1,135 stations).
+**10.0 d**, 8,407 station-water-years across 1,136 stations).
 
 ## Why these networks instead of NorSWE
 
@@ -128,9 +128,29 @@ mountain ranges containing at least one station and computes the aggregate
 station count, total range area (Albers equal-area), area per station, and
 stations per 100 km² → `results/<version>/station_density.csv`. Standalone —
 not part of the `0_`–`4_` chip pipeline. Moved from `../compare_to_snotel/` and
-rewired to the shared inventory on 2026-08-04; the manuscript's current
-~1,280 km² figure came from the old SNOTEL/CCSS-only set (926 stations), so
-**rerun and reconcile the manuscript with the CSV value**.
+rewired to the shared inventory on 2026-08-04. The v10 value (994 stations,
+1,198.6 km²/station) matches the typeset manuscript's "1 station per
+~1200 km²"; the original submission's ~1,280 km² came from the old
+SNOTEL/CCSS-only set (926 stations).
+
+### `6_station_high_swe_low_swe_comparison.ipynb`
+
+Recreates **manuscript Fig. A1** within this framework: for one station, a
+high-SWE and a low-SWE water year side by side — daily pillow SWE with the
+95%-of-max threshold and pillow onset (top), per-relative-orbit Sentinel-1 VV
+backscatter with the MODIS snow appearance/disappearance dates, the
+phenology-constrained search window, per-orbit minima and their median
+(middle), and the signed timing offset (bottom). Pillow onsets and max-SWE
+values come from `1_`'s `max_snow_pillow_swe_timing.zarr`; the backscatter is
+fetched fresh at the station (1 km buffer) via `processing.get_sentinel1_rtc`.
+Defaults to the manuscript's station/years (846_CA_SNTL Virginia Lakes Ridge,
+WY2017 vs WY2021); an optional candidate-scan cell suggests other
+station/year pairs →
+`figures/<version>/high_swe_low_swe_backscatter_comparison_<station>_<hi>_<lo>.png`.
+Successor of the SNOTEL-only
+`../compare_to_snotel/supplemental_figure_methodology.ipynb` (which produced
+the manuscript's Fig. A1,
+`figures/v9/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png`).
 
 ---
 
@@ -139,7 +159,7 @@ rewired to the shared inventory on 2026-08-04; the manuscript's current
 - `data/snow_pillows/` — `all_snow_stations.geojson` (34 MB) + `snow_pillows.zarr` (27 MB), from `0_`.
 - `data/coarse_snow_class_map/SnowClass_GL_05km_2.50arcmin_2021_v01.0.tif` — 5 km snow-class raster read by `4_` (distinct from the 1 km tif in `../calculate_spatial_coverage_and_temporal_resolution/data/`).
 - `data/comparison_datasets/{v9,v10}/` — the two Zarrs per version from `1_`.
-- `figures/{v9,v10}/` — version-scoped figure outputs (`figures/v10/` currently untracked in git).
+- `figures/{v9,v10}/` — version-scoped figure outputs.
 - `results/<version>/` — durable homes of the manuscript-cited numbers, written via
   `global_snowmelt_runoff_onset.results.save_result_table` (which stamps `_version`,
   `_git_sha`, `_written_at` columns): `qc_station_counts.csv` (from `1_`),
