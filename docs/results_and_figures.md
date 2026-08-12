@@ -2,31 +2,86 @@
 
 Maps every figure, table, and quoted number in the manuscript to the notebook that
 creates it and the durable file where the value lives, with current status. Two value
-columns throughout: **v10 (latest, WY2015–2025)** first, then **v9 (published dataset —
-what the manuscript currently cites)**; where they differ, the manuscript update should
-reconcile to v10. Links are written relative to this file's location in `docs/`, so they resolve on GitHub.
+columns throughout: **v10 (latest, WY2015–2025)** first, then **v9 (published dataset & manuscript, WY2015-2024)**.
 
 ## Manuscript figures
 
-Two preview columns, each linked to its full-size file: **v10 (latest)** first, then **v9 (the manuscript renders)**.
-
-| Figure | Preview<br>(v10 — latest) | Preview<br>(v9 — manuscript) | Created in |
-| --- | --- | --- | --- |
-| **Fig. 1** — workflow diagram | <a href="../visualize/methods/figures/v10/methods_figure.png"><img src="../visualize/methods/figures/v10/methods_figure.png" alt="Fig. 1 workflow diagram (v10)" width="300"></a> | <a href="../visualize/methods/figures/v9/methods_figure.png"><img src="../visualize/methods/figures/v9/methods_figure.png" alt="Fig. 1 workflow diagram (v9)" width="300"></a> | [`create_methods_figure_components.ipynb`](../visualize/methods/create_methods_figure_components.ipynb) (panels)<br>+ [`combine_methods_figure_components.ipynb`](../visualize/methods/combine_methods_figure_components.ipynb) (`N_YEARS` drives the annual-stack sheet counts and the "N-year composites" title) |
-| **Fig. 2** — global composite products (median onset, MAD, temporal resolution) | <a href="../visualize/global/figures/v10/global_all_composites_robinson_wide.png"><img src="../visualize/global/figures/v10/global_all_composites_robinson_wide.png" alt="Fig. 2 global composites (v10)" width="300"></a> | <a href="../visualize/global/figures/v9/global_all_composites_robinson_wide.png"><img src="../visualize/global/figures/v9/global_all_composites_robinson_wide.png" alt="Fig. 2 global composites (v9)" width="300"></a> | [`global_composites.ipynb`](../visualize/global/global_composites.ipynb) (`…robinson_long.png` = alternate aspect variant) |
-| **Fig. 3** — NH polar stereographic median onset | <a href="../visualize/global/figures/v10/global_composite_median_polar.png"><img src="../visualize/global/figures/v10/global_composite_median_polar.png" alt="Fig. 3 NH polar median (v10)" width="300"></a> | <a href="../visualize/global/figures/v9/global_composite_median_polar.png"><img src="../visualize/global/figures/v9/global_composite_median_polar.png" alt="Fig. 3 NH polar median (v9)" width="300"></a> | [`global_composites.ipynb`](../visualize/global/global_composites.ipynb) |
-| **Fig. 4** — residual bias/spread binned by forest cover × SWE × temporal resolution | <a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/pixelwise_performance_analysis.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/pixelwise_performance_analysis.png" alt="Fig. 4 binned residuals (v10)" width="300"></a> | <a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/pixelwise_performance_analysis.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/pixelwise_performance_analysis.png" alt="Fig. 4 binned residuals (v9)" width="300"></a> | [`2_compare_snow_pillows.ipynb`](../dataset_evaluation/compare_to_all_public_snow_pillows/2_compare_snow_pillows.ipynb) (also writes `_WUS` / `_nonWUS` split variants) |
-| **Fig. 5** — station evaluation (per-year residuals + bias map) | <a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/snow_pillow_evaluation_SAR_minus_95pct_of_max_SWE_timing_fcf_lte_50_exclude_worldcover_50_80_max_swe_gte_200_temp_res_lte_14_radius_lte_1000_valid_cnt_1_no_violin_regional_insets.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/snow_pillow_evaluation_SAR_minus_95pct_of_max_SWE_timing_fcf_lte_50_exclude_worldcover_50_80_max_swe_gte_200_temp_res_lte_14_radius_lte_1000_valid_cnt_1_no_violin_regional_insets.png" alt="Fig. 5 station evaluation (v10)" width="300"></a> | <a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/snow_pillow_evaluation_SAR_minus_95pct_of_max_SWE_timing_fcf_lte_50_exclude_worldcover_50_80_max_swe_gte_200_temp_res_lte_14_radius_lte_1000_valid_cnt_1_no_violin_regional_insets.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/snow_pillow_evaluation_SAR_minus_95pct_of_max_SWE_timing_fcf_lte_50_exclude_worldcover_50_80_max_swe_gte_200_temp_res_lte_14_radius_lte_1000_valid_cnt_1_no_violin_regional_insets.png" alt="Fig. 5 station evaluation (v9)" width="300"></a> | [`3_evaluate_snow_pillows.ipynb`](../dataset_evaluation/compare_to_all_public_snow_pillows/3_evaluate_snow_pillows.ipynb) |
-| **Fig. 6** — passive microwave comparison, Alaska Range WY2020 | <a href="../dataset_evaluation/compare_to_passive/figures/v10/alaska_range_passive_comparison.png"><img src="../dataset_evaluation/compare_to_passive/figures/v10/alaska_range_passive_comparison.png" alt="Fig. 6 passive comparison (v10)" width="300"></a> | <a href="../dataset_evaluation/compare_to_passive/figures/v9/alaska_range_passive_comparison.png"><img src="../dataset_evaluation/compare_to_passive/figures/v9/alaska_range_passive_comparison.png" alt="Fig. 6 passive comparison (v9)" width="300"></a> | [`alaska_range_comparison.ipynb`](../dataset_evaluation/compare_to_passive/alaska_range_comparison.ipynb) |
-| **Fig. A1** — single-station high-/low-SWE case study | <a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png" alt="Fig. A1 case study (v10)" width="300"></a> | <a href="../dataset_evaluation/compare_to_snotel/figures/v9/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png"><img src="../dataset_evaluation/compare_to_snotel/figures/v9/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png" alt="Fig. A1 case study (v9)" width="300"></a> | v10: [`6_station_high_swe_low_swe_comparison.ipynb`](../dataset_evaluation/compare_to_all_public_snow_pillows/6_station_high_swe_low_swe_comparison.ipynb) (rebuilt in the snow-pillow framework; reproduces the v9 onsets/offsets exactly)<br>v9: [`supplemental_figure_methodology.ipynb`](../dataset_evaluation/compare_to_snotel/supplemental_figure_methodology.ipynb) |
-| **Fig. A2** — NH polar stereographic, all three composites | <a href="../visualize/global/figures/v10/global_all_composites_polar.png"><img src="../visualize/global/figures/v10/global_all_composites_polar.png" alt="Fig. A2 polar composites (v10)" width="300"></a> | <a href="../visualize/global/figures/v9/global_all_composites_polar.png"><img src="../visualize/global/figures/v9/global_all_composites_polar.png" alt="Fig. A2 polar composites (v9)" width="300"></a> | [`global_composites.ipynb`](../visualize/global/global_composites.ipynb) |
-| **Fig. A3** — annual onset + temporal resolution maps | <a href="../visualize/global/figures/v10/global_annual_runoff_onset_and_temporal_res_with_hillshade_2015_2025.png"><img src="../visualize/global/figures/v10/global_annual_runoff_onset_and_temporal_res_with_hillshade_2015_2025.png" alt="Fig. A3 annual maps (v10)" width="300"></a> | <a href="../visualize/global/figures/v9/global_annual_runoff_onset_and_temporal_res_with_hillshade_2015_2024.png"><img src="../visualize/global/figures/v9/global_annual_runoff_onset_and_temporal_res_with_hillshade_2015_2024.png" alt="Fig. A3 annual maps (v9)" width="300"></a> | [`global_annual_runoff_onset_and_temporal_res.ipynb`](../visualize/global/global_annual_runoff_onset_and_temporal_res.ipynb) |
-| **Fig. A4** — per-pixel count of valid water years | <a href="../visualize/global/figures/v10/global_allyrs_annual_runoff_onset_count.png"><img src="../visualize/global/figures/v10/global_allyrs_annual_runoff_onset_count.png" alt="Fig. A4 valid year count (v10)" width="300"></a> | <a href="../visualize/global/figures/v9/global_10yr_annual_runoff_onset_count.png"><img src="../visualize/global/figures/v9/global_10yr_annual_runoff_onset_count.png" alt="Fig. A4 valid year count (v9)" width="300"></a> | [`global_composites.ipynb`](../visualize/global/global_composites.ipynb) |
-| **Fig. A5** — snow-pillow network representativeness by snow class | <a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/snow_pillow_representativeness_snow_class_map_and_pixel_counts.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/snow_pillow_representativeness_snow_class_map_and_pixel_counts.png" alt="Fig. A5 representativeness (v10)" width="300"></a> | <a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/snow_pillow_representativeness_snow_class_map_and_pixel_counts.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/snow_pillow_representativeness_snow_class_map_and_pixel_counts.png" alt="Fig. A5 representativeness (v9)" width="300"></a> | [`4_snow_pillow_representativeness.ipynb`](../dataset_evaluation/compare_to_all_public_snow_pillows/4_snow_pillow_representativeness.ipynb) |
+<table>
+<tr>
+<th>Figure</th>
+<th width="300">Preview<br>(v10, latest)</th>
+<th width="300">Preview<br>(v9, manuscript)</th>
+<th>Created in</th>
+</tr>
+<tr>
+<td><b>Fig. 1</b> — workflow diagram</td>
+<td width="300"><a href="../visualize/methods/figures/v10/methods_figure.png"><img src="../visualize/methods/figures/v10/methods_figure.png" alt="Fig. 1 workflow diagram (v10)" width="300"></a></td>
+<td width="300"><a href="../visualize/methods/figures/v9/methods_figure.png"><img src="../visualize/methods/figures/v9/methods_figure.png" alt="Fig. 1 workflow diagram (v9)" width="300"></a></td>
+<td><a href="../visualize/methods/create_methods_figure_components.ipynb"><code>create_methods_figure_components.ipynb</code></a> (panels)<br>+ <a href="../visualize/methods/combine_methods_figure_components.ipynb"><code>combine_methods_figure_components.ipynb</code></a> (<code>N_YEARS</code> drives the annual-stack sheet counts and the "N-year composites" title)</td>
+</tr>
+<tr>
+<td><b>Fig. 2</b> — global composite products (median onset, MAD, temporal resolution)</td>
+<td width="300"><a href="../visualize/global/figures/v10/global_all_composites_robinson_wide.png"><img src="../visualize/global/figures/v10/global_all_composites_robinson_wide.png" alt="Fig. 2 global composites (v10)" width="300"></a></td>
+<td width="300"><a href="../visualize/global/figures/v9/global_all_composites_robinson_wide.png"><img src="../visualize/global/figures/v9/global_all_composites_robinson_wide.png" alt="Fig. 2 global composites (v9)" width="300"></a></td>
+<td><a href="../visualize/global/global_composites.ipynb"><code>global_composites.ipynb</code></a> (<code>…robinson_long.png</code> = alternate aspect variant)</td>
+</tr>
+<tr>
+<td><b>Fig. 3</b> — NH polar stereographic median onset</td>
+<td width="300"><a href="../visualize/global/figures/v10/global_composite_median_polar.png"><img src="../visualize/global/figures/v10/global_composite_median_polar.png" alt="Fig. 3 NH polar median (v10)" width="300"></a></td>
+<td width="300"><a href="../visualize/global/figures/v9/global_composite_median_polar.png"><img src="../visualize/global/figures/v9/global_composite_median_polar.png" alt="Fig. 3 NH polar median (v9)" width="300"></a></td>
+<td><a href="../visualize/global/global_composites.ipynb"><code>global_composites.ipynb</code></a></td>
+</tr>
+<tr>
+<td><b>Fig. 4</b> — residual bias/spread binned by forest cover × SWE × temporal resolution</td>
+<td width="300"><a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/pixelwise_performance_analysis.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/pixelwise_performance_analysis.png" alt="Fig. 4 binned residuals (v10)" width="300"></a></td>
+<td width="300"><a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/pixelwise_performance_analysis.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/pixelwise_performance_analysis.png" alt="Fig. 4 binned residuals (v9)" width="300"></a></td>
+<td><a href="../dataset_evaluation/compare_to_all_public_snow_pillows/2_compare_snow_pillows.ipynb"><code>2_compare_snow_pillows.ipynb</code></a> (also writes <code>_WUS</code> / <code>_nonWUS</code> split variants)</td>
+</tr>
+<tr>
+<td><b>Fig. 5</b> — station evaluation (per-year residuals + bias map)</td>
+<td width="300"><a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/snow_pillow_evaluation_SAR_minus_95pct_of_max_SWE_timing_fcf_lte_50_exclude_worldcover_50_80_max_swe_gte_200_temp_res_lte_14_radius_lte_1000_valid_cnt_1_no_violin_regional_insets.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/snow_pillow_evaluation_SAR_minus_95pct_of_max_SWE_timing_fcf_lte_50_exclude_worldcover_50_80_max_swe_gte_200_temp_res_lte_14_radius_lte_1000_valid_cnt_1_no_violin_regional_insets.png" alt="Fig. 5 station evaluation (v10)" width="300"></a></td>
+<td width="300"><a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/snow_pillow_evaluation_SAR_minus_95pct_of_max_SWE_timing_fcf_lte_50_exclude_worldcover_50_80_max_swe_gte_200_temp_res_lte_14_radius_lte_1000_valid_cnt_1_no_violin_regional_insets.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/snow_pillow_evaluation_SAR_minus_95pct_of_max_SWE_timing_fcf_lte_50_exclude_worldcover_50_80_max_swe_gte_200_temp_res_lte_14_radius_lte_1000_valid_cnt_1_no_violin_regional_insets.png" alt="Fig. 5 station evaluation (v9)" width="300"></a></td>
+<td><a href="../dataset_evaluation/compare_to_all_public_snow_pillows/3_evaluate_snow_pillows.ipynb"><code>3_evaluate_snow_pillows.ipynb</code></a></td>
+</tr>
+<tr>
+<td><b>Fig. 6</b> — passive microwave comparison, Alaska Range WY2020</td>
+<td width="300"><a href="../dataset_evaluation/compare_to_passive/figures/v10/alaska_range_passive_comparison.png"><img src="../dataset_evaluation/compare_to_passive/figures/v10/alaska_range_passive_comparison.png" alt="Fig. 6 passive comparison (v10)" width="300"></a></td>
+<td width="300"><a href="../dataset_evaluation/compare_to_passive/figures/v9/alaska_range_passive_comparison.png"><img src="../dataset_evaluation/compare_to_passive/figures/v9/alaska_range_passive_comparison.png" alt="Fig. 6 passive comparison (v9)" width="300"></a></td>
+<td><a href="../dataset_evaluation/compare_to_passive/alaska_range_comparison.ipynb"><code>alaska_range_comparison.ipynb</code></a></td>
+</tr>
+<tr>
+<td><b>Fig. A1</b> — single-station high-/low-SWE case study</td>
+<td width="300"><a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png" alt="Fig. A1 case study (v10)" width="300"></a></td>
+<td width="300"><a href="../dataset_evaluation/compare_to_snotel/figures/v9/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png"><img src="../dataset_evaluation/compare_to_snotel/figures/v9/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png" alt="Fig. A1 case study (v9)" width="300"></a></td>
+<td>v10: <a href="../dataset_evaluation/compare_to_all_public_snow_pillows/6_station_high_swe_low_swe_comparison.ipynb"><code>6_station_high_swe_low_swe_comparison.ipynb</code></a> (rebuilt in the snow-pillow framework; reproduces the v9 onsets/offsets exactly)<br>v9: <a href="../dataset_evaluation/compare_to_snotel/supplemental_figure_methodology.ipynb"><code>supplemental_figure_methodology.ipynb</code></a></td>
+</tr>
+<tr>
+<td><b>Fig. A2</b> — NH polar stereographic, all three composites</td>
+<td width="300"><a href="../visualize/global/figures/v10/global_all_composites_polar.png"><img src="../visualize/global/figures/v10/global_all_composites_polar.png" alt="Fig. A2 polar composites (v10)" width="300"></a></td>
+<td width="300"><a href="../visualize/global/figures/v9/global_all_composites_polar.png"><img src="../visualize/global/figures/v9/global_all_composites_polar.png" alt="Fig. A2 polar composites (v9)" width="300"></a></td>
+<td><a href="../visualize/global/global_composites.ipynb"><code>global_composites.ipynb</code></a></td>
+</tr>
+<tr>
+<td><b>Fig. A3</b> — annual onset + temporal resolution maps</td>
+<td width="300"><a href="../visualize/global/figures/v10/global_annual_runoff_onset_and_temporal_res_with_hillshade_2015_2025.png"><img src="../visualize/global/figures/v10/global_annual_runoff_onset_and_temporal_res_with_hillshade_2015_2025.png" alt="Fig. A3 annual maps (v10)" width="300"></a></td>
+<td width="300"><a href="../visualize/global/figures/v9/global_annual_runoff_onset_and_temporal_res_with_hillshade_2015_2024.png"><img src="../visualize/global/figures/v9/global_annual_runoff_onset_and_temporal_res_with_hillshade_2015_2024.png" alt="Fig. A3 annual maps (v9)" width="300"></a></td>
+<td><a href="../visualize/global/global_annual_runoff_onset_and_temporal_res.ipynb"><code>global_annual_runoff_onset_and_temporal_res.ipynb</code></a></td>
+</tr>
+<tr>
+<td><b>Fig. A4</b> — per-pixel count of valid water years</td>
+<td width="300"><a href="../visualize/global/figures/v10/global_allyrs_annual_runoff_onset_count.png"><img src="../visualize/global/figures/v10/global_allyrs_annual_runoff_onset_count.png" alt="Fig. A4 valid year count (v10)" width="300"></a></td>
+<td width="300"><a href="../visualize/global/figures/v9/global_10yr_annual_runoff_onset_count.png"><img src="../visualize/global/figures/v9/global_10yr_annual_runoff_onset_count.png" alt="Fig. A4 valid year count (v9)" width="300"></a></td>
+<td><a href="../visualize/global/global_composites.ipynb"><code>global_composites.ipynb</code></a></td>
+</tr>
+<tr>
+<td><b>Fig. A5</b> — snow-pillow network representativeness by snow class</td>
+<td width="300"><a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/snow_pillow_representativeness_snow_class_map_and_pixel_counts.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v10/snow_pillow_representativeness_snow_class_map_and_pixel_counts.png" alt="Fig. A5 representativeness (v10)" width="300"></a></td>
+<td width="300"><a href="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/snow_pillow_representativeness_snow_class_map_and_pixel_counts.png"><img src="../dataset_evaluation/compare_to_all_public_snow_pillows/figures/v9/snow_pillow_representativeness_snow_class_map_and_pixel_counts.png" alt="Fig. A5 representativeness (v9)" width="300"></a></td>
+<td><a href="../dataset_evaluation/compare_to_all_public_snow_pillows/4_snow_pillow_representativeness.ipynb"><code>4_snow_pillow_representativeness.ipynb</code></a></td>
+</tr>
+</table>
 
 ## Manuscript tables & calculated numbers
-
-Two value columns: **v10 (latest, WY2015–2025)** first, then **v9 (published dataset — what the manuscript currently cites)**. Where they differ, the manuscript update should reconcile to v10.
 
 | Manuscript item | Value (v10, latest) | Value (v9, manuscript) | Calculated in | Where the number lives |
 | --- | --- | --- | --- | --- |
@@ -43,7 +98,7 @@ Two value columns: **v10 (latest, WY2015–2025)** first, then **v9 (published d
 
 ## Results files (the durable homes of the numbers above)
 
-Convention: every number quoted in the manuscript exists in a `results/` CSV written by the notebook that computes it — notebook cell outputs and figure annotations are not provenance. Files written through [`global_snowmelt_runoff_onset.results.save_result_table`](../global_snowmelt_runoff_onset/results.py) carry `_version` / `_git_sha` / `_written_at` provenance columns saying exactly which code state produced them. The Status column is as of 2026-08-12; ⏳ = save cell exists but the notebook hasn't been rerun since it was added.
+Convention: every number quoted in the manuscript exists in a `results/` CSV written by the notebook that computes it. Files written through [`global_snowmelt_runoff_onset.results.save_result_table`](../global_snowmelt_runoff_onset/results.py) carry `_version` / `_git_sha` / `_written_at` provenance columns saying exactly which code state produced them. The Status column is as of 2026-08-12; ⏳ = save cell exists but the notebook hasn't been rerun since it was added.
 
 | File | Written by | Contents | Status |
 | --- | --- | --- | --- |
