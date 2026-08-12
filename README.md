@@ -34,29 +34,30 @@ The dataset is described in the accompanying paper, accepted at *Earth System Sc
 
 ### Methodology
 
-SAR backscatter minima from Sentinel-1 indicate snowmelt runoff onset when liquid water content peaks during the transition from snow ripening to active runoff. We combine multi-orbit Sentinel-1 data with MODIS snow phenology to constrain detection timing and location.
+We detect snowmelt runoff onset by identifying characteristic minima in Sentinel-1 C-band SAR backscatter time series. As liquid water content rises during snowmelt, absorption of the C-band signal drives backscatter to a minimum, which then recovers as snow surface roughness evolves during the runoff phase. The timing of this minimum is an empirically validated indicator of runoff onset — the transition from the ripening phase to the runoff phase — rather than a direct measurement of meltwater outflow. We combine all available Sentinel-1 relative orbits with a custom MODIS-derived snow phenology dataset that constrains where and when to search for the minimum.
 
 **Key steps:**
 
-1. Create MODIS-derived snow phenology dataset (≥56 days continuous snow)
-2. Quality filter Sentinel-1 VV backscatter and relative orbits
-3. Detect backscatter minima within a constrained temporal search window (midpoint of the snow-covered period through 16 days after snow disappearance)
-4. Aggregate across orbits using median statistics
-5. Generate annual maps and 10-year composites
+1. Create MODIS-derived snow phenology dataset and identify seasonal snow (≥56 days continuous snow cover)
+2. Quality filter Sentinel-1 VV backscatter (remove values < −30 dB) and exclude relative orbits with temporal gaps >30 days
+3. Detect backscatter minima per relative orbit within a constrained temporal search window (midpoint of the snow-covered period through 16 days after MODIS snow disappearance)
+4. Take the median date across relative orbits as the pixel's runoff onset estimate
+5. Mosaic tiles into global annual products (water years 2015–2024) and generate 10-year composites (median runoff onset, median absolute deviation, temporal resolution)
 
 ### Performance and limitations
 
-**Optimal conditions** (forest cover fraction <0.5, max SWE >~20cm, temporal resolution <14 days):
+Evaluated against snow pillow runoff onset estimates at 1,116 automated weather stations (Western U.S., British Columbia, Norway, Nepal): median difference of −2.0 days, median absolute deviation of 10.0 days across 7,294 station water-years.
+
+**Optimal conditions** (forest cover fraction <0.5, max SWE >~20 cm, temporal resolution <14 days):
 
 - Near-zero systematic bias
 - Spread approaching the temporal resolution of the underlying observations
 
 **Avoid** (dense forest + low SWE + coarse temporal resolution combined):
 
-- Bias and spread up to 30 days
-- Systematic early bias
+- Systematic early bias, with bias and spread up to 30 days
 
-**Limitations:** Unreliable in dense forests (forest cover fraction >0.5), low snow areas (max SWE <~20cm), and sublimation-dominated regions (e.g. >5000m elevation in the tropical Andes and parts of High Mountain Asia). Inherits known MODIS false-positive snow detections near turbid water bodies, over salt flats, and in regions with near-permanent cloud cover (e.g. eastern slopes of the tropical Andes).
+**Limitations:** Detection degrades in dense forests (forest cover fraction >0.5), shallow snowpacks (max SWE <~20 cm), and with coarse temporal resolution (>14 days). Interpretation is uncertain in sublimation-dominated regions (e.g. >5000 m in the tropical Andes and parts of High Mountain Asia). Coverage excludes ice-free areas of Antarctica, Greenland, the Canadian Arctic Archipelago, and the Russian Arctic Islands, which lack VV-polarized Sentinel-1 IW acquisitions. The dataset also inherits known MODIS false-positive snow detections near turbid water bodies, over salt flats, and in regions with near-permanent cloud cover (e.g. eastern slopes of the tropical Andes).
 
 ## Data access and quick start
 
