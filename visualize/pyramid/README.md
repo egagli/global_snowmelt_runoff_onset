@@ -84,17 +84,21 @@ a variable live in one job, so per-year parallelism isn't available — fine at 
        --dest-prefix snowmelt/snowmelt_runoff_onset/scratch_pyramid_shakedown
    ```
 
-2. **Production build**: `gh workflow run build_pyramid.yml` (defaults: tag `v10.0`, 10 levels,
-   prefix `..._v10.0_multiscale_1`). Observed reality (first v10.0 build, 2026-08-12): the
-   composites job took 1h46m, and each yearly job's level-0 pass alone ran ~5 h at topozarr's
-   derived 4 workers — both yearly jobs hit the original 300-min timeout *inside level 2*, i.e.
-   with ~92% of their work done. The workflow now runs 360-min timeouts and `--max-workers 16`
-   (I/O here is latency-bound; the fleet's thread-pool sweep showed scaling through 16).
-   **Resuming a timed-out job**: levels are written sequentially, so find the dead job's last
-   tqdm region index, map it to a level, and redispatch just that job from the first incomplete
-   level — e.g. `gh workflow run build_pyramid.yml -f jobs=runoff_onset,temporal_resolution
-   -f write_levels=2-9`. A partially-written level is rewritten deterministically (same
-   tag-pinned source), so resuming at the level that was in flight is safe.
+2. **Production build**: `gh workflow run build_pyramid.yml`. The workflow has exactly two
+   inputs — `source_tag` (default `v10.0`) and a `mode` dropdown (`fresh` / `resume`) — and
+   always builds all five variables; the config file and destination prefix derive from the
+   tag, and the cache-busting generation counter is the committed `MULTISCALE_GENERATION`
+   constant in `build_pyramid.py` (bump it in code to regenerate a tag's pyramid at a new
+   prefix). The driver writes a progress marker (`_build/<job>.json` under the pyramid prefix)
+   after every completed level, so recovery from a timeout or failure is just **redispatch
+   with `mode=resume`**: each job continues from its first incomplete level (a partially
+   written level is rewritten deterministically — the source is tag-pinned) and
+   already-complete jobs no-op. Resuming against a marker from a different snapshot fails
+   loudly. Observed reality (first v10.0 build, 2026-08-12): composites 1h46m; each yearly
+   job's level-0 pass alone ~5 h at topozarr's derived 4 workers, hitting the then-300-min
+   timeout inside level 2 (~92% done) — hence the marker system, 360-min timeouts, and
+   `--max-workers 16` (I/O here is latency-bound; the fleet's thread-pool sweep showed
+   scaling through 16).
 3. **Verify + headers**: run [`2_verify_pyramid.ipynb`](2_verify_pyramid.ipynb) against the
    production prefix — structure/attrs lint, level-0-vs-source exact comparison on the QC
    tiles, cross-level visuals, then the `Cache-Control: public, max-age=31536000, immutable`

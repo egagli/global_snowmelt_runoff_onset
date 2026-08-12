@@ -1,13 +1,17 @@
 name: Build Visualization Pyramid
 
 # Builds the multiscale visualization pyramid (visualize/pyramid/) from a
-# tagged icechunk snapshot: the composites job runs first, alone, creating the
-# store structure and convention attrs; the two yearly-variable jobs then run
-# in parallel (they own disjoint zarr arrays, so they never conflict). Jobs
-# are idempotent; levels are written sequentially, so a timed-out job resumes
-# with `jobs` + `write_levels` (e.g. jobs=runoff_onset, write_levels=2-9
-# rewrites from the first incomplete level -- find it from the dead job's last
-# tqdm region index). Runners sit next to the Azure data.
+# tagged icechunk snapshot. Always all five variables, three jobs: composites
+# runs first, alone (it creates the store structure and convention attrs),
+# then the two yearly-variable jobs in parallel (they own disjoint zarr
+# arrays, so they never conflict). The config file and destination prefix
+# derive from the tag (see build_pyramid.py; the cache-busting generation
+# counter is the committed MULTISCALE_GENERATION constant there).
+#
+# mode=fresh writes everything from scratch; mode=resume continues from the
+# per-job progress markers (_build/<job>.json under the pyramid prefix) that
+# the driver updates after every completed level -- so after a timeout or
+# failure, just redispatch with mode=resume. Already-complete jobs no-op.
 
 on:
   workflow_dispatch:
@@ -17,31 +21,14 @@ on:
         required: false
         default: 'v10.0'
         type: string
-      dest_prefix:
-        description: 'container/prefix for the pyramid store (empty = global_runoff_onset_<tag>_multiscale_1)'
+      mode:
+        description: 'fresh = build everything from scratch; resume = continue from the progress markers'
         required: false
-        default: ''
-        type: string
-      levels:
-        description: 'Number of pyramid levels'
-        required: false
-        default: '10'
-        type: string
-      jobs:
-        description: 'Comma-separated subset of jobs to run'
-        required: false
-        default: 'composites,runoff_onset,temporal_resolution'
-        type: string
-      write_levels:
-        description: 'Level subset to write, e.g. 2-9 (empty = all; resume mode after a partial run)'
-        required: false
-        default: ''
-        type: string
-      config_file:
-        description: 'Config file to use'
-        required: false
-        default: 'global_config_v10.txt'
-        type: string
+        default: 'fresh'
+        type: choice
+        options:
+          - fresh
+          - resume
 
 permissions:
   contents: read
@@ -53,7 +40,6 @@ env:
 jobs:
   composites:
     name: composites (creates store structure)
-    if: contains(inputs.jobs, 'composites')
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -68,22 +54,12 @@ jobs:
           pixi run -e ci python visualize/pyramid/build_pyramid.py \
             --job composites \
             --source-tag "${{ inputs.source_tag }}" \
-            --levels "${{ inputs.levels }}" \
-            --config-file ${{ inputs.config_file }} \
-            --max-workers 16 \
-            ${DEST_PREFIX:+--dest-prefix "$DEST_PREFIX"} \
-            ${WRITE_LEVELS:+--write-levels "$WRITE_LEVELS"}
-        env:
-          DEST_PREFIX: ${{ inputs.dest_prefix }}
-          WRITE_LEVELS: ${{ inputs.write_levels }}
+            --mode "${{ inputs.mode }}" \
+            --max-workers 16
 
   yearly:
     name: ${{ matrix.job }}
     needs: composites
-    # run whenever selected, tolerating a deliberately-skipped composites job
-    if: >-
-      always() && contains(inputs.jobs, matrix.job) &&
-      (needs.composites.result == 'success' || needs.composites.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
@@ -102,11 +78,5 @@ jobs:
           pixi run -e ci python visualize/pyramid/build_pyramid.py \
             --job ${{ matrix.job }} \
             --source-tag "${{ inputs.source_tag }}" \
-            --levels "${{ inputs.levels }}" \
-            --config-file ${{ inputs.config_file }} \
-            --max-workers 16 \
-            ${DEST_PREFIX:+--dest-prefix "$DEST_PREFIX"} \
-            ${WRITE_LEVELS:+--write-levels "$WRITE_LEVELS"}
-        env:
-          DEST_PREFIX: ${{ inputs.dest_prefix }}
-          WRITE_LEVELS: ${{ inputs.write_levels }}
+            --mode "${{ inputs.mode }}" \
+            --max-workers 16

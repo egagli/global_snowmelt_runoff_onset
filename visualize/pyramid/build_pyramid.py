@@ -14,9 +14,11 @@ space (identical to decode->mean->re-encode up to truncation toward zero,
 i.e. <= 0.1 day on scaled variables, <= 1 day on runoff_onset).
 
 Written with obstore (Rust object_store handles the Azure byte-range patterns
-for Zarr v3 shards that adlfs gets wrong) into a versioned prefix. The
-icechunk repo stays the only source of truth; the pyramid is disposable and
-regenerable -- bump the prefix suffix to bust caches on regeneration.
+for Zarr v3 shards that adlfs gets wrong) into a prefix derived from the
+source tag and MULTISCALE_GENERATION below. The icechunk repo stays the only
+source of truth; the pyramid is disposable and regenerable -- bump the
+generation constant (committed, so it's provenance) to bust caches on
+regeneration.
 
 Jobs (one topozarr pass per variable group; a job owns whole arrays, so jobs
 never write the same zarr object and can run concurrently once the store
@@ -28,13 +30,20 @@ exists):
 
 Run `--job composites` FIRST (alone -- it creates the root group, the level
 groups, and the convention attrs), then the two yearly jobs in parallel.
-Jobs are idempotent: rerun a failed job whole (the source is pinned to a tag,
-so rewrites are value-stable).
+
+Levels are written one at a time, and a progress marker (`_build/<job>.json`
+under the pyramid prefix, outside the zarr metadata) records each completed
+level plus the source snapshot id. `--mode resume` reads the marker and
+rewrites from the first incomplete level (a partially-written level is
+rewritten deterministically -- the source is tag-pinned); `--mode fresh`
+(default) resets the marker and writes everything. Resuming against a marker
+from a different snapshot fails loudly: that's a new dataset, not a resume --
+bump MULTISCALE_GENERATION and build fresh.
 
 Usage:
     python visualize/pyramid/build_pyramid.py --job composites
-    python visualize/pyramid/build_pyramid.py --job runoff_onset
-    python visualize/pyramid/build_pyramid.py --job all              # sequential local run
+    python visualize/pyramid/build_pyramid.py --job all                 # sequential local run
+    python visualize/pyramid/build_pyramid.py --job runoff_onset --mode resume
     python visualize/pyramid/build_pyramid.py --job composites --plan-only
     # shakedown: one small variable to a scratch prefix
     python visualize/pyramid/build_pyramid.py --variables runoff_onset_median \\
@@ -47,6 +56,7 @@ import logging
 import sys
 from pathlib import Path
 
+import obstore
 import xarray as xr
 import xproj  # noqa: F401 -- registers the .proj accessor
 import zarr
@@ -63,6 +73,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("build_pyramid")
 
 DEFAULT_LEVELS = 10  # /0 native (80 m) ... /9 (~41 km); coarsest ~976 x 400 px
+
+# Bump when regenerating a pyramid for the SAME source tag (new conventions,
+# different levels/chunking, bug fix): pyramid blobs are served cache-immutable,
+# so regeneration must land at a new prefix. Committed here = provenance.
+MULTISCALE_GENERATION = 1
 
 JOBS = {
     "composites": ["runoff_onset_median", "runoff_onset_mad", "temporal_resolution_median"],
@@ -84,34 +99,47 @@ LAYER_HINTS = {
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--config-file", default="global_config_v10.txt",
-                   help="Config file name in config/ (e.g. global_config_v10.txt, "
-                        "matching the fleet scripts); values containing '/' are "
-                        "treated as explicit paths instead")
     p.add_argument("--source-tag", default="v10.0",
                    help="Icechunk tag to build from (never a branch -- the "
-                        "pyramid must come from a pinned, released snapshot)")
-    p.add_argument("--dest-prefix", default=None,
-                   help="container/prefix for the pyramid store. Default: "
-                        "snowmelt/snowmelt_runoff_onset/global_runoff_onset_<tag>_multiscale_1")
+                        "pyramid must come from a pinned, released snapshot). "
+                        "The config file and destination prefix derive from it.")
+    p.add_argument("--mode", choices=["fresh", "resume"], default="fresh",
+                   help="fresh: write all levels from scratch (resets the "
+                        "progress marker). resume: continue from the first "
+                        "level the marker doesn't record as complete.")
     p.add_argument("--job", choices=[*JOBS, "all"], default=None,
                    help="Variable group to build ('all' runs the groups sequentially)")
     p.add_argument("--variables", default=None,
                    help="Comma-separated variable override (instead of --job); "
                         "for shakedowns and partial rebuilds")
+    p.add_argument("--config-file", default=None,
+                   help="Override the config file (default: derived from the "
+                        "tag, e.g. v10.0 -> config/global_config_v10.txt). "
+                        "Bare names resolve in config/; values with '/' are paths.")
+    p.add_argument("--dest-prefix", default=None,
+                   help="Override the container/prefix for the pyramid store "
+                        "(default: snowmelt/snowmelt_runoff_onset/"
+                        "global_runoff_onset_<tag>_multiscale_<generation>)")
     p.add_argument("--levels", type=int, default=DEFAULT_LEVELS)
-    p.add_argument("--write-levels", default=None,
-                   help="Subset of levels to write, e.g. '2-9' or '0,1' "
-                        "(default: all). Resume mode after a partial run: "
-                        "level N is block-reduced from level N-1, which must "
-                        "already be complete in the store; a partially-written "
-                        "first level is rewritten deterministically")
     p.add_argument("--max-workers", type=int, default=None,
                    help="topozarr region thread pool size (default: derived "
                         "from CPU count and available memory)")
     p.add_argument("--plan-only", action="store_true",
-                   help="Print per-level shapes/chunks without writing")
+                   help="Print per-level shapes without writing")
     return p.parse_args()
+
+
+def load_config(args):
+    """Config derived from the source tag unless explicitly overridden."""
+    name = args.config_file
+    if name is None:
+        version = args.source_tag.split(".")[0]  # 'v10.0' -> 'v10'
+        name = f"global_config_{version}.txt"
+    if "/" in name:
+        return Config(name)
+    if not name.endswith(".txt"):
+        name = f"global_config_{name}.txt"
+    return Config(str(Path(__file__).parent.parent.parent / "config" / name))
 
 
 def open_source(config, tag):
@@ -132,15 +160,34 @@ def open_source(config, tag):
     return ds, snapshot_id
 
 
-def dest_store(config, dest_prefix, read_only=False):
+def azure_prefix_store(config, dest_prefix):
     container, prefix = dest_prefix.split("/", 1)
-    azure = AzureStore(account_name=config.azure_storage_account,
-                       container_name=container, prefix=prefix,
-                       sas_key=config.sas_token)
-    return zarr.storage.ObjectStore(azure, read_only=read_only)
+    return AzureStore(account_name=config.azure_storage_account,
+                      container_name=container, prefix=prefix,
+                      sas_key=config.sas_token)
 
 
-def build_job(ds, job_vars, args, config, snapshot_id):
+def dest_store(config, dest_prefix, read_only=False):
+    return zarr.storage.ObjectStore(azure_prefix_store(config, dest_prefix),
+                                    read_only=read_only)
+
+
+def read_progress(az, job_name):
+    """Progress marker for a job, or None if absent/unreadable."""
+    try:
+        return json.loads(bytes(obstore.get(az, f"_build/{job_name}.json").bytes()))
+    except Exception:
+        return None
+
+
+def write_progress(az, job_name, snapshot_id, completed):
+    payload = {"job": job_name, "source_snapshot_id": snapshot_id,
+               "completed_levels": sorted(completed),
+               "topozarr_version": TOPOZARR_VERSION}
+    obstore.put(az, f"_build/{job_name}.json", json.dumps(payload).encode())
+
+
+def build_job(ds, job_name, job_vars, args, config, snapshot_id):
     missing = [v for v in job_vars if v not in ds.data_vars]
     if missing:
         raise SystemExit(f"variables not in source store: {missing}")
@@ -167,23 +214,42 @@ def build_job(ds, job_vars, args, config, snapshot_id):
         log.info("Plan only: no changes made")
         return
 
-    write_levels = None
-    if args.write_levels:
-        spec = args.write_levels
-        if "-" in spec:
-            lo, hi = spec.split("-")
-            write_levels = list(range(int(lo), int(hi) + 1))
-        else:
-            write_levels = [int(x) for x in spec.split(",")]
-        assert all(0 <= lv < args.levels for lv in write_levels), write_levels
+    az = azure_prefix_store(config, args.dest_prefix)
+    completed: set[int] = set()
+    if args.mode == "resume":
+        marker = read_progress(az, job_name)
+        if marker:
+            if marker["source_snapshot_id"] != snapshot_id:
+                raise SystemExit(
+                    f"{job_name}: progress marker is from snapshot "
+                    f"{marker['source_snapshot_id']}, source tag now resolves to "
+                    f"{snapshot_id}. That's a different dataset, not a resume -- "
+                    "bump MULTISCALE_GENERATION and build fresh.")
+            completed = set(marker["completed_levels"])
+    else:
+        write_progress(az, job_name, snapshot_id, completed)
+
+    # rewrite everything from the first gap: each level derives from the one
+    # before it, so levels past a rewritten one are stale even if marked
+    start = next((lv for lv in range(args.levels) if lv not in completed),
+                 args.levels)
+    todo = list(range(start, args.levels))
+    if not todo:
+        log.info("%s: all %d levels already complete -- nothing to do",
+                 job_name, args.levels)
+        return
 
     store = dest_store(config, args.dest_prefix)
-    log.info("Writing %s -> %s (mode='a', levels=%s, topozarr %s)",
-             job_vars, args.dest_prefix, write_levels or "all", TOPOZARR_VERSION)
-    stats = pyramid.write(store, mode="a", max_workers=args.max_workers,
-                          levels=write_levels, progress=True, stats=True)
-    if stats:
-        log.info("write stats: %s", json.dumps(stats, default=str))
+    log.info("Writing %s levels %s -> %s (mode='a', topozarr %s)",
+             job_vars, todo, args.dest_prefix, TOPOZARR_VERSION)
+    for lv in todo:
+        stats = pyramid.write(store, mode="a", levels=[lv],
+                              max_workers=args.max_workers,
+                              progress=True, stats=True)
+        if stats:
+            log.info("level %d stats: %s", lv, json.dumps(stats, default=str))
+        completed.add(lv)
+        write_progress(az, job_name, snapshot_id, completed)
 
     # Deterministic provenance (identical across jobs of one build, so the
     # last-writer-wins race between parallel jobs is benign).
@@ -198,7 +264,7 @@ def build_job(ds, job_vars, args, config, snapshot_id):
         "topozarr_version": TOPOZARR_VERSION,
         "builder": "visualize/pyramid/build_pyramid.py",
     }
-    log.info("Job done: %s", job_vars)
+    log.info("Job done: %s", job_name)
 
 
 def main():
@@ -206,31 +272,28 @@ def main():
     if (args.job is None) == (args.variables is None):
         raise SystemExit("pass exactly one of --job / --variables")
 
-    if "/" in args.config_file:
-        config = Config(args.config_file)
-    else:
-        # mirror process_single_tile.py: the arg is a file name in config/
-        config_name = (args.config_file if args.config_file.endswith(".txt")
-                       else f"global_config_{args.config_file}.txt")
-        config = Config(str(Path(__file__).parent.parent.parent
-                            / "config" / config_name))
+    config = load_config(args)
     if args.dest_prefix is None:
-        args.dest_prefix = ("snowmelt/snowmelt_runoff_onset/"
-                            f"global_runoff_onset_{args.source_tag}_multiscale_1")
+        args.dest_prefix = (
+            "snowmelt/snowmelt_runoff_onset/"
+            f"global_runoff_onset_{args.source_tag}"
+            f"_multiscale_{MULTISCALE_GENERATION}")
 
     ds, snapshot_id = open_source(config, args.source_tag)
-    log.info("Source: %s @ %s (snapshot %s)",
-             config.global_runoff_icechunk_azure_prefix, args.source_tag, snapshot_id)
+    log.info("Source: %s @ %s (snapshot %s) -> %s [%s]",
+             config.global_runoff_icechunk_azure_prefix, args.source_tag,
+             snapshot_id, args.dest_prefix, args.mode)
 
     if args.variables:
-        groups = [args.variables.split(",")]
+        job_vars = args.variables.split(",")
+        groups = [("_".join(job_vars), job_vars)]
     elif args.job == "all":
-        groups = list(JOBS.values())
+        groups = list(JOBS.items())
     else:
-        groups = [JOBS[args.job]]
+        groups = [(args.job, JOBS[args.job])]
 
-    for job_vars in groups:
-        build_job(ds, job_vars, args, config, snapshot_id)
+    for job_name, job_vars in groups:
+        build_job(ds, job_name, job_vars, args, config, snapshot_id)
 
 
 if __name__ == "__main__":
