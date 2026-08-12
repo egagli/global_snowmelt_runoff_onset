@@ -10,15 +10,19 @@ export type Variable =
 
 export type Basemap = 'dark' | 'satellite' | 'topography'
 
+import type { ColormapName } from './colormaps'
+
 // scale: on-disk int16 -> physical units (CF scale_factor; zarr-layer and
 // zarrita both hand us raw stored values, so scaling is applied in the
 // fragment shader and in point-query formatting).
 // hasWaterYear: variable carries the water_year dimension (year slider applies).
+// Colormaps are FIXED per variable (matplotlib ramps matching the manuscript
+// figures); the user adjusts vmin/vmax/opacity only.
 export const VARIABLE_CONFIGS: Record<
   Variable,
   {
     clim: [number, number]
-    colormap: string
+    colormap: ColormapName
     label: string
     units: string
     scale: number
@@ -27,40 +31,40 @@ export const VARIABLE_CONFIGS: Record<
 > = {
   runoff_onset: {
     clim: [110, 270],
-    colormap: 'rainbow',
-    label: 'Snowmelt Runoff Onset',
+    colormap: 'viridis',
+    label: 'runoff onset',
     units: 'day of water year',
     scale: 1,
     hasWaterYear: true,
   },
   runoff_onset_median: {
     clim: [110, 270],
-    colormap: 'rainbow',
-    label: 'Median Snowmelt Runoff Onset (all water years)',
+    colormap: 'viridis',
+    label: 'runoff onset median',
     units: 'day of water year',
     scale: 1,
     hasWaterYear: false,
   },
   runoff_onset_mad: {
     clim: [0, 30],
-    colormap: 'fire',
-    label: 'Runoff Onset Median Absolute Deviation (all water years)',
+    colormap: 'Reds',
+    label: 'median absolute deviation',
     units: 'days',
     scale: 0.1,
     hasWaterYear: false,
   },
   temporal_resolution: {
-    clim: [0, 24],
-    colormap: 'water',
-    label: 'Temporal Resolution',
+    clim: [2, 14],
+    colormap: 'YlGn_r',
+    label: 'temporal resolution',
     units: 'days',
     scale: 0.1,
     hasWaterYear: true,
   },
   temporal_resolution_median: {
-    clim: [0, 24],
-    colormap: 'water',
-    label: 'Median Temporal Resolution (all water years)',
+    clim: [2, 14],
+    colormap: 'YlGn_r',
+    label: 'temporal resolution median',
     units: 'days',
     scale: 0.1,
     hasWaterYear: false,
@@ -68,6 +72,14 @@ export const VARIABLE_CONFIGS: Record<
 }
 
 export const ALL_VARIABLES = Object.keys(VARIABLE_CONFIGS) as Variable[]
+
+// Selector columns + point-query order: composites first, then annual.
+export const COMPOSITE_VARIABLES: Variable[] = [
+  'runoff_onset_median', 'runoff_onset_mad', 'temporal_resolution_median',
+]
+export const ANNUAL_VARIABLES: Variable[] = [
+  'runoff_onset', 'temporal_resolution',
+]
 
 export const WATER_YEARS = [
   2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025,
@@ -91,7 +103,6 @@ interface AppState {
   waterYearIndex: number
   opacity: number
   clim: [number, number]
-  colormap: string
   globeProjection: boolean
   loadingState: LoadingState
   sidebarWidth: number | null
@@ -102,7 +113,6 @@ interface AppState {
   setWaterYearIndex: (i: number) => void
   setOpacity: (o: number) => void
   setClim: (c: [number, number]) => void
-  setColormap: (c: string) => void
   setGlobeProjection: (g: boolean) => void
   setLoadingState: (s: LoadingState) => void
   setSidebarWidth: (w: number | null) => void
@@ -116,7 +126,6 @@ export const useStore = create<AppState>((set) => ({
   waterYearIndex: WATER_YEARS.length - 1,
   opacity: 1,
   clim: VARIABLE_CONFIGS.runoff_onset_median.clim,
-  colormap: VARIABLE_CONFIGS.runoff_onset_median.colormap,
   globeProjection: true,
   loadingState: { loading: false, metadata: false, chunks: false },
   sidebarWidth: null,
@@ -127,12 +136,10 @@ export const useStore = create<AppState>((set) => ({
     set({
       variable,
       clim: VARIABLE_CONFIGS[variable].clim,
-      colormap: VARIABLE_CONFIGS[variable].colormap,
     }),
   setWaterYearIndex: (waterYearIndex) => set({ waterYearIndex }),
   setOpacity: (opacity) => set({ opacity }),
   setClim: (clim) => set({ clim }),
-  setColormap: (colormap) => set({ colormap }),
   setGlobeProjection: (globeProjection) => set({ globeProjection }),
   setLoadingState: (loadingState) => set({ loadingState }),
   setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),

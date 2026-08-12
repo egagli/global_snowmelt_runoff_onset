@@ -1,20 +1,15 @@
 import React, { useEffect, useState, CSSProperties } from 'react'
 import { Box, Flex } from 'theme-ui'
-import { Filter, Slider, Colorbar, Input } from '@carbonplan/components'
-import { useThemedColormap } from '@carbonplan/colormaps'
+import { Slider, Input } from '@carbonplan/components'
 import {
   useStore,
   VARIABLE_CONFIGS,
   WATER_YEARS,
+  COMPOSITE_VARIABLES,
+  ANNUAL_VARIABLES,
   type Variable,
 } from '../lib/store'
-
-const COLORMAPS = [
-  'rainbow', 'fire', 'earth', 'water', 'warm', 'cool',
-  'reds', 'oranges', 'yellows', 'greens', 'teals', 'blues',
-  'purples', 'pinks', 'greys', 'wind', 'heart', 'sinebow',
-  'pinkgreen', 'redteal', 'orangeblue', 'yellowpurple',
-]
+import { COLORMAP_ARRAYS, MONTH_STARTS_DOWY } from '../lib/colormaps'
 
 export const SIDEBAR_WIDTH = 380
 const BG = 'rgba(22,25,30,0.96)'
@@ -31,12 +26,116 @@ const sectionLabelStyle: CSSProperties = {
   marginBottom: 8,
 }
 
-const VARIABLE_LABELS: Record<Variable, string> = {
-  runoff_onset: 'onset',
-  runoff_onset_median: 'onset median',
-  runoff_onset_mad: 'onset MAD',
-  temporal_resolution: 'temp. res.',
-  temporal_resolution_median: 'TR median',
+const variableButtonStyle = (active: boolean): CSSProperties => ({
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  padding: '4px 8px',
+  marginBottom: 4,
+  borderRadius: 4,
+  border: `1px solid ${active ? ACCENT : BORDER}`,
+  background: active ? 'rgba(29,189,143,0.15)' : 'transparent',
+  color: active ? ACCENT : TEXT,
+  fontSize: 12,
+  cursor: 'pointer',
+  transition: 'background 0.15s, border-color 0.15s, color 0.15s',
+})
+
+/** Horizontal gradient bar from a colormap ramp; DOWY variables get month
+ *  boundary ticks with BOTH hemispheres' month labels (NH row + italic SH
+ *  row, mirroring plot_utils.create_month_colorbar(hemisphere='both')). */
+const FixedColorbar = ({
+  colormap,
+  clim,
+  showMonths,
+}: {
+  colormap: string[]
+  clim: [number, number]
+  showMonths: boolean
+}) => {
+  const gradient = `linear-gradient(to right, ${colormap.join(', ')})`
+  const [lo, hi] = clim
+  const span = hi - lo
+
+  // month boundaries falling inside the clim range, as bar fractions
+  const ticks =
+    showMonths && span > 0
+      ? MONTH_STARTS_DOWY.filter(({ dowy }) => dowy > lo && dowy < hi).map(
+          ({ month, shMonth, dowy }) => ({ month, shMonth, frac: (dowy - lo) / span })
+        )
+      : []
+
+  return (
+    <div>
+      <div
+        style={{
+          position: 'relative',
+          height: 14,
+          borderRadius: 3,
+          background: gradient,
+          overflow: 'hidden',
+        }}
+      >
+        {ticks.map(({ frac }, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: `${frac * 100}%`,
+              top: 0,
+              bottom: 0,
+              width: 1,
+              background: 'rgba(255,255,255,0.85)',
+            }}
+          />
+        ))}
+      </div>
+      {showMonths && (
+        <>
+          {/* northern-hemisphere months (WY starts Oct 1) */}
+          <div style={{ position: 'relative', height: 12, marginTop: 2 }}>
+            {ticks.map(({ month, frac }, i) => (
+              <span
+                key={i}
+                style={{
+                  position: 'absolute',
+                  left: `${frac * 100}%`,
+                  transform: 'translateX(2px)',
+                  fontSize: 9,
+                  color: TEXT,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {month}
+              </span>
+            ))}
+          </div>
+          {/* southern-hemisphere months (WY starts Apr 1; same DOWY, +6 months) */}
+          <div style={{ position: 'relative', height: 12 }}>
+            {ticks.map(({ shMonth, frac }, i) => (
+              <span
+                key={i}
+                style={{
+                  position: 'absolute',
+                  left: `${frac * 100}%`,
+                  transform: 'translateX(2px)',
+                  fontSize: 8.5,
+                  fontStyle: 'italic',
+                  color: DIM,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                ({shMonth})
+              </span>
+            ))}
+          </div>
+          <div style={{ fontSize: 8.5, color: DIM, marginTop: 2 }}>
+            N. hemisphere month <span style={{ fontStyle: 'italic' }}>(S. hemisphere month)</span>
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 const SidebarContent = () => {
@@ -44,14 +143,16 @@ const SidebarContent = () => {
   const waterYearIndex = useStore((s) => s.waterYearIndex)
   const opacity = useStore((s) => s.opacity)
   const clim = useStore((s) => s.clim)
-  const colormap = useStore((s) => s.colormap)
   const setVariable = useStore((s) => s.setVariable)
   const setWaterYearIndex = useStore((s) => s.setWaterYearIndex)
   const setOpacity = useStore((s) => s.setOpacity)
   const setClim = useStore((s) => s.setClim)
-  const setColormap = useStore((s) => s.setColormap)
 
-  const themedColormap = useThemedColormap(colormap)
+  const vCfg = VARIABLE_CONFIGS[variable]
+  const colormap = COLORMAP_ARRAYS[vCfg.colormap]
+  const isDowy = vCfg.units === 'day of water year'
+  const annualActive = vCfg.hasWaterYear
+
   const [climInputs, setClimInputs] = useState<[string, string]>([
     String(clim[0]),
     String(clim[1]),
@@ -80,7 +181,18 @@ const SidebarContent = () => {
     }
   }
 
-  const activeHasWaterYear = VARIABLE_CONFIGS[variable].hasWaterYear
+  const renderVariableColumn = (header: string, vars: Variable[]) => (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 10, color: DIM, lineHeight: 1.4, marginBottom: 6, minHeight: 28 }}>
+        {header}
+      </div>
+      {vars.map((v) => (
+        <button key={v} onClick={() => setVariable(v)} style={variableButtonStyle(v === variable)}>
+          {VARIABLE_CONFIGS[v].label}
+        </button>
+      ))}
+    </div>
+  )
 
   return (
     <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16, color: TEXT, fontSize: 13 }}>
@@ -122,34 +234,33 @@ const SidebarContent = () => {
 
       <div style={{ borderTop: `1px solid ${BORDER}` }} />
 
-      {/* Variable */}
+      {/* Variable — two columns: composites | annual */}
       <div>
         <div style={sectionLabelStyle}>variable</div>
-        <Filter
-          values={Object.fromEntries(
-            (Object.keys(VARIABLE_LABELS) as Variable[]).map((v) => [
-              VARIABLE_LABELS[v],
-              v === variable,
-            ])
+        <div style={{ display: 'flex', gap: 10 }}>
+          {renderVariableColumn(
+            `multi-year composite products (WY${WATER_YEARS[0]}–WY${WATER_YEARS[WATER_YEARS.length - 1]})`,
+            COMPOSITE_VARIABLES
           )}
-          setValues={(obj: Record<string, boolean>) => {
-            const entry = (Object.entries(VARIABLE_LABELS) as [Variable, string][]).find(
-              ([, label]) => obj[label]
-            )
-            if (entry) setVariable(entry[0])
-          }}
-        />
+          {renderVariableColumn('annual products', ANNUAL_VARIABLES)}
+        </div>
         <div style={{ fontSize: 11, color: DIM, marginTop: 4 }}>
-          {VARIABLE_CONFIGS[variable].label} [{VARIABLE_CONFIGS[variable].units}]
+          {vCfg.label} [{vCfg.units}]
         </div>
       </div>
 
-      {/* Water Year */}
-      <div style={{ opacity: activeHasWaterYear ? 1 : 0.45 }}>
+      {/* Water Year — disabled while a composite is selected */}
+      <div
+        style={{
+          opacity: annualActive ? 1 : 0.35,
+          pointerEvents: annualActive ? 'auto' : 'none',
+        }}
+        aria-disabled={!annualActive}
+      >
         <div style={{ ...sectionLabelStyle, marginBottom: 4 }}>
           water year —{' '}
           <span style={{ color: TEXT, fontWeight: 700 }}>{WATER_YEARS[waterYearIndex]}</span>
-          {!activeHasWaterYear && (
+          {!annualActive && (
             <span style={{ fontWeight: 400 }}> (composite spans all years)</span>
           )}
         </div>
@@ -158,6 +269,7 @@ const SidebarContent = () => {
           max={WATER_YEARS.length - 1}
           step={1}
           value={waterYearIndex}
+          disabled={!annualActive}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
             setWaterYearIndex(parseInt(e.target.value))
           }
@@ -167,9 +279,11 @@ const SidebarContent = () => {
             <button
               key={year}
               onClick={() => setWaterYearIndex(i)}
+              disabled={!annualActive}
               style={{
                 background: 'none', border: 'none', padding: 0, margin: 0,
-                fontSize: 9, lineHeight: 1, cursor: 'pointer', fontFamily: 'monospace',
+                fontSize: 9, lineHeight: 1, cursor: annualActive ? 'pointer' : 'default',
+                fontFamily: 'monospace',
                 color: i === waterYearIndex ? ACCENT : DIM,
               }}
             >
@@ -179,36 +293,12 @@ const SidebarContent = () => {
         </div>
       </div>
 
-      {/* Colormap */}
+      {/* Range — fixed colormap; user adjusts vmin/vmax only */}
       <div>
-        <div style={sectionLabelStyle}>colormap</div>
-        <select
-          value={colormap}
-          onChange={(e) => setColormap(e.target.value)}
-          style={{
-            width: '100%',
-            background: '#1e2128',
-            color: TEXT,
-            border: `1px solid ${BORDER}`,
-            borderRadius: 4,
-            fontSize: 12,
-            padding: '5px 8px',
-            cursor: 'pointer',
-            fontFamily: 'monospace',
-            marginBottom: 8,
-          }}
-        >
-          {COLORMAPS.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        <Colorbar width='100%' colormap={themedColormap} horizontal />
-      </div>
-
-      {/* Range */}
-      <div>
-        <div style={sectionLabelStyle}>range</div>
-        <Flex sx={{ gap: 2, alignItems: 'center' }}>
+        <div style={sectionLabelStyle}>
+          range{isDowy ? ' [day of water year]' : ' [days]'}
+        </div>
+        <Flex sx={{ gap: 2, alignItems: 'flex-start' }}>
           <Input
             size='xs'
             type='number'
@@ -218,8 +308,8 @@ const SidebarContent = () => {
             onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter') commitClim(0) }}
             sx={{ width: `${Math.max(2, climInputs[0].length + 2)}ch` }}
           />
-          <Box sx={{ flex: 1 }}>
-            <Colorbar width='100%' colormap={themedColormap} horizontal />
+          <Box sx={{ flex: 1, pt: '2px' }}>
+            <FixedColorbar colormap={colormap} clim={clim} showMonths={isDowy} />
           </Box>
           <Input
             size='xs'

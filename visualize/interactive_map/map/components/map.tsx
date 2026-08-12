@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Box, Spinner } from 'theme-ui'
-import { useThemedColormap, makeColormap } from '@carbonplan/colormaps'
 import { ZarrLayer, ZarrLayerOptions } from '@carbonplan/zarr-layer'
 import FetchStore from '@zarrita/storage/fetch'
 import { open, get } from 'zarrita'
@@ -15,6 +14,7 @@ import {
   type Variable,
   type ClickInfo,
 } from '../lib/store'
+import { COLORMAP_ARRAYS } from '../lib/colormaps'
 
 const ACCENT = '#1dbd8f'
 const FILL_VALUE = -9999
@@ -179,7 +179,6 @@ export const Map = () => {
   const waterYearIndex = useStore((s) => s.waterYearIndex)
   const opacity = useStore((s) => s.opacity)
   const clim = useStore((s) => s.clim)
-  const colormap = useStore((s) => s.colormap)
   const globeProjection = useStore((s) => s.globeProjection)
   const sidebarWidth = useStore((s) => s.sidebarWidth)
   const loadingState = useStore((s) => s.loadingState)
@@ -188,7 +187,8 @@ export const Map = () => {
   const setClickInfo = useStore((s) => s.setClickInfo)
   const setZoomLevel = useStore((s) => s.setZoomLevel)
 
-  const colormapArray = useThemedColormap(colormap, { format: 'hex' })
+  // fixed matplotlib ramp per variable (no user colormap selection)
+  const colormapArray = COLORMAP_ARRAYS[VARIABLE_CONFIGS[variable].colormap]
 
   // Map initialization — runs once
   useEffect(() => {
@@ -385,7 +385,7 @@ export const Map = () => {
         source: ZARR_URL,
         variable: varName,
         clim: isActive ? state.clim : vCfg.clim,
-        colormap: makeColormap(isActive ? state.colormap : vCfg.colormap, { format: 'hex' }),
+        colormap: COLORMAP_ARRAYS[vCfg.colormap],
         opacity: isActive ? state.opacity : 0,
         // CRS/extent/orientation come from the store's proj:/spatial: attrs
         // (zarr-layer >= 0.8 self-describing stores) — no georeferencing here.
@@ -452,7 +452,7 @@ export const Map = () => {
     layer.setOpacity(opacity)
     layer.setClim(clim)
     layer.setColormap(colormapArray)
-  }, [variable, opacity, clim, colormapArray])
+  }, [variable, opacity, clim, colormapArray])  // colormapArray changes with variable
 
   // Water year selector update on the yearly layers + re-query selected point
   useEffect(() => {

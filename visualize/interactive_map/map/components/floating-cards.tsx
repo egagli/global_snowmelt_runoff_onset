@@ -3,6 +3,8 @@ import {
   useStore,
   WATER_YEARS,
   VARIABLE_CONFIGS,
+  COMPOSITE_VARIABLES,
+  ANNUAL_VARIABLES,
   type Variable,
   type Basemap,
 } from '../lib/store'
@@ -145,17 +147,14 @@ const TopRightCard = ({ right, top }: { right: number; top: number }) => {
 // PointQueryCard — exact level-0 values at the clicked point
 // ---------------------------------------------------------------------------
 
-const QUERY_ROWS: { key: Variable; label: string }[] = [
-  { key: 'runoff_onset',               label: 'onset' },
-  { key: 'runoff_onset_median',        label: 'onset median' },
-  { key: 'runoff_onset_mad',           label: 'onset MAD' },
-  { key: 'temporal_resolution',        label: 'temporal res.' },
-  { key: 'temporal_resolution_median', label: 'TR median' },
-]
+// Composites first, then annual -- same names as the variable selector; the
+// annual rows get the active water year prepended at render time.
+const QUERY_ROWS: Variable[] = [...COMPOSITE_VARIABLES, ...ANNUAL_VARIABLES]
 
 const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
   const clickInfo = useStore((s) => s.clickInfo)
   const waterYearIndex = useStore((s) => s.waterYearIndex)
+  const activeVariable = useStore((s) => s.variable)
   const waterYear = WATER_YEARS[waterYearIndex]
   const southernHemisphere = (clickInfo?.lat ?? 0) < 0
 
@@ -186,21 +185,33 @@ const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
             {clickInfo.status === 'querying' ? (
               <div style={{ color: DIM, fontSize: 14 }}>querying…</div>
             ) : (
-              QUERY_ROWS.map(({ key, label }) => (
-                <div key={key} style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  alignItems: 'baseline', gap: 8, marginBottom: 6,
-                }}>
-                  <span style={{ color: DIM, fontSize: 14, flexShrink: 0 }}>{label}</span>
-                  <span style={{
-                    fontFamily: 'monospace', fontSize: 16, fontWeight: 700,
-                    textAlign: 'right',
-                    color: clickInfo.values[key] === null ? DIM : ACCENT,
+              QUERY_ROWS.map((key) => {
+                const cfg = VARIABLE_CONFIGS[key]
+                const label = cfg.hasWaterYear ? `WY${waterYear} ${cfg.label}` : cfg.label
+                const isActive = key === activeVariable
+                return (
+                  <div key={key} style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'baseline', gap: 8, marginBottom: 4,
+                    padding: '2px 6px', borderRadius: 4,
+                    background: isActive ? 'rgba(29,189,143,0.15)' : 'transparent',
+                    border: `1px solid ${isActive ? ACCENT : 'transparent'}`,
                   }}>
-                    {formatValue(clickInfo.values[key], key, waterYear, southernHemisphere)}
-                  </span>
-                </div>
-              ))
+                    <span style={{
+                      color: isActive ? ACCENT : DIM,
+                      fontSize: 13, flexShrink: 0,
+                      fontWeight: isActive ? 700 : 400,
+                    }}>{label}</span>
+                    <span style={{
+                      fontFamily: 'monospace', fontSize: 15, fontWeight: 700,
+                      textAlign: 'right',
+                      color: clickInfo.values[key] === null ? DIM : ACCENT,
+                    }}>
+                      {formatValue(clickInfo.values[key], key, waterYear, southernHemisphere)}
+                    </span>
+                  </div>
+                )
+              })
             )}
             <div style={{ color: DIM, fontSize: 10, marginTop: 8, lineHeight: 1.5 }}>
               Values read from the full-resolution (~80 m) data. Yearly variables use the
