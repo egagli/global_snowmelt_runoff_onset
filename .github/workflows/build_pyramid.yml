@@ -4,8 +4,10 @@ name: Build Visualization Pyramid
 # tagged icechunk snapshot: the composites job runs first, alone, creating the
 # store structure and convention attrs; the two yearly-variable jobs then run
 # in parallel (they own disjoint zarr arrays, so they never conflict). Jobs
-# are idempotent -- rerun a failed job whole. Runners sit next to the Azure
-# data, so this beats any home-connection run by ~an order of magnitude.
+# are idempotent; levels are written sequentially, so a timed-out job resumes
+# with `jobs` + `write_levels` (e.g. jobs=runoff_onset, write_levels=2-9
+# rewrites from the first incomplete level -- find it from the dead job's last
+# tqdm region index). Runners sit next to the Azure data.
 
 on:
   workflow_dispatch:
@@ -25,6 +27,16 @@ on:
         required: false
         default: '10'
         type: string
+      jobs:
+        description: 'Comma-separated subset of jobs to run'
+        required: false
+        default: 'composites,runoff_onset,temporal_resolution'
+        type: string
+      write_levels:
+        description: 'Level subset to write, e.g. 2-9 (empty = all; resume mode after a partial run)'
+        required: false
+        default: ''
+        type: string
       config_file:
         description: 'Config file to use'
         required: false
@@ -41,8 +53,9 @@ env:
 jobs:
   composites:
     name: composites (creates store structure)
+    if: contains(inputs.jobs, 'composites')
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
 
@@ -57,15 +70,22 @@ jobs:
             --source-tag "${{ inputs.source_tag }}" \
             --levels "${{ inputs.levels }}" \
             --config-file ${{ inputs.config_file }} \
-            ${DEST_PREFIX:+--dest-prefix "$DEST_PREFIX"}
+            --max-workers 16 \
+            ${DEST_PREFIX:+--dest-prefix "$DEST_PREFIX"} \
+            ${WRITE_LEVELS:+--write-levels "$WRITE_LEVELS"}
         env:
           DEST_PREFIX: ${{ inputs.dest_prefix }}
+          WRITE_LEVELS: ${{ inputs.write_levels }}
 
   yearly:
     name: ${{ matrix.job }}
     needs: composites
+    # run whenever selected, tolerating a deliberately-skipped composites job
+    if: >-
+      always() && contains(inputs.jobs, matrix.job) &&
+      (needs.composites.result == 'success' || needs.composites.result == 'skipped')
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
@@ -84,6 +104,9 @@ jobs:
             --source-tag "${{ inputs.source_tag }}" \
             --levels "${{ inputs.levels }}" \
             --config-file ${{ inputs.config_file }} \
-            ${DEST_PREFIX:+--dest-prefix "$DEST_PREFIX"}
+            --max-workers 16 \
+            ${DEST_PREFIX:+--dest-prefix "$DEST_PREFIX"} \
+            ${WRITE_LEVELS:+--write-levels "$WRITE_LEVELS"}
         env:
           DEST_PREFIX: ${{ inputs.dest_prefix }}
+          WRITE_LEVELS: ${{ inputs.write_levels }}

@@ -85,7 +85,16 @@ a variable live in one job, so per-year parallelism isn't available — fine at 
    ```
 
 2. **Production build**: `gh workflow run build_pyramid.yml` (defaults: tag `v10.0`, 10 levels,
-   prefix `..._v10.0_multiscale_1`). Rerun a failed job whole via the same workflow.
+   prefix `..._v10.0_multiscale_1`). Observed reality (first v10.0 build, 2026-08-12): the
+   composites job took 1h46m, and each yearly job's level-0 pass alone ran ~5 h at topozarr's
+   derived 4 workers — both yearly jobs hit the original 300-min timeout *inside level 2*, i.e.
+   with ~92% of their work done. The workflow now runs 360-min timeouts and `--max-workers 16`
+   (I/O here is latency-bound; the fleet's thread-pool sweep showed scaling through 16).
+   **Resuming a timed-out job**: levels are written sequentially, so find the dead job's last
+   tqdm region index, map it to a level, and redispatch just that job from the first incomplete
+   level — e.g. `gh workflow run build_pyramid.yml -f jobs=runoff_onset,temporal_resolution
+   -f write_levels=2-9`. A partially-written level is rewritten deterministically (same
+   tag-pinned source), so resuming at the level that was in flight is safe.
 3. **Verify + headers**: run [`2_verify_pyramid.ipynb`](2_verify_pyramid.ipynb) against the
    production prefix — structure/attrs lint, level-0-vs-source exact comparison on the QC
    tiles, cross-level visuals, then the `Cache-Control: public, max-age=31536000, immutable`

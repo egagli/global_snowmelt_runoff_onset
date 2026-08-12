@@ -100,6 +100,12 @@ def parse_args():
                    help="Comma-separated variable override (instead of --job); "
                         "for shakedowns and partial rebuilds")
     p.add_argument("--levels", type=int, default=DEFAULT_LEVELS)
+    p.add_argument("--write-levels", default=None,
+                   help="Subset of levels to write, e.g. '2-9' or '0,1' "
+                        "(default: all). Resume mode after a partial run: "
+                        "level N is block-reduced from level N-1, which must "
+                        "already be complete in the store; a partially-written "
+                        "first level is rewritten deterministically")
     p.add_argument("--max-workers", type=int, default=None,
                    help="topozarr region thread pool size (default: derived "
                         "from CPU count and available memory)")
@@ -161,11 +167,21 @@ def build_job(ds, job_vars, args, config, snapshot_id):
         log.info("Plan only: no changes made")
         return
 
+    write_levels = None
+    if args.write_levels:
+        spec = args.write_levels
+        if "-" in spec:
+            lo, hi = spec.split("-")
+            write_levels = list(range(int(lo), int(hi) + 1))
+        else:
+            write_levels = [int(x) for x in spec.split(",")]
+        assert all(0 <= lv < args.levels for lv in write_levels), write_levels
+
     store = dest_store(config, args.dest_prefix)
-    log.info("Writing %s -> %s (mode='a', topozarr %s)",
-             job_vars, args.dest_prefix, TOPOZARR_VERSION)
+    log.info("Writing %s -> %s (mode='a', levels=%s, topozarr %s)",
+             job_vars, args.dest_prefix, write_levels or "all", TOPOZARR_VERSION)
     stats = pyramid.write(store, mode="a", max_workers=args.max_workers,
-                          progress=True, stats=True)
+                          levels=write_levels, progress=True, stats=True)
     if stats:
         log.info("write stats: %s", json.dumps(stats, default=str))
 
