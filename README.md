@@ -1,4 +1,4 @@
-# Global snowmelt runoff onset from Sentinel-1 SAR, 2015-2024
+# Global snowmelt runoff onset from Sentinel-1 SAR
 
 [![DOI](https://zenodo.org/badge/873255484.svg)](https://doi.org/10.5281/zenodo.19115464)
 
@@ -99,7 +99,7 @@ reproducibility map: for each manuscript result it records which notebook create
 where every quoted number durably lives, and its current v10-vs-v9 status (including
 updated versions as the v10 rebuild lands).
 
-Broader science analyses that use this dataset but aren't dataset construction/evaluation (regional case studies, climate correlation, population/basin-scale work) live in the separate [`global_snowmelt_runoff_onset_analysis`](https://github.com/egagli/global_snowmelt_runoff_onset_analysis) repository (split out of this repo's former `analysis/` folder in July 2026; it editable-installs this repo's package from a sibling clone).
+Broader science analyses that use this dataset but aren't dataset construction/evaluation (regional case studies, climate correlation, population/basin-scale work) live in the separate [`global_snowmelt_runoff_onset_analysis`](https://github.com/egagli/global_snowmelt_runoff_onset_analysis) repository.
 
 ## Quick start
 
@@ -181,6 +181,6 @@ University of Washington
 
 - [easysnowdata](https://github.com/egagli/easysnowdata): Snow data access tools
 - [sar_snowmelt_timing](https://github.com/egagli/sar_snowmelt_timing): Regional SAR methods
-- [MODIS_snow_phenology](https://github.com/egagli/MODIS_snow_phenology): Snow phenology software cited in the manuscript; generates the published snow phenology dataset ([10.5281/zenodo.21783366](https://doi.org/10.5281/zenodo.21783366)) and is the phenology input from config v10 onward
-- [MODIS_seasonal_snow_mask](https://github.com/egagli/MODIS_seasonal_snow_mask): Predecessor snow phenology processing (configs ≤ v9)
+- [MODIS_snow_phenology](https://github.com/egagli/MODIS_snow_phenology): Snow phenology software cited in the manuscript; generates the published snow phenology dataset ([10.5281/zenodo.21783366](https://doi.org/10.5281/zenodo.21783366)) 
+- [MODIS_seasonal_snow_mask](https://github.com/egagli/MODIS_seasonal_snow_mask): Predecessor snow phenology processing  
 - [global_snowmelt_runoff_onset_analysis](https://github.com/egagli/global_snowmelt_runoff_onset_analysis): Broader scientific analyses built on this dataset (regional case studies, climate correlation, basin/population-scale work) that go beyond dataset construction and evaluation
