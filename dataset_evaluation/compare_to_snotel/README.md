@@ -115,7 +115,10 @@ Interactive drill-down for a single station.
 ### `supplemental_figure_methodology.ipynb`
 
 Generates manuscript supplemental figures illustrating the detection methodology
-at representative sites.
+at representative sites. **This notebook writes the actual manuscript Fig. A1:
+`figures/v9/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png`**
+(846_CA_SNTL Virginia Lakes Ridge, high-SWE WY2017 vs. low-SWE WY2021; the
+final figure cell's `savefig` is commented "manuscript figure A1").
 
 1. Selects one station with clear SAR–SWE agreement and one with an ambiguous signal.
 2. Produces a multi-panel figure: filtered SWE time series with the 95 % threshold
@@ -125,14 +128,21 @@ at representative sites.
    fraction, and terrain.
 4. Saves figures to `figures/<version>/`.
 
+The v10 successor is
+[`../compare_to_all_public_snow_pillows/6_station_high_swe_low_swe_comparison.ipynb`](../compare_to_all_public_snow_pillows/6_station_high_swe_low_swe_comparison.ipynb),
+rebuilt on that framework's zarrs with the same styling.
+
 ---
 
 ### `supplemental_figure_methodology_explain_pos_bias_at_low_fcf_high_SWE.ipynb`
 
 Targeted investigation of positive bias at low-forest-cover-fraction sites with
 high SWE, focusing on three specific problem stations (1222_UT, 314_WY, 626_UT).
-**This notebook — not `supplemental_figure_methodology.ipynb` — is what writes
-`figures/v9/supplemental_figure_methodology.png`/`.pdf` (manuscript Fig. A1).**
+This notebook writes `figures/v9/supplemental_figure_methodology.png`/`.pdf` —
+**an older figure iteration, NOT the manuscript Fig. A1** (that is
+`figures/v9/high_swe_low_swe_backscatter_comparison_846_CA_SNTL_2017_2021.png`
+from `supplemental_figure_methodology.ipynb`; an earlier version of this README
+had the attribution backwards).
 
 1. Loads the precomputed comparison dataset and filters to the three stations of
    interest.
