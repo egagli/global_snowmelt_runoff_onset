@@ -1,13 +1,18 @@
 # Spatial coverage and temporal resolution
 
-Computes the dataset's spatial coverage, global seasonal snow extent, and average temporal resolution per water year and for the 10-year composites — manuscript **Table 1** and the "how much seasonal snow do we miss" text stat in Sect. 3.3.
+Computes the dataset's spatial coverage, global seasonal snow extent, and average temporal resolution per water year and for the composites — manuscript **Table 1** and the "how much seasonal snow do we miss" text stat in Sect. 3.3.
 
 ## Notebooks
 
 | Notebook | Description |
 | --- | --- |
-| [`calculate_spatial_coverage_and_temporal_resolution.ipynb`](calculate_spatial_coverage_and_temporal_resolution.ipynb) | Loads the MODIS-derived snow phenology dataset and the runoff onset product; computes spatial coverage (km²), global seasonal snow extent, percent coverage, and average temporal resolution for each water year in the config's range and the composites. This is Table 1. **Currently pinned to `global_config_v9.txt`** (WY2015–2024, 10-year composites); a v10 rerun spans WY2015–2025 and yields 11 rows + an 11-year composite. |
-| [`how_much_seasonal_snow_do_we_miss.ipynb`](how_much_seasonal_snow_do_we_miss.ipynb) | Estimates the seasonal snow area *not* captured by the dataset because Sentinel-1 acquires Extra Wide (not Interferometric Wide) mode over Antarctica and much of the Arctic. Sums seasonal snow area (per the Sturm & Liston 2021 classification, to avoid double-counting ice sheets/glaciers) over the ice-free areas of Greenland (363,919 km²), the Canadian Arctic Archipelago (1,235,852 km²), and the Russian Arctic Islands (9,080 km²), **plus an upper-bound 54,274 km² for Antarctica's total ice-free area** (Brooks et al. 2019 — used instead of Sturm & Liston there because of artifacting). Feeds the Sect. 3.3 text stat: **1,663,126 km² ≈ 1.6 million km² missed**. |
+Run `how_much_seasonal_snow_do_we_miss.ipynb` **first**: it writes the excluded-area
+summary that the coverage notebook reads to build Table 1's total-extent denominator.
+
+| Notebook | Description |
+| --- | --- |
+| [`how_much_seasonal_snow_do_we_miss.ipynb`](how_much_seasonal_snow_do_we_miss.ipynb) | Estimates the seasonal snow area *not* captured by the dataset because Sentinel-1 acquires Extra Wide (not Interferometric Wide) mode over Antarctica and much of the Arctic. Sums seasonal snow area (per the Sturm & Liston 2021 classification, to avoid double-counting ice sheets/glaciers) over the ice-free areas of Greenland (363,919 km²), the Canadian Arctic Archipelago (1,235,852 km²), and the Russian Arctic Islands (9,080 km²), **plus an upper-bound 54,274 km² for Antarctica's total ice-free area** (Brooks et al. 2019 — used instead of Sturm & Liston there because of artifacting). Feeds the Sect. 3.3 text stat: **1,663,126 km² ≈ 1.6 million km² missed**. The phenology dataset is used only as the reprojection target CRS, so these totals do not depend on the dataset version. |
+| [`calculate_spatial_coverage_and_temporal_resolution.ipynb`](calculate_spatial_coverage_and_temporal_resolution.ipynb) | Loads the MODIS-derived snow phenology dataset and the runoff onset product; computes spatial coverage (km²), global seasonal snow extent, percent coverage, and average temporal resolution for each water year in the config's range and the composites. This is Table 1. Reads the excluded-area summary written by the notebook above. v10 spans WY2015–2025, so it yields 11 rows + an 11-year composite (v9 was WY2015–2024). |
 
 ## Data
 
@@ -22,7 +27,8 @@ Computes the dataset's spatial coverage, global seasonal snow extent, and averag
 `results/<version>/` contains the CSV outputs consumed by the manuscript table and
 text (scoped by the dataset version the notebook's config names, so a v10 run does
 not overwrite the v9 tables):
-- `complete_spatial_coverage_and_temporal_res_per_water_year.csv` / `..._REVISED.csv` — the `_REVISED` variant adds `total_seasonal_snow_extent_km2` (MODIS extent **plus** the excluded polar area) and `percent_coverage_of_total_seasonal_snow_extent`, and is the one matching the manuscript's Table 1 percentages
+- `complete_spatial_coverage_and_temporal_res_per_water_year.csv` — Table 1. Includes `total_seasonal_snow_extent_km2` (MODIS extent **plus** the excluded polar area) and `percent_coverage_of_total_seasonal_snow_extent`, which is the column the manuscript's Table 1 percentages come from.
+  - Through v9 this was written twice, as a base table plus a `..._REVISED.csv`. `_REVISED` was a strict superset of the base table — identical rows and values, `percent_coverage` renamed to `percent_coverage_of_modis_snow_area`, plus the two total-extent columns — and was the one matching the manuscript, so from v10 on only the single consolidated table is written. The v9 pair is left as-is.
 - `modis_coverage_per_water_year.csv`
 - `runoff_onset_coverage_and_temporal_res_per_water_year.csv`
 - `seasonal_snow_excluded_area_summary.csv`
