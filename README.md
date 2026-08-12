@@ -103,23 +103,54 @@ Broader science analyses that use this dataset but aren't dataset construction/e
 
 ## Quick start
 
-Lazy remote access straight from Zenodo via the kerchunk reference file — recommended for regional analysis, since it fetches only the chunks your query touches:
+The example below mirrors the one on the [Zenodo dataset page](https://zenodo.org/records/19618062) — check that page for the more detailed usage guide (all three access patterns, chunk-count guidance, and additional usage notes). It opens the dataset lazily straight from Zenodo via the kerchunk reference file — recommended for regional analysis, since it fetches only the chunks your query touches.
 
 ```python
 import fsspec
 import xarray as xr
 import rioxarray
 
+# 1. Lazy remote access via the reference file
 REF_JSON_URL = "https://zenodo.org/records/19618062/files/global_snowmelt_runoff_onset.zarr.tar.refs.json"
 mapper = fsspec.get_mapper("reference://", fo=REF_JSON_URL, remote_protocol="https")
-ds = xr.open_zarr(mapper, consolidated=False, decode_coords="all")
+global_ds = xr.open_zarr(mapper, consolidated=False, decode_coords="all")
 
-# Clip to a region of interest (Mt. Rainier, WA), then pull the data
-rainier = ds.rio.clip_box(minx=-122, miny=46.7, maxx=-121.5, maxy=47, crs="EPSG:4326").compute()
+# 2. Clip to Mt. Rainier, WA
+rainier_ds = global_ds.rio.clip_box(minx=-122, miny=46.7, maxx=-121.5, maxy=47, crs="EPSG:4326").compute()
 
-# Annual runoff onset for water year 2020, and the 10-year median
-runoff_2020 = rainier.runoff_onset.sel(water_year=2020)
-median_onset = rainier.runoff_onset_median
+# 3. Reproject to UTM Zone 10N for equal area visualization
+rainier_utm_ds = rainier_ds.rio.reproject("EPSG:32610")
+
+# 4. Plot the 10-year composite products
+import matplotlib.pyplot as plt
+
+f, axs = plt.subplots(figsize=(12, 3), ncols=3, nrows=1)
+rainier_utm_ds["runoff_onset_median"].plot.imshow(
+    ax=axs[0], cmap='viridis', vmin=110, vmax=270,
+    cbar_kwargs={'label': 'day of water year'},
+)
+rainier_utm_ds["runoff_onset_mad"].plot.imshow(
+    ax=axs[1], cmap='Reds', vmin=0, vmax=60,
+    cbar_kwargs={'label': 'days'},
+)
+rainier_utm_ds["temporal_resolution_median"].plot.imshow(
+    ax=axs[2], cmap='summer', vmin=1, vmax=20,
+    cbar_kwargs={'label': 'days'},
+)
+
+for ax in axs:
+    ax.axis('off')
+    ax.set_aspect('equal')
+
+axs[0].set_title("10-year median snowmelt runoff onset")
+axs[1].set_title("10-year median absolute deviation")
+axs[2].set_title("10-year local median temporal resolution")
+f.tight_layout()
+
+# 5. Plot the annual runoff onset and temporal resolution products
+rainier_utm_ds["runoff_onset"].plot.imshow(col='water_year', col_wrap=5, cmap='viridis', vmin=110, vmax=270, subplot_kws={'aspect': 'equal'})
+
+rainier_utm_ds["temporal_resolution"].plot.imshow(col='water_year', col_wrap=5, cmap='summer', vmin=1, vmax=20, subplot_kws={'aspect': 'equal'})
 ```
 
 > **Note:** Zenodo rate-limits requests per IP — queries that touch more than ~100 Zarr chunks may fail. Subset variables, water years, and extent before calling `.compute()`, or download the full/annual/composite archives for larger analyses. See the [Zenodo record](https://zenodo.org/records/19618062) description for all three access patterns and additional usage notes.
