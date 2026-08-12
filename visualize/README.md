@@ -2,7 +2,7 @@
 
 This directory stores visualization notebooks and outputs — primarily the global composite figures used in the manuscript.
 
-> **Version provenance:** all figures currently checked in were generated from the **v9** Zarr v2 store (`snowmelt/snowmelt_runoff_onset/global_v9.zarr`). They will need regeneration once the v10 icechunk store run is complete.
+> **Version provenance:** figure outputs are scoped by dataset version (`figures/v9/` = the manuscript renders from the frozen Zarr v2 store `snowmelt/snowmelt_runoff_onset/global_v9.zarr`; `figures/v10/` = renders from the v10 icechunk store / pyramid). The `global/` figures were regenerated for v10 on 2026-08-12, and `methods/` on 2026-08-12 (with the annual stacks and the "N-year composites" title parametrized by water-year count).
 
 ## Directory structure
 
@@ -15,9 +15,9 @@ visualize/
 │   ├── download_and_preprocess_hillshade.ipynb
 │   └── global_hillshade_robinson.tif   # global hillshade used as basemap in Robinson-projection figures
 ├── methods/
-│   ├── create_methods_figure_components.ipynb   # renders each Fig. 1 panel (mountains map, valid-tiles map, Rainier S1/S2/snow-phenology imagery)
-│   ├── combine_methods_figure_components.ipynb  # assembles the panels into the final Fig. 1
-│   └── figures/                                 # panel PNGs + combined methods_figure.png (Fig. 1)
+│   ├── create_methods_figure_components.ipynb   # renders each Fig. 1 panel (valid-tiles map, global maps from the pyramid, Rainier S1/S2/snow-phenology imagery) into figures/<version>/
+│   ├── combine_methods_figure_components.ipynb  # assembles the panels into the final Fig. 1 (N_YEARS sets stack sheet counts + "N-year composites" title)
+│   └── figures/                                 # v9/ + v10/ — per-version panel PNGs + combined methods_figure.png (Fig. 1)
 ├── global/
 │   ├── global_composites.ipynb                       # Fig. 2, Fig. 3, Fig. A2, Fig. A4
 │   ├── global_annual_runoff_onset_and_temporal_res.ipynb  # Fig. A3
