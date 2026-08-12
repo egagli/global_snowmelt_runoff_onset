@@ -7,6 +7,10 @@ Eric Gagliano (egagli@uw.edu)
 
 ---
 
+<p align="center">
+  <a href="visualize/global/figures/v9/global_composite_median_polar.png"><img src="visualize/global/figures/v9/global_composite_median_polar.png" alt="10-year median snowmelt runoff onset, Northern Hemisphere polar stereographic view" width="500"></a>
+</p>
+
 ## Overview
 
 Global 80-meter resolution dataset of snowmelt runoff onset timing from Sentinel-1 SAR and MODIS snow phenology, spanning water years 2015-2024. Evaluated against snow pillows at 1,116 automated weather stations (Western U.S. including Alaska, British Columbia, Norway, Nepal): median timing difference −2.0 days, median absolute deviation 10.0 days.
