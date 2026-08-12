@@ -1,0 +1,72 @@
+name: Deploy map to GitHub Pages
+
+# Builds the Next.js static export in visualize/interactive_map/map/ and
+# publishes it to GitHub Pages (egagli.github.io/global_snowmelt_runoff_onset).
+# The pyramid store URL is read from the config file's
+# global_runoff_multiscale_azure_prefix and baked into the bundle via
+# NEXT_PUBLIC_ZARR_URL, so a generation/version bump in the config re-points
+# the map on the next deploy.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'visualize/interactive_map/map/**'
+      - 'config/global_config_v10.txt'
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: 'Config file whose multiscale prefix the map should read'
+        required: false
+        default: 'config/global_config_v10.txt'
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set NEXT_PUBLIC_ZARR_URL from config
+        run: |
+          CONFIG="${{ inputs.config_file || 'config/global_config_v10.txt' }}"
+          PREFIX=$(grep '^global_runoff_multiscale_azure_prefix' "$CONFIG" | cut -d'=' -f2 | tr -d ' ')
+          # storage account is uwcryo (config.py's AZURE_STORAGE_ACCOUNT default)
+          echo "NEXT_PUBLIC_ZARR_URL=https://uwcryo.blob.core.windows.net/${PREFIX}" >> $GITHUB_ENV
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: visualize/interactive_map/map/package-lock.json
+
+      - name: Install dependencies
+        working-directory: visualize/interactive_map/map
+        run: npm ci
+
+      - name: Build map
+        working-directory: visualize/interactive_map/map
+        run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: visualize/interactive_map/map/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

@@ -1,0 +1,13 @@
+[project]
+name = "global-snowmelt-runoff-onset-map"
+description = "Node toolchain for building the interactive map (Next.js static export)"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64"]
+
+[dependencies]
+nodejs = ">=20,<21"
+
+[tasks]
+install = "npm install"
+dev = "npm run dev"
+build = "npm run build"

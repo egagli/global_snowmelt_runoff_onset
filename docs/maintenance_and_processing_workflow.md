@@ -140,6 +140,21 @@ Order of operations (also in the issue template):
 3. Bump `WY_end` in `config/global_config_v10.txt`, commit, push.
 4. Dispatch **Process All Tiles** (`incomplete`) — the new (tile, year) pairs appear
    in the work list automatically; composites go stale and refresh per tile.
+5. After the fleet completes: `processing/4_finalize_icechunk_store.ipynb` with a
+   bumped tag (`v10.1`, …) — GC + repo-info backup sweep, ledger freeze.
+6. **One config edit re-points the whole visualization chain**: set
+   `release_tag` to the new tag and increment `multiscale_generation` together with
+   the `_multiscale_N` suffix of `global_runoff_multiscale_azure_prefix` (a config
+   tripwire asserts the suffix and the generation key agree). Commit, push.
+7. Dispatch **Build Visualization Pyramid** (`mode=fresh`; ~7 h, resumable with
+   `mode=resume` after a timeout), then run
+   `visualize/pyramid/2_verify_pyramid.ipynb` — acceptance gates + the immutable
+   `Cache-Control` pass. Delete the previous generation's prefix once the map has
+   flipped.
+8. Nothing else needs touching: `deploy_map.yml` re-deploys the map on the config
+   change (it bakes the config's multiscale prefix into the bundle), and the
+   `visualize/global/` figure notebooks read the prefix from the config at run
+   time (`build_pyramid.open_pyramid_level`), writing into `figures/<version>/`.
 
 ## 6. Store & repo maintenance
 
@@ -153,6 +168,14 @@ Order of operations (also in the issue template):
   explicit years (`all` for full recompute); superseded commits remain in history
   until expired. Store-schema changes (new variable, grid change) require a new
   store version instead.
+- **Visualization pyramid + map**: the multiscale store at the config's
+  `global_runoff_multiscale_azure_prefix` is a disposable derived artifact
+  (blobs are served cache-immutable, so it is never mutated in place — every
+  rebuild gets a new `_multiscale_N` generation via the config). Build with the
+  **Build Visualization Pyramid** workflow, verify + set headers with
+  `visualize/pyramid/2_verify_pyramid.ipynb`; the interactive map
+  (`visualize/interactive_map/map/`, deployed by `deploy_map.yml`) and the global
+  figure notebooks both follow the config automatically.
 - **Registry refresh**: rerun the catalog probe in `0_select_tiles_to_process.ipynb`
   when S1 coverage evolves (e.g. Greenland VV backfill); newly-`to_process` tiles
   flow into the next `incomplete` dispatch as wholly-missing tiles.

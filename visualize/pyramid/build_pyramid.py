@@ -14,11 +14,16 @@ space (identical to decode->mean->re-encode up to truncation toward zero,
 i.e. <= 0.1 day on scaled variables, <= 1 day on runoff_onset).
 
 Written with obstore (Rust object_store handles the Azure byte-range patterns
-for Zarr v3 shards that adlfs gets wrong) into a prefix derived from the
-source tag and MULTISCALE_GENERATION below. The icechunk repo stays the only
-source of truth; the pyramid is disposable and regenerable -- bump the
-generation constant (committed, so it's provenance) to bust caches on
-regeneration.
+for Zarr v3 shards that adlfs gets wrong). Naming and provenance are fully
+config-driven (config/global_config_v10.txt): the destination is
+`global_runoff_multiscale_azure_prefix` (versioned by dataset VERSION +
+`multiscale_generation`, e.g. ..._v10_multiscale_1), and the source snapshot
+is `release_tag`. Appending a water year to v10 = one config edit bumping
+WY_end, release_tag, multiscale_generation, and the prefix suffix together;
+the map and figure notebooks follow the config automatically. The icechunk
+repo stays the only source of truth; the pyramid is disposable and
+regenerable -- bump the generation (cache headers are immutable) to
+regenerate.
 
 Jobs (one topozarr pass per variable group; a job owns whole arrays, so jobs
 never write the same zarr object and can run concurrently once the store
@@ -38,7 +43,7 @@ rewrites from the first incomplete level (a partially-written level is
 rewritten deterministically -- the source is tag-pinned); `--mode fresh`
 (default) resets the marker and writes everything. Resuming against a marker
 from a different snapshot fails loudly: that's a new dataset, not a resume --
-bump MULTISCALE_GENERATION and build fresh.
+bump multiscale_generation in the config and build fresh.
 
 Usage:
     python visualize/pyramid/build_pyramid.py --job composites
@@ -74,10 +79,6 @@ log = logging.getLogger("build_pyramid")
 
 DEFAULT_LEVELS = 10  # /0 native (80 m) ... /9 (~41 km); coarsest ~976 x 400 px
 
-# Bump when regenerating a pyramid for the SAME source tag (new conventions,
-# different levels/chunking, bug fix): pyramid blobs are served cache-immutable,
-# so regeneration must land at a new prefix. Committed here = provenance.
-MULTISCALE_GENERATION = 1
 
 JOBS = {
     "composites": ["runoff_onset_median", "runoff_onset_mad", "temporal_resolution_median"],
@@ -99,10 +100,15 @@ LAYER_HINTS = {
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--source-tag", default="v10.0",
-                   help="Icechunk tag to build from (never a branch -- the "
-                        "pyramid must come from a pinned, released snapshot). "
-                        "The config file and destination prefix derive from it.")
+    p.add_argument("--config-file", default="global_config_v10.txt",
+                   help="Config file name in config/ (e.g. global_config_v10.txt, "
+                        "matching the fleet scripts); values containing '/' are "
+                        "treated as explicit paths. Supplies the source tag "
+                        "(release_tag) and the destination prefix "
+                        "(global_runoff_multiscale_azure_prefix).")
+    p.add_argument("--source-tag", default=None,
+                   help="Override the icechunk tag to build from (default: the "
+                        "config's release_tag; never a branch)")
     p.add_argument("--mode", choices=["fresh", "resume"], default="fresh",
                    help="fresh: write all levels from scratch (resets the "
                         "progress marker). resume: continue from the first "
@@ -112,14 +118,10 @@ def parse_args():
     p.add_argument("--variables", default=None,
                    help="Comma-separated variable override (instead of --job); "
                         "for shakedowns and partial rebuilds")
-    p.add_argument("--config-file", default=None,
-                   help="Override the config file (default: derived from the "
-                        "tag, e.g. v10.0 -> config/global_config_v10.txt). "
-                        "Bare names resolve in config/; values with '/' are paths.")
     p.add_argument("--dest-prefix", default=None,
                    help="Override the container/prefix for the pyramid store "
-                        "(default: snowmelt/snowmelt_runoff_onset/"
-                        "global_runoff_onset_<tag>_multiscale_<generation>)")
+                        "(default: the config's "
+                        "global_runoff_multiscale_azure_prefix)")
     p.add_argument("--levels", type=int, default=DEFAULT_LEVELS)
     p.add_argument("--max-workers", type=int, default=None,
                    help="topozarr region thread pool size (default: derived "
@@ -130,11 +132,8 @@ def parse_args():
 
 
 def load_config(args):
-    """Config derived from the source tag unless explicitly overridden."""
+    """Resolve the config file the way the fleet scripts do."""
     name = args.config_file
-    if name is None:
-        version = args.source_tag.split(".")[0]  # 'v10.0' -> 'v10'
-        name = f"global_config_{version}.txt"
     if "/" in name:
         return Config(name)
     if not name.endswith(".txt"):
@@ -170,6 +169,36 @@ def azure_prefix_store(config, dest_prefix):
 def dest_store(config, dest_prefix, read_only=False):
     return zarr.storage.ObjectStore(azure_prefix_store(config, dest_prefix),
                                     read_only=read_only)
+
+
+def open_pyramid_level(config, level, dest_prefix=None, decode=True,
+                       chunks=None):
+    """
+    Open one pyramid level as an xarray Dataset (read-only, via obstore).
+
+    The consumer-side counterpart of this builder — used by the global figure
+    notebooks (visualize/global/) in place of the retired v9 coarsened store.
+    Resolution at level n is ~80 m * 2**n (level 4 ~1.3 km, level 5 ~2.6 km,
+    level 7 ~10 km). Open levels individually: xr.open_datatree on a
+    multiscale hierarchy tries to align same-named dims with different
+    coordinates across levels and fails.
+
+    Args:
+        config: Config (supplies the Azure account + SAS token AND the
+            pyramid prefix via global_runoff_multiscale_azure_prefix).
+        level: Pyramid level number (0 = native ~80 m).
+        dest_prefix: Override the container/prefix.
+        decode: Decode CF metadata (fill -> NaN, scale_factor applied).
+        chunks: xarray chunking. None (default) = lazy backend arrays, no
+            dask -- right for figure-scale levels (>= 4). Pass 'auto' for
+            dask-backed reads of the big fine levels (0-3).
+    """
+    if dest_prefix is None:
+        dest_prefix = config.global_runoff_multiscale_azure_prefix
+    return xr.open_zarr(dest_store(config, dest_prefix, read_only=True),
+                        group=str(level), zarr_format=3, consolidated=False,
+                        mask_and_scale=decode, decode_coords="all",
+                        chunks=chunks)
 
 
 def read_progress(az, job_name):
@@ -224,7 +253,7 @@ def build_job(ds, job_name, job_vars, args, config, snapshot_id):
                     f"{job_name}: progress marker is from snapshot "
                     f"{marker['source_snapshot_id']}, source tag now resolves to "
                     f"{snapshot_id}. That's a different dataset, not a resume -- "
-                    "bump MULTISCALE_GENERATION and build fresh.")
+                    "bump multiscale_generation in the config and build fresh.")
             completed = set(marker["completed_levels"])
     else:
         write_progress(az, job_name, snapshot_id, completed)
@@ -273,11 +302,14 @@ def main():
         raise SystemExit("pass exactly one of --job / --variables")
 
     config = load_config(args)
+    if args.source_tag is None:
+        args.source_tag = config.release_tag
     if args.dest_prefix is None:
-        args.dest_prefix = (
-            "snowmelt/snowmelt_runoff_onset/"
-            f"global_runoff_onset_{args.source_tag}"
-            f"_multiscale_{MULTISCALE_GENERATION}")
+        args.dest_prefix = config.global_runoff_multiscale_azure_prefix
+    if args.source_tag is None or args.dest_prefix is None:
+        raise SystemExit(
+            "config lacks release_tag / global_runoff_multiscale_azure_prefix "
+            "(added for v10 on 2026-08-12) and no CLI overrides were given")
 
     ds, snapshot_id = open_source(config, args.source_tag)
     log.info("Source: %s @ %s (snapshot %s) -> %s [%s]",

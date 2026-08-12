@@ -4,9 +4,9 @@ name: Build Visualization Pyramid
 # tagged icechunk snapshot. Always all five variables, three jobs: composites
 # runs first, alone (it creates the store structure and convention attrs),
 # then the two yearly-variable jobs in parallel (they own disjoint zarr
-# arrays, so they never conflict). The config file and destination prefix
-# derive from the tag (see build_pyramid.py; the cache-busting generation
-# counter is the committed MULTISCALE_GENERATION constant there).
+# arrays, so they never conflict). The source tag (release_tag), destination
+# prefix (global_runoff_multiscale_azure_prefix), and cache-busting generation
+# (multiscale_generation) all come from the config file.
 #
 # mode=fresh writes everything from scratch; mode=resume continues from the
 # per-job progress markers (_build/<job>.json under the pyramid prefix) that
@@ -16,10 +16,10 @@ name: Build Visualization Pyramid
 on:
   workflow_dispatch:
     inputs:
-      source_tag:
-        description: 'Icechunk tag to build from (a tag, never a branch)'
+      config_file:
+        description: 'Config file to use (supplies release_tag + multiscale prefix + generation)'
         required: false
-        default: 'v10.0'
+        default: 'global_config_v10.txt'
         type: string
       mode:
         description: 'fresh = build everything from scratch; resume = continue from the progress markers'
@@ -53,7 +53,7 @@ jobs:
         run: |
           pixi run -e ci python visualize/pyramid/build_pyramid.py \
             --job composites \
-            --source-tag "${{ inputs.source_tag }}" \
+            --config-file ${{ inputs.config_file }} \
             --mode "${{ inputs.mode }}" \
             --max-workers 16
 
@@ -77,6 +77,6 @@ jobs:
         run: |
           pixi run -e ci python visualize/pyramid/build_pyramid.py \
             --job ${{ matrix.job }} \
-            --source-tag "${{ inputs.source_tag }}" \
+            --config-file ${{ inputs.config_file }} \
             --mode "${{ inputs.mode }}" \
             --max-workers 16

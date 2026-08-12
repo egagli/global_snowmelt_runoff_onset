@@ -4,7 +4,7 @@ Generation code for the **multiscale visualization store**: a standalone plain Z
 derived from the icechunk dataset at a release tag, consumed by *both* the static global
 figures ([`../global/`](../global/) — replacing the v9 `create_coarsened_global_maps.ipynb` →
 `coarsened/` store convention) and the interactive web map
-([`../../interactive_map/`](../../interactive_map/README.md), which holds the map app itself
+([`../../interactive_map/`](../interactive_map/README.md), which holds the map app itself
 and the options survey). QGIS (GeoZarr plugin) and GDAL ≥ 3.13 read the same store directly.
 
 **Status (2026-08-13):** builder implemented and shaken down against the finalized `v10.0` tag
@@ -51,9 +51,9 @@ a variable live in one job, so per-year parallelism isn't available — fine at 
 
 | Decision | Choice | Why |
 |---|---|---|
-| Store | Separate plain Zarr v3 on `uwcryo/snowmelt`, versioned prefix `snowmelt_runoff_onset/global_runoff_onset_<tag>_multiscale_<n>` | No manifest indirection for the browser; CDN-cacheable; disposable/regenerable — the icechunk repo stays the only source of truth. Bump `<n>` to bust caches on regeneration. |
+| Store | Separate plain Zarr v3 on `uwcryo/snowmelt` at the config's `global_runoff_multiscale_azure_prefix` (versioned by dataset VERSION + `multiscale_generation`, e.g. `..._v10_multiscale_1`) | No manifest indirection for the browser; CDN-cacheable; disposable/regenerable — the icechunk repo stays the only source of truth. Bump `multiscale_generation` (and the prefix suffix — a config tripwire keeps them in sync) to bust caches on regeneration. |
 | Level 0 | Included (value-exact raw copy) | Exact point readouts in the map popup; self-contained for QGIS/GDAL. ~66 GB. |
-| Source | Tag (`--source-tag v10.0`), never a branch | Map and figures provably show the released dataset. `provenance` root attr records store, tag, snapshot id, method, topozarr version. |
+| Source | The config's `release_tag` (a tag, never a branch) | Map and figures provably show the released dataset. `provenance` root attr records store, tag, snapshot id, method, topozarr version. |
 | Levels | 2× spacing, `/0` (499,998×204,800) … `/9` (976×400) | 2× is what browser-direct clients want; ~10 levels covers zoom 0 → native. Trailing partial windows trim (iterated floor-halving; 499,998 → 249,999 → 124,999 → …). |
 | Aggregation | Fill-aware integer mean-of-valid, cascaded level-from-level | Verified above. Cascade reads ~88 GB total vs ~660 GB recomputing every level from level 0; unweighted mean-of-means bias at partially-valid parents is bounded and matches the v9 figure precedent. Weighted (exact) cascade only if QC ever shows edge artifacts. |
 | Encoding | Same as source per variable: int16, `_FillValue=-9999`, scale 0.1 on the three scaled vars | Halves size vs float32; zarr-layer decodes fill/scale; proven by the MODIS pyramid. |
@@ -85,11 +85,11 @@ a variable live in one job, so per-year parallelism isn't available — fine at 
    ```
 
 2. **Production build**: `gh workflow run build_pyramid.yml`. The workflow has exactly two
-   inputs — `source_tag` (default `v10.0`) and a `mode` dropdown (`fresh` / `resume`) — and
-   always builds all five variables; the config file and destination prefix derive from the
-   tag, and the cache-busting generation counter is the committed `MULTISCALE_GENERATION`
-   constant in `build_pyramid.py` (bump it in code to regenerate a tag's pyramid at a new
-   prefix). The driver writes a progress marker (`_build/<job>.json` under the pyramid prefix)
+   inputs — `config_file` (default `global_config_v10.txt`) and a `mode` dropdown
+   (`fresh` / `resume`) — and always builds all five variables; the source tag
+   (`release_tag`), destination prefix (`global_runoff_multiscale_azure_prefix`), and
+   generation (`multiscale_generation`) all come from the config, which is also what the
+   map deploy and the figure notebooks read — one config edit re-points everything. The driver writes a progress marker (`_build/<job>.json` under the pyramid prefix)
    after every completed level, so recovery from a timeout or failure is just **redispatch
    with `mode=resume`**: each job continues from its first incomplete level (a partially
    written level is rewritten deterministically — the source is tag-pinned) and

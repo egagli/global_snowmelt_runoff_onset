@@ -200,6 +200,26 @@ class Config:
             self.global_runoff_icechunk_azure_prefix: str = self.config.get(
                 'VALUES', 'global_runoff_icechunk_azure_prefix')
             self.tile_results_path = None
+            # Released snapshot tag (created by 4_finalize_icechunk_store) and
+            # the multiscale visualization store derived from it. The pyramid
+            # prefix is versioned by dataset version + generation: appending a
+            # water year means bumping WY_end, release_tag, AND
+            # multiscale_generation (+ the prefix suffix) together here.
+            self.release_tag: Optional[str] = self.config.get(
+                'VALUES', 'release_tag', fallback=None)
+            self.global_runoff_multiscale_azure_prefix: Optional[str] = self.config.get(
+                'VALUES', 'global_runoff_multiscale_azure_prefix', fallback=None)
+            self.multiscale_generation: Optional[int] = self.config.getint(
+                'VALUES', 'multiscale_generation', fallback=None)
+            if self.global_runoff_multiscale_azure_prefix is not None:
+                # tripwire: the prefix suffix and the generation key must agree
+                expected_suffix = f"_multiscale_{self.multiscale_generation}"
+                if not self.global_runoff_multiscale_azure_prefix.endswith(expected_suffix):
+                    raise ValueError(
+                        f"global_runoff_multiscale_azure_prefix must end with "
+                        f"'{expected_suffix}' (multiscale_generation = "
+                        f"{self.multiscale_generation}); got "
+                        f"'{self.global_runoff_multiscale_azure_prefix}'")
             # Zarr v3 sharding: shard spatial dims == tile dims (one shard per
             # tile per water year, so concurrent tile jobs never share a shard);
             # inner chunks keep point/subset reads small.

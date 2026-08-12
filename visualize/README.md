@@ -21,8 +21,15 @@ visualize/
 ├── global/
 │   ├── global_composites.ipynb                       # Fig. 2, Fig. 3, Fig. A2, Fig. A4
 │   ├── global_annual_runoff_onset_and_temporal_res.ipynb  # Fig. A3
-│   ├── create_coarsened_global_maps.ipynb            # builds coarsened rasters used by the global figures above
+│   ├── create_coarsened_global_maps.ipynb            # SUPERSEDED (v9/Coiled path, cannot run since Coiled was retired): the global figure notebooks above now read pyramid/ level 7 (~10 km) via build_pyramid.open_pyramid_level
 │   └── figures/                                       # rendered PNGs for all global figures above (incl. global_all_composites_robinson_long.png, an alternate aspect ratio of Fig. 2)
+├── interactive_map/
+│   ├── README.md                       # options survey + phased plan for the web map
+│   └── map/                            # the map app: Next.js + MapLibre + @carbonplan/zarr-layer 0.8.0 static export reading the pyramid store; deployed to GitHub Pages by .github/workflows/deploy_map.yml
+├── pyramid/
+│   ├── README.md                       # the v10 multiscale Zarr v3 store: decisions, verified topozarr semantics, runbook — one artifact serving the global figures here, the interactive_map/ app, and QGIS/GDAL
+│   ├── build_pyramid.py                # topozarr end-to-end driver (3 jobs: composites first, then the two yearly vars in parallel); dispatched by .github/workflows/build_pyramid.yml
+│   └── 2_verify_pyramid.ipynb          # acceptance gates (structure/attrs lint, level-0-vs-source exact, cross-level visuals) + Cache-Control pass
 ├── testing/
 │   ├── test_antimeridian.ipynb    # diagnostic notebook for the odc-stac antimeridian bug (see below)
 │   └── inspect_tile.ipynb         # ad hoc single-tile inspection, not tied to a manuscript figure
@@ -50,15 +57,15 @@ Notebook to download hillshade is `data/download_and_preprocess_hillshade.ipynb`
 
 Manuscript figure "Figure 1. Graphical representation of the workflow used to create the global snowmelt runoff onset dataset." is at `methods/figures/methods_figure.png`, assembled by `methods/combine_methods_figure_components.ipynb` from panels rendered in `methods/create_methods_figure_components.ipynb`.
 
-Manuscript figure "Figure 2. Global snowmelt runoff onset composite products." can be found at `global/figures/global_all_composites_robinson_wide.png` and figure creation code is in `global/global_composites.ipynb`
+Manuscript figure "Figure 2. Global snowmelt runoff onset composite products." can be found at `global/figures/v9/global_all_composites_robinson_wide.png` and figure creation code is in `global/global_composites.ipynb`
 
-Manuscript figure "Figure 3. Polar stereographic projection of 10-year median snowmelt runoff onset date for the Northern Hemisphere." can be found at `global/figures/global_composite_median_polar.png` and figure creation code is in `global/global_composites.ipynb`
+Manuscript figure "Figure 3. Polar stereographic projection of 10-year median snowmelt runoff onset date for the Northern Hemisphere." can be found at `global/figures/v9/global_composite_median_polar.png` and figure creation code is in `global/global_composites.ipynb`
 
-Manuscript appendix figure "Figure A2. Global snowmelt runoff onset composite products with polar stereographic projection for the Northern Hemisphere." can be found at `global/figures/global_all_composites_polar.png` and figure creation code is in `global/global_composites.ipynb`
+Manuscript appendix figure "Figure A2. Global snowmelt runoff onset composite products with polar stereographic projection for the Northern Hemisphere." can be found at `global/figures/v9/global_all_composites_polar.png` and figure creation code is in `global/global_composites.ipynb`
 
-Manuscript appendix figure "Figure A3. Snowmelt runoff onset (day of water year) and temporal resolution (days) for each water year." can be found at `global/figures/global_annual_runoff_onset_and_temporal_res_with_hillshade_2015_2024.png` and figure creation code is in `global/global_annual_runoff_onset_and_temporal_res.ipynb`
+Manuscript appendix figure "Figure A3. Snowmelt runoff onset (day of water year) and temporal resolution (days) for each water year." can be found at `global/figures/v9/global_annual_runoff_onset_and_temporal_res_with_hillshade_2015_2024.png` and figure creation code is in `global/global_annual_runoff_onset_and_temporal_res.ipynb`
 
-Manuscript appendix figure "Figure A4. Per-pixel count of water years with valid annual snowmelt runoff onset estimates." can be found at `global/figures/global_10yr_annual_runoff_onset_count.png` and figure creation code is in `global/global_composites.ipynb`
+Manuscript appendix figure "Figure A4. Per-pixel count of water years with valid annual snowmelt runoff onset estimates." can be found at `global/figures/v9/global_10yr_annual_runoff_onset_count.png` and figure creation code is in `global/global_composites.ipynb`
 
 ## Antimeridian diagnostic (`testing/test_antimeridian.ipynb`)
 
