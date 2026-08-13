@@ -1,0 +1,7 @@
+gate,checks,failed,verdict,n_tiles,source,_version,_git_sha,_written_at
+1 schema,40,0,PASS,14,"tag v10.0, snapshot 5GXWVWYG3BG5XMFXNAH0",v10,c310617,2026-08-13T23:50:55+00:00
+2 ledger vs data,168,0,PASS,14,"tag v10.0, snapshot 5GXWVWYG3BG5XMFXNAH0",v10,c310617,2026-08-13T23:50:55+00:00
+3 invariants,84,0,PASS,14,"tag v10.0, snapshot 5GXWVWYG3BG5XMFXNAH0",v10,c310617,2026-08-13T23:50:55+00:00
+4 composites,42,0,PASS,14,"tag v10.0, snapshot 5GXWVWYG3BG5XMFXNAH0",v10,c310617,2026-08-13T23:50:55+00:00
+5 seams,28,0,PASS,14,"tag v10.0, snapshot 5GXWVWYG3BG5XMFXNAH0",v10,c310617,2026-08-13T23:50:55+00:00
+fingerprint vs baseline,96,0,PASS,14,"tag v10.0, snapshot 5GXWVWYG3BG5XMFXNAH0",v10,c310617,2026-08-13T23:50:55+00:00
