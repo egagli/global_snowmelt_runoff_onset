@@ -2,8 +2,8 @@
 
 Generation code for the **multiscale visualization store**: a standalone plain Zarr v3 pyramid
 derived from the icechunk dataset at a release tag, consumed by *both* the static global
-figures ([`../global/`](../global/) — replacing the v9 `create_coarsened_global_maps.ipynb` →
-`coarsened/` store convention) and the interactive web map
+figures ([`../global/`](../global/) — replacing the retired v9 "coarsen the full store into
+`coarsened/`, then read that" convention) and the interactive web map
 ([`../../interactive_map/`](../interactive_map/README.md), which holds the map app itself
 and the options survey). QGIS (GeoZarr plugin) and GDAL ≥ 3.13 read the same store directly.
 
@@ -103,11 +103,13 @@ a variable live in one job, so per-year parallelism isn't available — fine at 
    production prefix — structure/attrs lint, level-0-vs-source exact comparison on the QC
    tiles, cross-level visuals, then the `Cache-Control: public, max-age=31536000, immutable`
    pass (cache-busting is by prefix version, so immutable is safe).
-4. **Consumers** (each unblocked once 3 passes): the map app in `interactive_map/`
-   (zarr-layer 0.8.0 reads the store self-describing); repoint
-   `../global/global_annual_runoff_onset_and_temporal_res.ipynb` and
-   `../global/global_composites.ipynb` at levels 4/5 (≈1.3/2.6 km) and retire
-   `../global/create_coarsened_global_maps.ipynb`; QGIS/GDAL for free.
+4. **Consumers** (each unblocked once 3 passes) — all done for v10.0: the map app in
+   `interactive_map/` (zarr-layer 0.8.0 reads the store self-describing);
+   `../global/global_composites.ipynb` and
+   `../global/global_annual_runoff_onset_and_temporal_res.ipynb` now read
+   `open_pyramid_level(config, 7)` (~10 km — enough for the Robinson/polar global
+   renders; the regional notebooks use levels 2 and 5), and the v9 notebook that built
+   the old `coarsened/` store was deleted 2026-08-13; QGIS/GDAL for free.
 
 ## Gotchas (learned or inherited)
 
