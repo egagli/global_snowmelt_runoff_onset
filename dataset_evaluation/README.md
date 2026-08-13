@@ -7,7 +7,7 @@ Evaluates the global snowmelt runoff onset dataset against independent reference
 | Folder | Manuscript tie-in | Status |
 | --- | --- | --- |
 | [`compare_to_all_public_snow_pillows/`](compare_to_all_public_snow_pillows/README.md) | Fig. 4, Fig. 5, Fig. A5 — the primary in-situ evaluation network (~1,500 stations: SNOTEL, CCSS, BC Snow Survey, NVE, SCAN, COOP, Yukon) | **Primary / active** |
-| [`compare_to_snotel/`](compare_to_snotel/README.md) | Fig. A1 (single-station case study) and earlier SNOTEL/CCSS-only evaluation work that `compare_to_all_public_snow_pillows/` has since superseded for the full network comparison | Active (case-study figure); superseded for network-wide stats. **Directory is still untracked in git** |
+| [`compare_to_snotel/`](compare_to_snotel/README.md) | Fig. A1 (single-station case study, v9) and its companion low-FCF investigation | Retained for Fig. A1 provenance. The superseded network-wide half was archived to git history and deleted 2026-08-13 (tag `archive/compare-to-snotel`) |
 | [`compare_to_passive/`](compare_to_passive/README.md) | Fig. 6 (Pan et al. 2021 passive microwave comparison, Alaska Range WY2020) | Active (still v9-pinned) |
 | [`calculate_spatial_coverage_and_temporal_resolution/`](calculate_spatial_coverage_and_temporal_resolution/README.md) | Table 1, and the "how much seasonal snow do we miss" text stat (Sect. 3.3) | Active (still v9-pinned) |
 | [`compare_to_NorSWE/`](compare_to_NorSWE/README.md) | Not used in the manuscript | Superseded by `compare_to_all_public_snow_pillows/` (NorSWE ends in 2021 and many sites aren't daily) |
@@ -26,10 +26,10 @@ derived from, so evaluating a new version never overwrites the previous one:
 | Result tables | `results/<version>/…` in `calculate_spatial_coverage_and_temporal_resolution/`, `compare_to_all_public_snow_pillows/` (QC counts, binned stats, evaluation summary, station density), and `compare_to_passive/` (Fig. 6 stats) — written via `global_snowmelt_runoff_onset.results.save_result_table` |
 | `compare_to_snotel/` NetCDFs | `comparison_datasets/…_<version>.nc` (kept flat — the filename already carries the version) |
 
-Two known exceptions: `compare_to_snotel/figures/` still holds six unscoped
-pre-versioning PNGs at its top level (documented in that README), and
-`compare_to_passive/figures/v9/passive_comparison/` is empty pending a rerun of the
-Kennicott/Denali notebook.
+One known exception: `compare_to_passive/figures/v9/passive_comparison/` is empty
+pending a rerun of the Kennicott/Denali notebook. (`compare_to_snotel/figures/`
+previously held six unscoped pre-versioning PNGs; no live `savefig` reproduced any of
+them and they were deleted 2026-08-13 — everything left there is version-scoped.)
 
 The version comes from `config.version`, so **switching versions means editing the one
 `Config('config/global_config_vN.txt')` path** in a notebook that loads a config. The
