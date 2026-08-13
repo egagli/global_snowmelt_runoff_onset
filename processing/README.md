@@ -199,19 +199,6 @@ The **Water Year Watch** workflow (monthly cron) opens a GitHub issue per (water
 when it becomes eligible, with this checklist inline — ~1 month after the MODIS_snow_phenology
 repo's equivalent reminder, since phenology must extend first.
 
-## Possible future variable: `runoff_onset_spread`
-
-A natural sixth store variable would be a **per-pixel, per-water-year spread of the constituent onset estimates** — the MAD (or std) across the per-orbit/polarization backscatter-minimum dates that the median currently collapses into `runoff_onset`. This is a direct, empirical per-pixel/per-year standard error that automatically encodes speckle (latitude-dependent effective looks), sampling density, backscatter-trough flatness, and orbit count. Analyses could weight or filter by it, and interannual-variability studies could subtract it in quadrature to separate true year-to-year variability from estimation noise.
-
-Example implementation (small, localized):
-
-- **`store.py`**: add `"runoff_onset_spread"` to `VARIABLE_DESCRIPTIONS` (`unit=days`) and to `SCALED_VARIABLES` (0.1-day precision in int16), and add an `empty_3d("runoff_onset_spread")` to `build_template`'s `combine_by_coords`. Encoding is then auto-derived by the existing loop (3-D → shards `(1, 2048, 2048)`, inner chunks `(1, 256, 256)`).
-- **`process_single_tile.process_one_year`**: the constituents already exist one call away — `processing.calculate_runoff_onset(..., return_constituent_runoff_onsets=True)` returns dims `(sat:relative_orbit, polarization, latitude, longitude)`. Reduce across those constituent dims (MAD or std, in day units) to a 2-D `float32` field and return it beside `onset_2d`/`tr_2d`.
-- **the per-year writer**: add `runoff_onset_spread` to `ds_write` so it is written and committed in the same region/commit as `runoff_onset`.
-- optional: a cross-year `runoff_onset_spread_median` composite if a single-layer summary is wanted.
-
-**Cost:** one additional 3-D variable with the same shape/footprint as `runoff_onset` — on the order of **+one-third of the store** on disk (likely less, since small spread values compress well). **The schema window has closed:** the v10 production store was initialized 2026-08-04 with the five-variable schema and the fleet is committing into it, so adding `runoff_onset_spread` now means a store-level migration (add the array + backfill committed years) or deferring to v11.
-
 ## Notebooks
 
 | Notebook | Description |
