@@ -39,13 +39,37 @@ Semantics verified empirically before adoption (synthetic fill/3-D/append tests,
   + `proj:code`/`proj:wkt2` + `spatial:transform`/`bbox`/`shape`/`dimensions`/`registration`)
   plus per-variable `zarr-layer` `layer_hints`.
 
-**Three jobs, not 25**: topozarr writes whole arrays, so the finest safe parallel unit is a
-variable group — `composites` (3 year-less vars), `runoff_onset`, `temporal_resolution`. The
-composites job runs first, alone (it creates the root group, level groups, coords, and
-convention attrs); the two yearly jobs then run in parallel — they own disjoint zarr arrays,
-so they never write the same object. Jobs are idempotent: rerun a failed one whole (the source
-is tag-pinned, so rewrites are value-stable). One caveat this inherits: all 11 water years of
-a variable live in one job, so per-year parallelism isn't available — fine at this size.
+**Four jobs, not 25**: topozarr writes whole arrays, so the finest safe parallel unit is a
+variable group — `composites` (3 year-less vars), `runoff_onset`, `temporal_resolution`,
+`seasonal_snow`. The composites job runs first, alone (it creates the root group, level
+groups, coords, and convention attrs); the other jobs then run in parallel — they own
+disjoint zarr arrays, so they never write the same object. Jobs are idempotent: rerun a
+failed one whole (the source is tag-pinned, so rewrites are value-stable). One caveat this
+inherits: all 11 water years of a variable live in one job, so per-year parallelism isn't
+available — fine at this size.
+
+**The `seasonal_snow` job** (issue #9) adds `seasonal_snow_pct`, the display-side mask the
+map's "limit to seasonal snow" toggle samples alongside each data variable. Its source is
+the Sturm & Liston (2021) snow classification (NSIDC-0768, 10 arcsec,
+doi:10.5067/99FTCYYYLAQ0; `--snow-class-tif`, default the public uwcryo GeoTIFF mirror),
+nearest-neighbor reclassified onto the level-0 grid — both grids are regular EPSG:4326
+lattices, so NN is exact integer affine index math, streamed per 2048² dask block via
+windowed rasterio reads. Reclassification: accepted classes {1,2,3,5,6,7} (the tile
+registry's set; class 4 Ephemeral deliberately excluded) → 100, class 4 → 0, ocean/fill →
+-9999; encoding matches the store (int16, `_FillValue=-9999`, no scale). The standard
+fill-aware mean cascade then makes coarser levels the *percent of seasonal-snow area among
+classified land* — with the integer-truncation caveat that an isolated 100 among 0s decays
+to 0 within ~4 halvings (100→50→25→12→6…, truncating toward zero), so "any seasonal snow
+below this cell" thresholds (`> 0`) are only approximate at deep zooms. Because the job
+still opens the icechunk source, the coord blobs it rewrites at every level are
+byte-identical to the live ones (verified empirically against levels 0 and 9), and because
+its 2-D dataset would compute different `multiscales`/`zarr-layer` root attrs than the live
+3-D ones, it neutralizes its root-attr payload and skips the `provenance` rewrite — the
+root `zarr.json` is left untouched, keeping the immutable-cache convention when the job
+lands additively in a live prefix. **Always run `--check-attrs` first** (the workflow does):
+it diffs the would-be root attrs against the live store over public HTTPS and refuses on
+any change. The mask's own provenance (GeoTIFF URL + ETag) is recorded in its variable
+attrs and the `_build/seasonal_snow.json` marker.
 
 ## Decisions
 
@@ -59,17 +83,21 @@ a variable live in one job, so per-year parallelism isn't available — fine at 
 | Encoding | Same as source per variable: int16, `_FillValue=-9999`, scale 0.1 on the three scaled vars | Halves size vs float32; zarr-layer decodes fill/scale; proven by the MODIS pyramid. |
 | Chunks / shards | topozarr defaults: ~512 KB target chunks → (1, 512, 512) int16, 4×4 chunks/shard → (1, 2048, 2048) shards, empty chunks skipped | Good HTTP fetch unit; matches the source tile granularity; ocean simply doesn't exist. |
 | Writer | obstore (`zarr.storage.ObjectStore` + `AzureStore`, SAS from the config) | Rust object_store handles the Azure byte-range patterns for Zarr v3 shards that adlfs gets wrong. |
-| `layer_hints` | DOWY vars: viridis, clim [110, 270] (plot_utils month-colorbar convention); MAD/TR: magma, [0, 30] / [0, 24] days | Defaults for generic zarr-layer viewers; the map app sets its own. |
+| `layer_hints` | DOWY vars: viridis, clim [110, 270] (plot_utils month-colorbar convention); MAD/TR: magma, [0, 30] / [0, 24] days; none for `seasonal_snow_pct` | Defaults for generic zarr-layer viewers; the map app sets its own. The mask needs no hints (the map hardcodes its shader config), and `layer_hints=None` keeps the job from touching the live `zarr-layer` root attr. |
+| `seasonal_snow_pct` | Sturm & Liston 2021 (NSIDC-0768) NN-reclassified: accepted {1,2,3,5,6,7}→100, Ephemeral 4→0, else→-9999; int16, no scale; root attrs untouched (`--check-attrs` gate) | One store/level/chunking for data + mask so the map shaders sample both bands per pixel (issue #9); coarser levels = % seasonal-snow area via the same fill-aware mean cascade. |
 
 ## Files
 
-- [`build_pyramid.py`](build_pyramid.py) — the driver. `--job composites|runoff_onset|temporal_resolution|all`,
+- [`build_pyramid.py`](build_pyramid.py) — the driver. `--job composites|runoff_onset|temporal_resolution|seasonal_snow|all`,
   `--variables` override (shakedowns/partial rebuilds), `--source-tag`, `--dest-prefix`,
-  `--levels`, `--max-workers`, `--plan-only`.
+  `--levels`, `--max-workers`, `--plan-only`, `--snow-class-tif` (seasonal_snow source
+  GeoTIFF: HTTPS URL or local path), `--check-attrs` (read-only root-attr diff vs the live
+  store; run before any write against a live prefix).
 - [`2_verify_pyramid.ipynb`](2_verify_pyramid.ipynb) — acceptance gates + the
   `Cache-Control` pass (see below).
 - [`../../.github/workflows/build_pyramid.yml`](../../.github/workflows/build_pyramid.yml) —
-  production build: composites job, then the two yearly jobs as a parallel matrix.
+  production build: composites job, then the two yearly jobs (parallel matrix) and the
+  `seasonal_snow` job (GeoTIFF download + `--check-attrs` gate + build) in parallel.
   Azure-proximate runners move ~150 GB in ~1–2 h total; the same build through a home
   connection is an overnight run.
 
@@ -86,7 +114,8 @@ a variable live in one job, so per-year parallelism isn't available — fine at 
 
 2. **Production build**: `gh workflow run build_pyramid.yml`. The workflow has exactly two
    inputs — `config_file` (default `global_config_v10.txt`) and a `mode` dropdown
-   (`fresh` / `resume`) — and always builds all five variables; the source tag
+   (`fresh` / `resume`) — and always builds all six variables (the `seasonal_snow` job
+   downloads the snow-class GeoTIFF once and gates itself with `--check-attrs`); the source tag
    (`release_tag`), destination prefix (`global_runoff_multiscale_azure_prefix`), and
    generation (`multiscale_generation`) all come from the config, which is also what the
    map deploy and the figure notebooks read — one config edit re-points everything. The driver writes a progress marker (`_build/<job>.json` under the pyramid prefix)
@@ -129,7 +158,9 @@ a variable live in one job, so per-year parallelism isn't available — fine at 
 
 ## Cost
 
-~88 GB storage (66 level-0 + ~22 overviews, the 4/3 geometric factor); ~1–2 h wall on GHA.
+~88 GB storage for the five data variables (66 level-0 + ~22 overviews, the 4/3 geometric
+factor) plus low single-digit GB for `seasonal_snow_pct` (near-constant 0/100 int16 regions
+compress to almost nothing under zstd, and ocean shards don't exist); ~1–2 h wall on GHA.
 Zero new services, zero new Azure configuration. Regeneration costs the same — which is what
 makes the pyramid safely disposable.
 

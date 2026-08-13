@@ -91,11 +91,44 @@ export const ZARR_URL =
   process.env.NEXT_PUBLIC_ZARR_URL ??
   'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/global_runoff_onset_v10_multiscale_1'
 
+// Display-side seasonal-snow mask (issue #9): a sixth pyramid variable holding
+// percent seasonal-snow area per cell (0-100, int16, -9999 fill), reclassified
+// from Sturm & Liston (2021). Sampled as an aux band by every layer's shader;
+// the sidebar toggle discards pixels below SEASONAL_MASK_THRESHOLD when on.
+// The map probes for it at startup, so deploying this map before the mask job
+// has run just leaves the toggle disabled.
+export const SEASONAL_MASK_VARIABLE = 'seasonal_snow_pct'
+export const SEASONAL_MASK_THRESHOLD = 0.5 // "> 0" against the integer cascade
+
+// Standalone 300 m Sturm & Liston (2021) classification store (NSIDC-0768),
+// point-queried for the snow-class row in the query card. Published by
+// visualize/interactive_map/build_snow_class_store.py.
+export const SNOW_CLASS_URL =
+  process.env.NEXT_PUBLIC_SNOW_CLASS_URL ??
+  'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/snow_classification_300m_1'
+
+// Class code → name/color (easysnowdata convention; NSIDC-0768 user guide).
+// 8 (Ocean) and 9 (Fill) are non-classes for display purposes.
+export const SNOW_CLASS_INFO: Record<number, { name: string; color: string }> =
+  {
+    1: { name: 'Tundra', color: '#a100c8' },
+    2: { name: 'Boreal Forest', color: '#00a0fe' },
+    3: { name: 'Maritime', color: '#fe0000' },
+    4: { name: 'Ephemeral', color: '#e7dc32' },
+    5: { name: 'Prairie', color: '#f08328' },
+    6: { name: 'Montane Forest', color: '#00dc00' },
+    7: { name: 'Ice', color: '#aaaaaa' },
+  }
+
 export type ClickInfo = {
   lng: number
   lat: number
   status: 'querying' | 'done'
   values: Record<Variable, number | null>
+  // Sturm & Liston class code at the point (1-7 displayable; null = ocean/
+  // fill/off-grid or the class store is unavailable). Independent of the
+  // seasonal-only toggle.
+  snowClass: number | null
 }
 
 interface AppState {
@@ -104,6 +137,11 @@ interface AppState {
   opacity: number
   clim: [number, number]
   globeProjection: boolean
+  // Display-side filter: hide pixels outside Sturm & Liston seasonal snow
+  // classes (default off — the unfiltered dataset is the default view).
+  seasonalOnly: boolean
+  // Whether the pyramid actually has the mask variable (probed at startup).
+  seasonalMaskAvailable: boolean
   loadingState: LoadingState
   sidebarWidth: number | null
   basemap: Basemap
@@ -114,6 +152,8 @@ interface AppState {
   setOpacity: (o: number) => void
   setClim: (c: [number, number]) => void
   setGlobeProjection: (g: boolean) => void
+  setSeasonalOnly: (s: boolean) => void
+  setSeasonalMaskAvailable: (a: boolean) => void
   setLoadingState: (s: LoadingState) => void
   setSidebarWidth: (w: number | null) => void
   setBasemap: (b: Basemap) => void
@@ -127,6 +167,8 @@ export const useStore = create<AppState>((set) => ({
   opacity: 1,
   clim: VARIABLE_CONFIGS.runoff_onset_median.clim,
   globeProjection: true,
+  seasonalOnly: false,
+  seasonalMaskAvailable: false,
   loadingState: { loading: false, metadata: false, chunks: false },
   sidebarWidth: null,
   basemap: 'dark',
@@ -141,6 +183,9 @@ export const useStore = create<AppState>((set) => ({
   setOpacity: (opacity) => set({ opacity }),
   setClim: (clim) => set({ clim }),
   setGlobeProjection: (globeProjection) => set({ globeProjection }),
+  setSeasonalOnly: (seasonalOnly) => set({ seasonalOnly }),
+  setSeasonalMaskAvailable: (seasonalMaskAvailable) =>
+    set({ seasonalMaskAvailable }),
   setLoadingState: (loadingState) => set({ loadingState }),
   setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
   setBasemap: (basemap) => set({ basemap }),

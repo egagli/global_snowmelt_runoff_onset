@@ -102,6 +102,53 @@ The pre-2026 CarbonPlan stack: [ndpyramid](https://github.com/carbonplan/ndpyram
 
 **Option C only if** the map outgrows static hosting (heavy traffic, private data, or a lab server materializes) — at which point the Phase-2 in-icechunk overviews are already the right storage layout for xpublish-tiles.
 
+## Snow classification point-query store (`build_snow_class_store.py`)
+
+The point-query card ([issue #9](https://github.com/egagli/global_snowmelt_runoff_onset/issues/9)) shows a "snow class" row from the [Liston & Sturm (2021) Global Seasonal-Snow Classification](https://nsidc.org/data/nsidc-0768) (300 m / 10 arcsec, doi:10.5067/99FTCYYYLAQ0). [`build_snow_class_store.py`](build_snow_class_store.py) publishes it as a small standalone plain Zarr v3 store next to the pyramid: one global 2-D uint8 array `snow_class` (64800 × 129600, EPSG:4326, fill 9), zstd, plain (1024, 1024) chunks — no shards, so a point query is a single HTTP fetch of one explicit chunk blob (~8.1k blobs total, tens of MB; all-fill chunks are skipped, so a 404 means fill). Georeferencing self-describes via the same `proj:`/`spatial:` convention attrs as the pyramid, on both the root group and the array.
+
+```bash
+# production build (full grid -> Azure; immutable-prefix convention, bump _1 to regenerate)
+pixi run python visualize/interactive_map/build_snow_class_store.py
+
+# separate post-step: Cache-Control 'public, max-age=31536000, immutable' on every blob
+pixi run python visualize/interactive_map/build_snow_class_store.py --set-cache-headers
+```
+
+Public array URL (zarrita FetchStore / `zarr.open_array` target):
+`https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/snow_classification_300m_1/snow_class`
+— chunks at `.../snow_class/c/{row//1024}/{col//1024}` with `row = floor((89.99999999994958 − lat)/0.0027777777777770003)`, `col = floor((lon + 180.0)/0.0027777777777770003)`; decoded chunks are always full 1024×1024 (edge chunks are fill-padded). Classes 8 (Ocean) / 9 (Fill), missing chunks, and off-grid points render as "no class"; the `class_info` attr on the array maps codes to names. For local testing the script takes `--local-dest` plus a `--bbox lon_min lat_min lon_max lat_max` subset window (testing only — production runs omit `--bbox`); `--dry-run` prints the plan. Verified against the source GeoTIFF (Mt Rainier summit → 7 Ice, WA Cascades → 3 Maritime, Puget lowland → 4 Ephemeral, offshore Pacific → 8 Ocean).
+
+## Seasonal-snow display filter (issue #9)
+
+The sidebar's "limit to seasonal snow (Sturm & Liston 2021)" toggle is a
+shader-side discard against the `seasonal_snow_pct` pyramid variable (percent
+seasonal-snow area per cell, 0–100, class 4 Ephemeral excluded; built by the
+`seasonal_snow` job in `visualize/pyramid/build_pyramid.py`). Every layer
+samples it as an **auxiliary band** and flipping the toggle is a pure
+`setUniforms()` call — no layer rebuilds, no refetches. Two deployment notes:
+
+- **zarr-layer fork.** Multi-variable sampling isn't in upstream
+  `@carbonplan/zarr-layer` 0.8.0 (bands come only from a selector along one
+  dimension of a single variable), so `map/package.json` consumes the local
+  fork via `file:../../../../zarr-layer` (`egagli/zarr-layer`, branch
+  `aux-variables`, which adds the `auxVariables` option). `deploy_map.yml`
+  checks that branch out adjacent to the repo and builds it before `npm ci` —
+  the same pattern MODIS_snow_phenology's deploy uses. Fold the branch into
+  the fork's `main` (or upstream it) and update the workflow `ref` when it
+  settles.
+- **Deploys independently of the mask job.** The map probes
+  `{ZARR_URL}/0/seasonal_snow_pct/zarr.json` at startup; until the mask job
+  has written the variable, layers are built without the aux band and the
+  toggle renders disabled ("mask not yet available"). So map deploys and the
+  pyramid mask job can land in either order.
+
+Caveat worth keeping in the UI copy: excluding class 4 matches the tile
+registry's accepted-class rule, but 165 registry tiles were manually added
+*because* their only Sturm class is Ephemeral while the MODIS per-pixel gate
+found real seasonal snow (UK/Ireland, S Scandinavia, lowland Japan, NZ, …) —
+the toggle hides those regions' valid estimates entirely, which is why it
+defaults off and the point-query card shows the snow class regardless.
+
 ## References
 
 - [MODIS_snow_phenology](https://github.com/egagli/MODIS_snow_phenology) — our production reference implementation ([live map](https://egagli.github.io/MODIS_snow_phenology/))

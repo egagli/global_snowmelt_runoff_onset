@@ -9,6 +9,9 @@ import { Protocol } from 'pmtiles'
 import {
   useStore,
   ZARR_URL,
+  SNOW_CLASS_URL,
+  SEASONAL_MASK_VARIABLE,
+  SEASONAL_MASK_THRESHOLD,
   VARIABLE_CONFIGS,
   ALL_VARIABLES,
   type Variable,
@@ -74,6 +77,22 @@ function latlonToL0RowCol(lat: number, lon: number): [number, number] | null {
   const col = Math.floor((lon - L0_X_ORIGIN) / L0_X_RES)
   const row = Math.floor((L0_Y_ORIGIN - lat) / L0_Y_RES)
   if (row < 0 || row >= L0_N_ROWS || col < 0 || col >= L0_N_COLS) return null
+  return [row, col]
+}
+
+// Standalone 300 m (10 arcsec) Sturm & Liston classification grid — its own
+// affine, independent of the pyramid's (full globe, GeoTIFF-derived; see
+// visualize/interactive_map/build_snow_class_store.py).
+const SC_Y_ORIGIN = 89.99999999994958
+const SC_X_ORIGIN = -180.0
+const SC_RES = 0.0027777777777770003
+const SC_N_ROWS = 64800
+const SC_N_COLS = 129600
+
+function latlonToSnowClassRowCol(lat: number, lon: number): [number, number] | null {
+  const row = Math.floor((SC_Y_ORIGIN - lat) / SC_RES)
+  const col = Math.floor((lon - SC_X_ORIGIN) / SC_RES)
+  if (row < 0 || row >= SC_N_ROWS || col < 0 || col >= SC_N_COLS) return null
   return [row, col]
 }
 
@@ -143,6 +162,18 @@ const EMPTY_VALUES = Object.fromEntries(
   ALL_VARIABLES.map((v) => [v, null])
 ) as ClickInfo['values']
 
+/** Probe whether the pyramid carries the seasonal-snow mask variable. The map
+ *  can deploy before the mask job has written it — the toggle stays disabled
+ *  and no layer references the missing array (which would fail level loads). */
+async function probeSeasonalMask(): Promise<boolean> {
+  try {
+    const res = await fetch(`${ZARR_URL}/0/${SEASONAL_MASK_VARIABLE}/zarr.json`)
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 export const Map = () => {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -155,13 +186,21 @@ export const Map = () => {
   // Promise that resolves when all arrays are open — awaited in requeryAllVariables
   // so every query round reads from a consistent data source.
   const l0ArraysPromiseRef = useRef<Promise<void> | null>(null)
+  // The standalone 300 m snow-classification array (query card class row).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const snowClassArrayRef = useRef<any>(null)
+  // Resolves to whether the pyramid has the seasonal-snow mask — awaited by
+  // the layer-creation effect so the shader only samples an existing array.
+  const seasonalMaskProbeRef = useRef<Promise<boolean> | null>(null)
+
+  const setSeasonalMaskAvailable = useStore((s) => s.setSeasonalMaskAvailable)
 
   // Open level-0 arrays for all variables at mount (runs once). Each variable
   // gets its own FetchStore pointing at its sub-URL so zarrita opens the array
   // at the correct path.
   useEffect(() => {
-    l0ArraysPromiseRef.current = Promise.all(
-      ALL_VARIABLES.map(async (varName) => {
+    l0ArraysPromiseRef.current = Promise.all([
+      ...ALL_VARIABLES.map(async (varName) => {
         try {
           const arrayStore = new FetchStore(`${ZARR_URL}/0/${varName}`)
           const arr = await open(arrayStore, { kind: 'array' })
@@ -169,9 +208,22 @@ export const Map = () => {
         } catch (e) {
           console.warn(`Failed to open level-0 array for ${varName}:`, e)
         }
-      })
-    ).then(() => undefined)
-  }, [])
+      }),
+      (async () => {
+        try {
+          const arrayStore = new FetchStore(`${SNOW_CLASS_URL}/snow_class`)
+          snowClassArrayRef.current = await open(arrayStore, { kind: 'array' })
+        } catch (e) {
+          console.warn('Snow classification store unavailable:', e)
+        }
+      })(),
+    ]).then(() => undefined)
+
+    seasonalMaskProbeRef.current = probeSeasonalMask().then((ok) => {
+      setSeasonalMaskAvailable(ok)
+      return ok
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [isMapLoaded, setIsMapLoaded] = useState(false)
 
@@ -310,7 +362,7 @@ export const Map = () => {
   const requeryAllVariables = (cancelled: { val: boolean }) => {
     const coords = lastClickRef.current
     if (!coords) return
-    setClickInfo({ lng: coords.lng, lat: coords.lat, status: 'querying', values: EMPTY_VALUES })
+    setClickInfo({ lng: coords.lng, lat: coords.lat, status: 'querying', values: EMPTY_VALUES, snowClass: null })
 
     const runQuery = async () => {
       // Wait for the level-0 arrays to finish opening (metadata only, < 1 s)
@@ -320,6 +372,24 @@ export const Map = () => {
       const waterYearIdx = useStore.getState().waterYearIndex
       const rowCol = latlonToL0RowCol(coords.lat, coords.lng)
 
+      // Sturm & Liston class at the point (own 300 m grid, own store).
+      // Codes 8 (Ocean) / 9 (Fill) are non-classes -> null.
+      const querySnowClass = async (): Promise<number | null> => {
+        const arr = snowClassArrayRef.current
+        const scRowCol = latlonToSnowClassRowCol(coords.lat, coords.lng)
+        if (!arr || !scRowCol) return null
+        try {
+          const result = await get(arr, scRowCol)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const raw = (result as any)?.data?.[0] ?? result
+          if (typeof raw !== 'number' || raw < 1 || raw > 7) return null
+          return raw
+        } catch {
+          return null
+        }
+      }
+
+      const snowClassPromise = querySnowClass()
       const entries = await Promise.all(
         ALL_VARIABLES.map(async (varName): Promise<[Variable, number | null]> => {
           const arr = l0ArraysRef.current[varName]
@@ -344,9 +414,11 @@ export const Map = () => {
         })
       )
 
+      const snowClass = await snowClassPromise
+
       if (cancelled.val) return
       const values = Object.fromEntries(entries) as ClickInfo['values']
-      setClickInfo({ lng: coords.lng, lat: coords.lat, status: 'done', values })
+      setClickInfo({ lng: coords.lng, lat: coords.lat, status: 'done', values, snowClass })
     }
 
     runQuery()
@@ -357,9 +429,15 @@ export const Map = () => {
     if (!mapRef.current || !isMapLoaded) return
     const map = mapRef.current
     const cancelled = { val: false }
-    const state = useStore.getState()
 
-    ALL_VARIABLES.forEach((varName) => {
+    const createLayers = async () => {
+      // Only reference the mask variable when it exists in the pyramid — a
+      // layer with a missing aux array fails its level loads and draws nothing.
+      const maskAvailable = (await seasonalMaskProbeRef.current) ?? false
+      if (cancelled.val) return
+      const state = useStore.getState()
+
+      ALL_VARIABLES.forEach((varName) => {
       const isActive = varName === state.variable
       const vCfg = VARIABLE_CONFIGS[varName]
       // The band value in customFrag is ALREADY CF-decoded: zarr-layer >= 0.8
@@ -373,8 +451,17 @@ export const Map = () => {
       //              or -999.9 after a 0.1 scale) — insurance against a store
       //              written without the explicit zarr-level fill_value (the
       //              bug class that bit the v10 icechunk store init).
+      //
+      // Seasonal-snow arm (issue #9): seasonal_snow_pct is an aux band (fork
+      // auxVariables), CF-decoded to 0-100 with NaN fill. `< threshold` is
+      // false for NaN, so mask-fill pixels (ocean/off-grid, plus 300 m
+      // coastline mismatch slivers) are NEVER hidden by the toggle — the main
+      // variable's own fill discard already handles pixels without data.
+      const seasonalArm = maskAvailable
+        ? `if (u_seasonal_only > 0.5 && ${SEASONAL_MASK_VARIABLE} < u_seasonal_threshold) { discard; }\n        `
+        : ''
       const customFrag = `
-        if (${varName} != ${varName} || ${varName} < -100.0) { discard; }
+        ${seasonalArm}if (${varName} != ${varName} || ${varName} < -100.0) { discard; }
         float rescaled = (${varName} - clim.x) / (clim.y - clim.x);
         vec4 c = texture(colormap, vec2(rescaled, 0.5));
         fragColor = vec4(c.rgb, opacity);
@@ -391,6 +478,15 @@ export const Map = () => {
         // (zarr-layer >= 0.8 self-describing stores) — no georeferencing here.
         ...(vCfg.hasWaterYear
           ? { selector: { water_year: { selected: state.waterYearIndex, type: 'index' as const } } }
+          : {}),
+        ...(maskAvailable
+          ? {
+              auxVariables: [SEASONAL_MASK_VARIABLE],
+              uniforms: {
+                u_seasonal_only: state.seasonalOnly ? 1 : 0,
+                u_seasonal_threshold: SEASONAL_MASK_THRESHOLD,
+              },
+            }
           : {}),
         zarrVersion: 3,
         fillValue: FILL_VALUE,
@@ -409,7 +505,9 @@ export const Map = () => {
         map.addLayer(layer, beforeId)
         zarrLayersRef.current[varName] = layer
       }
-    })
+      })
+    }
+    createLayers()
 
     const clickHandler = (event: maplibregl.MapMouseEvent) => {
       const { lng, lat } = event.lngLat
@@ -462,6 +560,17 @@ export const Map = () => {
     })
     if (lastClickRef.current) requeryAllVariables({ val: false })
   }, [waterYearIndex]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Seasonal-snow display filter: a pure uniform flip on every layer — no
+  // layer rebuilds, no refetches (the mask band is already resident). No-op
+  // (with a console warning from zarr-layer) if the mask probe failed, but the
+  // sidebar disables the toggle in that case anyway.
+  const seasonalOnly = useStore((s) => s.seasonalOnly)
+  useEffect(() => {
+    ALL_VARIABLES.forEach((v) => {
+      zarrLayersRef.current[v]?.setUniforms({ u_seasonal_only: seasonalOnly ? 1 : 0 })
+    })
+  }, [seasonalOnly])
 
   // Resize map when sidebar width changes
   useEffect(() => {

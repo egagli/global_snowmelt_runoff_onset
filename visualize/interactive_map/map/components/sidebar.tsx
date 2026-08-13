@@ -143,10 +143,13 @@ const SidebarContent = () => {
   const waterYearIndex = useStore((s) => s.waterYearIndex)
   const opacity = useStore((s) => s.opacity)
   const clim = useStore((s) => s.clim)
+  const seasonalOnly = useStore((s) => s.seasonalOnly)
+  const seasonalMaskAvailable = useStore((s) => s.seasonalMaskAvailable)
   const setVariable = useStore((s) => s.setVariable)
   const setWaterYearIndex = useStore((s) => s.setWaterYearIndex)
   const setOpacity = useStore((s) => s.setOpacity)
   const setClim = useStore((s) => s.setClim)
+  const setSeasonalOnly = useStore((s) => s.setSeasonalOnly)
 
   const vCfg = VARIABLE_CONFIGS[variable]
   const colormap = COLORMAP_ARRAYS[vCfg.colormap]
@@ -335,6 +338,61 @@ const SidebarContent = () => {
             setOpacity(parseFloat(e.target.value))
           }
         />
+      </div>
+
+      {/* Seasonal-snow display filter (issue #9) — applies to whichever
+          variable/layer is active; a shader-side discard, no refetches. */}
+      <div
+        style={{
+          opacity: seasonalMaskAvailable ? 1 : 0.35,
+          pointerEvents: seasonalMaskAvailable ? 'auto' : 'none',
+        }}
+        aria-disabled={!seasonalMaskAvailable}
+      >
+        <div style={sectionLabelStyle}>display filter</div>
+        <button
+          onClick={() => setSeasonalOnly(!seasonalOnly)}
+          disabled={!seasonalMaskAvailable}
+          role='checkbox'
+          aria-checked={seasonalOnly}
+          style={{
+            ...variableButtonStyle(seasonalOnly),
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span
+            aria-hidden
+            style={{
+              width: 12,
+              height: 12,
+              flexShrink: 0,
+              borderRadius: 3,
+              border: `1px solid ${seasonalOnly ? ACCENT : DIM}`,
+              background: seasonalOnly ? ACCENT : 'transparent',
+              color: '#fff',
+              fontSize: 10,
+              lineHeight: '12px',
+              textAlign: 'center',
+            }}
+          >
+            {seasonalOnly ? '✓' : ''}
+          </span>
+          limit to seasonal snow (Sturm &amp; Liston 2021)
+        </button>
+        <div style={{ fontSize: 10, color: DIM, lineHeight: 1.5 }}>
+          {seasonalMaskAvailable ? (
+            <>
+              Hides pixels outside seasonal snow classes in the Sturm &amp;
+              Liston (2021) classification. Note this also hides valid
+              estimates in ephemeral-snow regions (e.g. UK, Denmark, lowland
+              Japan, New Zealand) — check the snow class in the point query.
+            </>
+          ) : (
+            <>Seasonal snow mask not yet available in this pyramid.</>
+          )}
+        </div>
       </div>
 
     </div>

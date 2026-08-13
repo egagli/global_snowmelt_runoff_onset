@@ -11,7 +11,7 @@
     "@carbonplan/colormaps": "^4.0.0",
     "@carbonplan/components": "^13.3.0",
     "@carbonplan/theme": "^8.1.0",
-    "@carbonplan/zarr-layer": "^0.8.0",
+    "@carbonplan/zarr-layer": "file:../../../../zarr-layer",
     "@protomaps/basemaps": "^5.0.1",
     "@zarrita/storage": "^0.2.0",
     "maplibre-gl": "^5.16.0",

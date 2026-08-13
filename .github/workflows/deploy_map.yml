@@ -34,9 +34,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Check out this repo into a subdirectory so the map's
+      # file:../../../../zarr-layer dependency resolves to a sibling checkout
+      # (same pattern as MODIS_snow_phenology's deploy-map workflow).
       - uses: actions/checkout@v4
+        with:
+          path: global_snowmelt_runoff_onset
+
+      # zarr-layer fork with aux-variable band sampling (seasonal-snow mask
+      # shader arm, issue #9). Pin to the branch the map was built against.
+      - uses: actions/checkout@v4
+        with:
+          repository: egagli/zarr-layer
+          ref: aux-variables
+          path: zarr-layer
 
       - name: Set NEXT_PUBLIC_ZARR_URL from config
+        working-directory: global_snowmelt_runoff_onset
         run: |
           CONFIG="${{ inputs.config_file || 'config/global_config_v10.txt' }}"
           PREFIX=$(grep '^global_runoff_multiscale_azure_prefix' "$CONFIG" | cut -d'=' -f2 | tr -d ' ')
@@ -47,19 +61,23 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: visualize/interactive_map/map/package-lock.json
+          cache-dependency-path: global_snowmelt_runoff_onset/visualize/interactive_map/map/package-lock.json
+
+      - name: Build zarr-layer
+        working-directory: zarr-layer
+        run: npm install --ignore-scripts && npm run build
 
       - name: Install dependencies
-        working-directory: visualize/interactive_map/map
+        working-directory: global_snowmelt_runoff_onset/visualize/interactive_map/map
         run: npm ci
 
       - name: Build map
-        working-directory: visualize/interactive_map/map
+        working-directory: global_snowmelt_runoff_onset/visualize/interactive_map/map
         run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: visualize/interactive_map/map/out
+          path: global_snowmelt_runoff_onset/visualize/interactive_map/map/out
 
   deploy:
     needs: build

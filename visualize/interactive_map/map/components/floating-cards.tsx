@@ -5,6 +5,7 @@ import {
   VARIABLE_CONFIGS,
   COMPOSITE_VARIABLES,
   ANNUAL_VARIABLES,
+  SNOW_CLASS_INFO,
   type Variable,
   type Basemap,
 } from '../lib/store'
@@ -180,6 +181,30 @@ const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
               <span style={{ color: DIM, fontSize: 14 }}>water year</span>
               <span style={{ fontFamily: 'monospace', fontSize: 15 }}>{waterYear}</span>
+            </div>
+            {/* Sturm & Liston (2021) class at the point — shown regardless of
+                the seasonal-only display filter. */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
+              <span style={{ color: DIM, fontSize: 14 }}>snow class</span>
+              {clickInfo.status === 'querying' ? (
+                <span style={{ color: DIM, fontSize: 14 }}>…</span>
+              ) : clickInfo.snowClass !== null && SNOW_CLASS_INFO[clickInfo.snowClass] ? (
+                <span style={{ fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: 2,
+                      background: SNOW_CLASS_INFO[clickInfo.snowClass].color,
+                      display: 'inline-block',
+                    }}
+                  />
+                  {SNOW_CLASS_INFO[clickInfo.snowClass].name}
+                </span>
+              ) : (
+                <span style={{ color: DIM, fontSize: 14 }}>—</span>
+              )}
             </div>
             <div style={{ borderTop: `1px solid ${BORDER}`, margin: '10px 0' }} />
             {clickInfo.status === 'querying' ? (

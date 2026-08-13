@@ -1,12 +1,17 @@
 name: Build Visualization Pyramid
 
 # Builds the multiscale visualization pyramid (visualize/pyramid/) from a
-# tagged icechunk snapshot. Always all five variables, three jobs: composites
+# tagged icechunk snapshot. Always all six variables, four jobs: composites
 # runs first, alone (it creates the store structure and convention attrs),
-# then the two yearly-variable jobs in parallel (they own disjoint zarr
-# arrays, so they never conflict). The source tag (release_tag), destination
-# prefix (global_runoff_multiscale_azure_prefix), and cache-busting generation
-# (multiscale_generation) all come from the config file.
+# then the two yearly-variable jobs and the seasonal_snow mask job in
+# parallel (they own disjoint zarr arrays, so they never conflict). The
+# source tag (release_tag), destination prefix
+# (global_runoff_multiscale_azure_prefix), and cache-busting generation
+# (multiscale_generation) all come from the config file. The seasonal_snow
+# job derives its variable from the Sturm & Liston (2021) snow classification
+# GeoTIFF (downloaded once per run) instead of the icechunk store, and gates
+# itself with --check-attrs so it can also run alone, additively, against a
+# live prefix without touching the root zarr.json.
 #
 # mode=fresh writes everything from scratch; mode=resume continues from the
 # per-job progress markers (_build/<job>.json under the pyramid prefix) that
@@ -80,3 +85,40 @@ jobs:
             --config-file ${{ inputs.config_file }} \
             --mode "${{ inputs.mode }}" \
             --max-workers 16
+
+  seasonal_snow:
+    name: seasonal_snow (Sturm & Liston 2021 mask)
+    needs: composites
+    runs-on: ubuntu-latest
+    timeout-minutes: 180  # one 2-D variable; composites did three in ~1h46m
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: prefix-dev/setup-pixi@v0.8.0
+        with:
+          environments: ci
+
+      # one 67 MB download instead of ~100k windowed HTTPS range reads
+      - name: Download the snow classification GeoTIFF
+        run: |
+          curl -sSf -o "$RUNNER_TEMP/SnowClass_GL_300m_10.0arcsec_2021_v01.0.tif" \
+            "https://uwcryo.blob.core.windows.net/snowmelt/eric/snow_classification/SnowClass_GL_300m_10.0arcsec_2021_v01.0.tif"
+
+      # read-only gate: the mask job must leave the live root zarr.json
+      # byte-identical (immutable-cache convention); fails loudly otherwise
+      - name: Check root-attr byte stability
+        run: |
+          pixi run -e ci python visualize/pyramid/build_pyramid.py \
+            --job seasonal_snow \
+            --config-file ${{ inputs.config_file }} \
+            --check-attrs \
+            --snow-class-tif "$RUNNER_TEMP/SnowClass_GL_300m_10.0arcsec_2021_v01.0.tif"
+
+      - name: Build seasonal_snow pyramid
+        run: |
+          pixi run -e ci python visualize/pyramid/build_pyramid.py \
+            --job seasonal_snow \
+            --config-file ${{ inputs.config_file }} \
+            --mode "${{ inputs.mode }}" \
+            --max-workers 16 \
+            --snow-class-tif "$RUNNER_TEMP/SnowClass_GL_300m_10.0arcsec_2021_v01.0.tif"
