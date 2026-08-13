@@ -109,7 +109,10 @@ years survive), throughput varies ~3× between runners.
 
 - `processing/3_quality_check_tiles.ipynb` — per-tile stats and v9-vs-v10 visual
   comparison for the test-tile battery (antimeridian, scene-densest, Rainier,
-  empty-year mix, catalog backfill, Cayambe equator pair). Read its expectations
+  empty-year mix, catalog backfill, Cayambe equator pair). The battery itself is
+  `processing/tile_data/test_tiles_v10.txt` — dispatch it through any batch
+  workflow's `tiles_file` input to reprocess those eight tiles, then compare here.
+  Read its expectations
   cell before alarm: `pct_identical` tracks S1 acquisition redundancy, not
   correctness — the corrected QC filter legitimately changes sparse years.
 - `processing/scripts/list_dropped_scenes.py` — global inventory of every scene

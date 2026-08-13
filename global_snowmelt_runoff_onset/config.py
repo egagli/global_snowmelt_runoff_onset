@@ -17,7 +17,7 @@ import odc.stac
 import adlfs
 import icechunk
 import os
-from typing import List, Tuple, Dict, Any, Union, Optional
+from typing import List, Tuple, Dict, Any, Optional
 import warnings
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, unquote
@@ -35,13 +35,11 @@ class Config:
         resolution (float): Spatial resolution in degrees
         bands (List[str]): SAR polarization bands to process (e.g., ['vv'])
         mountain_snow_only (bool): Whether to restrict processing to mountain regions
-        spatial_chunk_dim_s1_read (int): Chunk size for reading S1 data
-        spatial_chunk_dim_s1_process (int): Chunk size for processing operations
-        spatial_chunk_dim_zarr_output (int): Chunk size for Zarr output
         water_years (np.ndarray): Array of water years to process
         global_geobox (odc.geo.GeoBox): Global geographic bounding box
-        chunks_s1_read (Dict[str, int]): Dask chunks for reading S1 data
-        chunks_s1_process (Dict[str, int]): Dask chunks for processing
+        spatial_chunk_dim_zarr_output (int): Output tile/shard size, and the unit
+            the global tile grid is cut on
+        inner_chunk_dim (int): Inner chunk size within a shard (configs >= v10)
         chunks_zarr_output (Dict[str, int]): Dask chunks for Zarr output
         snow_phenology_store: Store for the MODIS-derived snow phenology
             dataset. An icechunk session store (Zarr v3) for configs >= v10,
@@ -127,28 +125,19 @@ class Config:
     def _load_values(self) -> None:
         """
         Load configuration values from the config file.
-        
-        Handles backward compatibility between old single-chunk configs and new
-        multi-stage chunking configs.
+
+        Read in the same order the config file is written: grid, temporal,
+        algorithm parameters, output store schema, inputs, outputs/release.
+        Keys only legacy configs carry are read behind `has_option` checks so
+        old configs still load. Keys that no longer drive anything are ignored
+        rather than removed from those files, since a frozen config is the
+        record of how its dataset version was produced: `min_monthly_acquisitions`
+        and `seasonal_snow_mask_reproject_method` (<= v9), and
+        `spatial_chunk_dim_s1_read` / `_s1_process` (<= v9 -- v10+ takes read
+        chunking from `process_single_tile.py --read-chunk-dim/--read-chunk-time`).
         """
+        # --- Grid / geometry --------------------------------------------------
         self.resolution: float = self.config.getfloat('VALUES', 'resolution')
-        self.bands: List[str] = self.config.getlist('VALUES', 'bands')
-        self.mountain_snow_only: bool = self.config.getboolean('VALUES', 'mountain_snow_only', fallback=True)
-        
-        # Handle backward compatibility for chunking configuration
-        if self.config.has_option('VALUES', 'spatial_chunk_dim_s1_read'):
-            # New format with separate chunk dimensions
-            self.spatial_chunk_dim_s1_read: int = self.config.getint('VALUES', 'spatial_chunk_dim_s1_read')
-            self.spatial_chunk_dim_s1_process: int = self.config.getint('VALUES', 'spatial_chunk_dim_s1_process')
-            self.spatial_chunk_dim_zarr_output: int = self.config.getint('VALUES', 'spatial_chunk_dim_zarr_output')
-        else:
-            # Old format - use single spatial_chunk_dim for all purposes
-            spatial_chunk_dim = self.config.getint('VALUES', 'spatial_chunk_dim')
-            self.spatial_chunk_dim_s1_read: int = spatial_chunk_dim
-            self.spatial_chunk_dim_s1_process: int = 512  # Use smaller chunks for processing
-            self.spatial_chunk_dim_zarr_output: int = spatial_chunk_dim
-        
-        # Geographic bounds
         self.bbox_left: float = self.config.getfloat('VALUES', 'bbox_left')
         self.bbox_right: float = self.config.getfloat('VALUES', 'bbox_right')
         self.bbox_top: float = self.config.getfloat('VALUES', 'bbox_top')
@@ -166,33 +155,63 @@ class Config:
         if self.config.has_option('VALUES', 'expected_tile_grid'):
             self.expected_tile_grid = tuple(
                 int(v) for v in self.config.getlist('VALUES', 'expected_tile_grid'))
-        
-        # Temporal parameters
+
+        # --- Temporal ---------------------------------------------------------
         self.WY_start: int = self.config.getint('VALUES', 'WY_start')
         self.WY_end: int = self.config.getint('VALUES', 'WY_end')
-        
-        # Processing parameters
-        self.min_years_for_median_std: int = self.config.getint('VALUES', 'min_years_for_median_std')
-        # (min_monthly_acquisitions was removed in v10: the edge-anchored max-gap
-        # criterion implies the 1/month density floor; old configs may still
-        # contain the key, which is simply ignored)
-        self.max_allowed_days_gap_per_orbit: int = self.config.getint('VALUES', 'max_allowed_days_gap_per_orbit')
-        self.low_backscatter_threshold: float = self.config.getfloat('VALUES', 'low_backscatter_threshold')
-        self.extend_search_window_beyond_SDD_days: int = self.config.getint('VALUES', 'extend_search_window_beyond_SDD_days', fallback=16)
-        self.min_consec_snow_days_for_seasonal_snow: int = self.config.getint('VALUES', 'min_consec_snow_days_for_seasonal_snow', fallback=56)
         # Days past a hemisphere's season end before a water year is eligible for
         # dispatch/processing (see status.wy_eligible): phenology's 90d trailing
         # buffer + grace for its fleet to run. Gates both status.get_remaining_work
         # and the per-tile processor so a half-elapsed season is never committed.
         self.trailing_buffer_days: int = self.config.getint('VALUES', 'trailing_buffer_days', fallback=120)
 
-        # File paths (resolve relative to repository root)
+        # --- Algorithm parameters ---------------------------------------------
+        self.bands: List[str] = self.config.getlist('VALUES', 'bands')
+        self.mountain_snow_only: bool = self.config.getboolean('VALUES', 'mountain_snow_only', fallback=True)
+        self.low_backscatter_threshold: float = self.config.getfloat('VALUES', 'low_backscatter_threshold')
+        self.max_allowed_days_gap_per_orbit: int = self.config.getint('VALUES', 'max_allowed_days_gap_per_orbit')
+        self.min_years_for_median_std: int = self.config.getint('VALUES', 'min_years_for_median_std')
+        self.extend_search_window_beyond_SDD_days: int = self.config.getint('VALUES', 'extend_search_window_beyond_SDD_days', fallback=16)
+        self.min_consec_snow_days_for_seasonal_snow: int = self.config.getint('VALUES', 'min_consec_snow_days_for_seasonal_snow', fallback=56)
+
+        # --- Output store schema ----------------------------------------------
+        # The output tile/shard size, and the unit the global tile grid is cut on
+        # (geobox_tiles in _init_derived_values) -- the only chunk dimension the
+        # pipeline reads from config. Configs <= v6 carried a single
+        # `spatial_chunk_dim` used for every purpose.
+        if self.config.has_option('VALUES', 'spatial_chunk_dim_zarr_output'):
+            self.spatial_chunk_dim_zarr_output: int = self.config.getint(
+                'VALUES', 'spatial_chunk_dim_zarr_output')
+        else:
+            self.spatial_chunk_dim_zarr_output: int = self.config.getint(
+                'VALUES', 'spatial_chunk_dim')
+        # Zarr v3 sharding (v10+): shard spatial dims == tile dims (one shard per
+        # tile per water year, so concurrent tile jobs never share a shard);
+        # inner chunks keep point/subset reads small.
+        self.inner_chunk_dim: int = self.config.getint('VALUES', 'inner_chunk_dim', fallback=256)
+
+        # --- Inputs -------------------------------------------------------------
+        # Paths resolve relative to the repository root.
         self.valid_tiles_geojson_path: str = self._resolve_repo_path(
             self.config.get('VALUES', 'valid_tiles_geojson_path'))
 
-        # Output store. Configs >= v10 use 'global_runoff_icechunk_azure_prefix'
-        # (an icechunk repository; processing status is derived from its commit
-        # history -- see status.py). Configs <= v9 use the legacy
+        # Snow phenology input. Configs >= v10 use 'snow_phenology_zarr_store_azure_path'
+        # (an icechunk repo from MODIS_snow_phenology); configs <= v9 use the legacy
+        # 'seasonal_snow_mask_zarr_store_azure_path' key (a plain consolidated Zarr v2
+        # store from MODIS_seasonal_snow_mask).
+        if self.config.has_option('VALUES', 'snow_phenology_zarr_store_azure_path'):
+            self.snow_phenology_zarr_store_azure_path: str = self.config.get(
+                'VALUES', 'snow_phenology_zarr_store_azure_path')
+            self.snow_phenology_store_is_icechunk: bool = True
+        else:
+            self.snow_phenology_zarr_store_azure_path: str = self.config.get(
+                'VALUES', 'seasonal_snow_mask_zarr_store_azure_path')
+            self.snow_phenology_store_is_icechunk: bool = False
+
+        # --- Outputs & release ----------------------------------------------------
+        # Configs >= v10 use 'global_runoff_icechunk_azure_prefix' (an icechunk
+        # repository; processing status is derived from its commit history -- see
+        # status.py). Configs <= v9 use the legacy
         # 'global_runoff_zarr_store_azure_path' (a pre-allocated plain Zarr v2
         # store) plus 'tile_results_path' CSV-based status tracking.
         if self.config.has_option('VALUES', 'global_runoff_icechunk_azure_prefix'):
@@ -220,35 +239,19 @@ class Config:
                         f"'{expected_suffix}' (multiscale_generation = "
                         f"{self.multiscale_generation}); got "
                         f"'{self.global_runoff_multiscale_azure_prefix}'")
-            # Zarr v3 sharding: shard spatial dims == tile dims (one shard per
-            # tile per water year, so concurrent tile jobs never share a shard);
-            # inner chunks keep point/subset reads small.
-            self.inner_chunk_dim: int = self.config.getint('VALUES', 'inner_chunk_dim', fallback=256)
         else:
             self.output_store_is_icechunk: bool = False
             self.global_runoff_zarr_store_azure_path: str = self.config.get(
                 'VALUES', 'global_runoff_zarr_store_azure_path')
             self.tile_results_path: str = self._resolve_repo_path(
                 self.config.get('VALUES', 'tile_results_path'))
-
-        # Snow phenology input. Configs >= v10 use 'snow_phenology_zarr_store_azure_path'
-        # (an icechunk repo from MODIS_snow_phenology); configs <= v9 use the legacy
-        # 'seasonal_snow_mask_zarr_store_azure_path' key (a plain consolidated Zarr v2
-        # store from MODIS_seasonal_snow_mask).
-        if self.config.has_option('VALUES', 'snow_phenology_zarr_store_azure_path'):
-            self.snow_phenology_zarr_store_azure_path: str = self.config.get(
-                'VALUES', 'snow_phenology_zarr_store_azure_path')
-            self.snow_phenology_store_is_icechunk: bool = True
-        else:
-            self.snow_phenology_zarr_store_azure_path: str = self.config.get(
-                'VALUES', 'seasonal_snow_mask_zarr_store_azure_path')
-            self.snow_phenology_store_is_icechunk: bool = False
-
-        # Output fields for tile processing results
-        self.fields: Tuple[str, ...] = ("row","col","percent_valid_snow_pixels","s1_rtc_ds_dims","runoff_onsets_dims",
-        "tr_2015", "tr_2016", "tr_2017", "tr_2018", "tr_2019", "tr_2020", "tr_2021", "tr_2022", "tr_2023","tr_2024",
-        "pix_ct_2015","pix_ct_2016","pix_ct_2017","pix_ct_2018","pix_ct_2019","pix_ct_2020","pix_ct_2021","pix_ct_2022","pix_ct_2023","pix_ct_2024",
-        "start_time","total_time","success","error_messages")
+            # Column set for the legacy per-tile results CSV, written by
+            # _load_valid_tiles when that file doesn't exist yet. Legacy-only:
+            # v10+ derives status from icechunk commit metadata (status.py).
+            self.fields: Tuple[str, ...] = ("row","col","percent_valid_snow_pixels","s1_rtc_ds_dims","runoff_onsets_dims",
+            "tr_2015", "tr_2016", "tr_2017", "tr_2018", "tr_2019", "tr_2020", "tr_2021", "tr_2022", "tr_2023","tr_2024",
+            "pix_ct_2015","pix_ct_2016","pix_ct_2017","pix_ct_2018","pix_ct_2019","pix_ct_2020","pix_ct_2021","pix_ct_2022","pix_ct_2023","pix_ct_2024",
+            "start_time","total_time","success","error_messages")
 
     def _init_derived_values(self) -> None:
         """
@@ -262,17 +265,11 @@ class Config:
         self.start_date: str = f'{self.WY_start-1}-10-01'
         self.end_date: str = f'{self.WY_end+1}-03-31'
         
-        # Chunking configurations for different processing stages
+        # Output chunking. Sentinel-1 read chunking is not a config value: it is a
+        # CLI knob on process_single_tile.py (--read-chunk-dim/--read-chunk-time).
         self.spatial_chunk_dims_zarr: Tuple[int, int] = (self.spatial_chunk_dim_zarr_output, self.spatial_chunk_dim_zarr_output)
-        self.chunks_s1_read: Dict[str, int] = {"x": self.spatial_chunk_dim_s1_read, "y": self.spatial_chunk_dim_s1_read, "time": 1}
-        self.chunks_s1_process: Dict[str, Union[int, str]] = {"latitude": self.spatial_chunk_dim_s1_process, "longitude": self.spatial_chunk_dim_s1_process, "time": -1}
         self.chunks_zarr_output: Dict[str, int] = {"longitude": self.spatial_chunk_dim_zarr_output, "latitude": self.spatial_chunk_dim_zarr_output}
-        
-        # Backward compatibility aliases
-        self.chunks_read: Dict[str, int] = self.chunks_s1_read
-        self.chunks_write: Dict[str, int] = self.chunks_zarr_output
-        self.spatial_chunk_dims: Tuple[int, int] = self.spatial_chunk_dims_zarr
-        
+
         # Geographic setup
         self.global_geobox: odc.geo.GeoBox = odc.geo.geobox.GeoBox.from_bbox((self.bbox_left, self.bbox_bottom,
             self.bbox_right, self.bbox_top), crs="epsg:4326", resolution=self.resolution)
@@ -301,19 +298,6 @@ class Config:
         # Azure storage account name from environment or default
         self.azure_storage_account: str = os.getenv('AZURE_STORAGE_ACCOUNT', 'uwcryo')
         account_name = self.azure_storage_account
-        
-        # Earth Engine credentials (optional - only used if available).
-        # Imported lazily so the minimal CI environment doesn't need earthengine-api.
-        ee_key_path = self._resolve_repo_path('config/ee_key.json')
-        ee_key_file = pathlib.Path(ee_key_path)
-        if ee_key_file.exists():
-            import ee
-            self.ee_credentials = ee.ServiceAccountCredentials(
-                email='coiled@buoyant-aileron-352100.iam.gserviceaccount.com',
-                key_file=str(ee_key_file)
-            )
-        else:
-            self.ee_credentials = None
         
         # adlfs/fsspec is only needed for the legacy (<= v9) plain-Zarr stores;
         # icechunk does its own (Rust object-store) I/O, and Sentinel-1 COGs are
@@ -617,37 +601,55 @@ class Config:
 
     def get_config_dict(self) -> Dict[str, Any]:
         """
-        Get configuration as dictionary.
-        
+        Get the resolved configuration as a flat dictionary.
+
+        Grouped in the same order as the config file and `_load_values`: grid,
+        temporal, algorithm parameters, output store schema, inputs, outputs.
+        Includes the derived values a reader would otherwise have to recompute
+        (realized grid/tile shape, water years, search date range), so this is a
+        complete picture of a run's settings rather than a re-read of the file --
+        `_print_config()` prints the raw file.
+
         Returns:
             Dictionary containing all configuration parameters
         """
         return {
+            # grid / geometry
+            'config_name': self.config_name,
+            'version': self.version,
             'resolution': self.resolution,
-            'bands': self.bands,
-            'mountain_snow_only': self.mountain_snow_only,
-            'spatial_chunk_dim_s1_read': self.spatial_chunk_dim_s1_read,
-            'spatial_chunk_dim_s1_process': self.spatial_chunk_dim_s1_process,
-            'spatial_chunk_dim_zarr_output': self.spatial_chunk_dim_zarr_output,
             'bbox_left': self.bbox_left,
             'bbox_right': self.bbox_right,
             'bbox_top': self.bbox_top,
             'bbox_bottom': self.bbox_bottom,
+            'grid_shape': tuple(self.global_geobox.shape.yx),
+            'tile_grid': tuple(self.geobox_tiles.shape.yx),
+            # temporal
             'WY_start': self.WY_start,
             'WY_end': self.WY_end,
             'water_years': self.water_years.tolist(),
-            'min_years_for_median_std': self.min_years_for_median_std,
-            'max_allowed_days_gap_per_orbit': self.max_allowed_days_gap_per_orbit,
-            'low_backscatter_threshold': self.low_backscatter_threshold,
-            'extend_search_window_beyond_SDD_days': self.extend_search_window_beyond_SDD_days,
             'trailing_buffer_days': self.trailing_buffer_days,
-            'min_consec_snow_days_for_seasonal_snow': self.min_consec_snow_days_for_seasonal_snow,
             'start_date': self.start_date,
             'end_date': self.end_date,
+            # algorithm parameters
+            'bands': self.bands,
+            'mountain_snow_only': self.mountain_snow_only,
+            'low_backscatter_threshold': self.low_backscatter_threshold,
+            'max_allowed_days_gap_per_orbit': self.max_allowed_days_gap_per_orbit,
+            'min_years_for_median_std': self.min_years_for_median_std,
+            'extend_search_window_beyond_SDD_days': self.extend_search_window_beyond_SDD_days,
+            'min_consec_snow_days_for_seasonal_snow': self.min_consec_snow_days_for_seasonal_snow,
+            # output store schema
+            'spatial_chunk_dim_zarr_output': self.spatial_chunk_dim_zarr_output,
+            **({'inner_chunk_dim': self.inner_chunk_dim} if self.output_store_is_icechunk else {}),
+            # inputs
             'valid_tiles_geojson_path': self.valid_tiles_geojson_path,
             'snow_phenology_zarr_store_azure_path': self.snow_phenology_zarr_store_azure_path,
+            # outputs & release
             **({'global_runoff_icechunk_azure_prefix': self.global_runoff_icechunk_azure_prefix,
-                'inner_chunk_dim': self.inner_chunk_dim}
+                'release_tag': self.release_tag,
+                'global_runoff_multiscale_azure_prefix': self.global_runoff_multiscale_azure_prefix,
+                'multiscale_generation': self.multiscale_generation}
                if self.output_store_is_icechunk else
                {'global_runoff_zarr_store_azure_path': self.global_runoff_zarr_store_azure_path,
                 'tile_results_path': self.tile_results_path}),

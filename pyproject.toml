@@ -7,8 +7,11 @@ name = "global-snowmelt-runoff-onset"
 version = "1.0"
 description = "Global snowmelt runoff onset dataset pipeline"
 authors = [{ name = "Eric Gagliano", email = "egagli@uw.edu" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
+# Dependencies are managed by pixi (pixi.toml), not here: this package is
+# installed editable into a pixi-solved environment.
 dependencies = []
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["global_snowmelt_runoff_onset*"]
