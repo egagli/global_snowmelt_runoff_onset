@@ -102,9 +102,14 @@ The pre-2026 CarbonPlan stack: [ndpyramid](https://github.com/carbonplan/ndpyram
 
 **Option C only if** the map outgrows static hosting (heavy traffic, private data, or a lab server materializes) — at which point the Phase-2 in-icechunk overviews are already the right storage layout for xpublish-tiles.
 
-## Snow classification point-query store (`build_snow_class_store.py`)
+## Snow classification store (`build_snow_class_store.py`)
 
-The point-query card ([issue #9](https://github.com/egagli/global_snowmelt_runoff_onset/issues/9)) shows a "snow class" row from the [Liston & Sturm (2021) Global Seasonal-Snow Classification](https://nsidc.org/data/nsidc-0768) (300 m / 10 arcsec, doi:10.5067/99FTCYYYLAQ0). [`build_snow_class_store.py`](build_snow_class_store.py) publishes it as a small standalone plain Zarr v3 store next to the pyramid: one global 2-D uint8 array `snow_class` (64800 × 129600, EPSG:4326, fill 9), zstd, plain (1024, 1024) chunks — no shards, so a point query is a single HTTP fetch of one explicit chunk blob (~8.1k blobs total, tens of MB; all-fill chunks are skipped, so a 404 means fill). Georeferencing self-describes via the same `proj:`/`spatial:` convention attrs as the pyramid, on both the root group and the array.
+[`build_snow_class_store.py`](build_snow_class_store.py) publishes the [Liston & Sturm (2021) Global Seasonal-Snow Classification](https://nsidc.org/data/nsidc-0768) (300 m / 10 arcsec, doi:10.5067/99FTCYYYLAQ0) as a standalone multiscale Zarr v3 pyramid next to the runoff pyramid. The map uses it two ways ([issue #9](https://github.com/egagli/global_snowmelt_runoff_onset/issues/9)):
+
+- the **"snow class" row** of the point-query card, read from level 0, and
+- the **"snow class" basemap**, a categorical zarr-layer — which is why it needs to be a pyramid at all: a single-level 300 m array would make a world-view render read every chunk (8.4 GB decoded).
+
+Built with topozarr `method="nearest"`: class codes are categorical, so coarse levels **decimate** rather than average (averaging would invent codes that mean nothing). Documented caveat of nearest — it keeps each window's top-left cell, so a class present only away from corners can vanish at coarse zoom; topozarr has no majority `mode` yet. 10 levels (level 0 native 64800 × 129600 uint8, fill 9, down to 126 × 253), plain (1024, 1024) chunks at level 0 and **no shards**, so a point query is a single HTTP fetch of one explicit chunk blob (all-fill chunks are skipped, so a 404 means fill). The root carries topozarr's `multiscales` + `proj:`/`spatial:` attrs, so zarr-layer self-describes CRS and extent with no client-side georeferencing.
 
 ```bash
 # production build (full grid -> Azure; immutable-prefix convention, bump _1 to regenerate)
@@ -114,9 +119,11 @@ pixi run python visualize/interactive_map/build_snow_class_store.py
 pixi run python visualize/interactive_map/build_snow_class_store.py --set-cache-headers
 ```
 
-Public array URL (zarrita FetchStore / `zarr.open_array` target):
-`https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/snow_classification_300m_1/snow_class`
-— chunks at `.../snow_class/c/{row//1024}/{col//1024}` with `row = floor((89.99999999994958 − lat)/0.0027777777777770003)`, `col = floor((lon + 180.0)/0.0027777777777770003)`; decoded chunks are always full 1024×1024 (edge chunks are fill-padded). Classes 8 (Ocean) / 9 (Fill), missing chunks, and off-grid points render as "no class"; the `class_info` attr on the array maps codes to names. For local testing the script takes `--local-dest` plus a `--bbox lon_min lat_min lon_max lat_max` subset window (testing only — production runs omit `--bbox`); `--dry-run` prints the plan. Verified against the source GeoTIFF (Mt Rainier summit → 7 Ice, WA Cascades → 3 Maritime, Puget lowland → 4 Ephemeral, offshore Pacific → 8 Ocean).
+Public level-0 array URL (zarrita FetchStore / `zarr.open_array` target):
+`https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/snow_classification_300m_multiscale_1/0/snow_class`
+— chunks at `.../0/snow_class/c/{row//1024}/{col//1024}` with `row = floor((89.99999999994958 − lat)/0.0027777777777770003)`, `col = floor((lon + 180.0)/0.0027777777777770003)`; decoded chunks are always full 1024×1024 (edge chunks are fill-padded). Classes 8 (Ocean) / 9 (Fill), missing chunks, and off-grid points are "no class" — the query card shows an em-dash and the basemap shader discards them, so the dark basemap shows through. The `class_info` attr maps codes to names. For local testing the script takes `--local-dest` plus a `--bbox lon_min lat_min lon_max lat_max` subset window and `--levels` (testing only — production runs omit both); `--dry-run` prints the level plan. Verified against the source GeoTIFF: level 0 bit-identical (point checks — Mt Rainier summit → 7 Ice, WA Cascades → 3 Maritime, Puget lowland → 4 Ephemeral, offshore Pacific → 8 Ocean — plus a 512 × 512 block), coarse levels contain only valid class codes, and levels halve exactly.
+
+**Retired**: the pre-pyramid single-level generation `snow_classification_300m_1` (array at the store root, no levels). It was replaced rather than extended because adding levels would have meant rewriting its root `zarr.json` in place, against the immutable-cache convention. Delete it once a deployed map is reading the `_multiscale_1` prefix — see the maintenance runbook.
 
 ## Seasonal-snow display filter (issue #9)
 

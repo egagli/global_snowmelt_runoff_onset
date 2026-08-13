@@ -194,14 +194,40 @@ Order of operations (also in the issue template):
   that branch breaks map deploys; when the feature lands on the fork's `main`
   (or upstream), update the `ref:` in the workflow and the note in
   `visualize/interactive_map/README.md`.
-- **Snow-classification point-query store**: the map's "snow class" row reads
-  the standalone `snow_classification_300m_1` store, built **once** by
+- **Snow-classification pyramid**: the map's "snow class" basemap and the
+  "snow class" row of the point-query card both read the standalone
+  `snow_classification_300m_multiscale_1` store, built **once** by
   `visualize/interactive_map/build_snow_class_store.py` (then again with
-  `--set-cache-headers`). It is independent of the pyramid and of generation
-  bumps — it only needs rebuilding if the upstream Sturm & Liston raster ever
-  changes, in which case bump its `_N` suffix (same immutable-prefix
-  convention) and the map's `SNOW_CLASS_URL` in
+  `--set-cache-headers`). Ten levels via topozarr `method="nearest"` —
+  categorical class codes decimate, never average. It is independent of the
+  runoff pyramid and of `multiscale_generation` bumps; it only needs
+  rebuilding if the upstream Sturm & Liston raster changes, in which case bump
+  its `_N` suffix (same immutable-prefix convention) and `SNOW_CLASS_URL` in
   `visualize/interactive_map/map/lib/store.ts`.
+- **Retiring a superseded prefix** (e.g. the pre-pyramid
+  `snow_classification_300m_1`, or last generation's
+  `..._multiscale_N-1` runoff pyramid): delete only after a **deployed** map is
+  reading the new prefix — blobs are served cache-immutable, so a browser that
+  already loaded the old prefix keeps using its cached copies until they
+  expire, but a fresh page load needs the new one to exist. Verify with
+  `curl -sI <new-prefix>/zarr.json` (expect 200), confirm the live map renders,
+  then delete:
+
+  ```bash
+  # inspect first: how many blobs / how much data
+  az storage blob list --account-name uwcryo --container-name snowmelt \
+    --prefix snowmelt_runoff_onset/snow_classification_300m_1/ \
+    --sas-token "$AZURE_STORAGE_SAS_TOKEN" --query "length(@)"
+
+  # then delete the prefix (irreversible; the store is regenerable from the
+  # source GeoTIFF by re-running the builder)
+  az storage blob delete-batch --account-name uwcryo --source snowmelt \
+    --pattern "snowmelt_runoff_onset/snow_classification_300m_1/*" \
+    --sas-token "$AZURE_STORAGE_SAS_TOKEN"
+  ```
+
+  Grep the repo for the old prefix string before deleting — nothing but git
+  history should still name it.
 - **Registry refresh**: rerun the catalog probe in `0_select_tiles_to_process.ipynb`
   when S1 coverage evolves (e.g. Greenland VV backfill); newly-`to_process` tiles
   flow into the next `incomplete` dispatch as wholly-missing tiles.
@@ -237,7 +263,7 @@ flowchart TD
         CBAR["visualize/colorbars/create_colorbars.ipynb<br/>colorbar demos from plot_utils"]
         COV["visualize/s1_rtc_coverage/explore_s1_rtc_IW_polarization_spatial_distribution.ipynb<br/>MPC catalog polarization scan — evidence behind the registry rule"]
         MISS["dataset_evaluation/.../how_much_seasonal_snow_do_we_miss.ipynb<br/>reads the phenology store only"]
-        SC["visualize/interactive_map/build_snow_class_store.py<br/>→ snow_classification_300m_1 (one-time; + --set-cache-headers)<br/>feeds the map's snow-class query row"]
+        SC["visualize/interactive_map/build_snow_class_store.py<br/>→ snow_classification_300m_multiscale_1 (one-time; + --set-cache-headers)<br/>nearest-resampled class pyramid: map's snow-class basemap + query row"]
     end
 
     subgraph BUILD["Build the dataset"]

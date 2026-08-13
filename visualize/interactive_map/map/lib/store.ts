@@ -8,7 +8,7 @@ export type Variable =
   | 'temporal_resolution'
   | 'temporal_resolution_median'
 
-export type Basemap = 'dark' | 'satellite' | 'topography'
+export type Basemap = 'dark' | 'satellite' | 'topography' | 'snowclass'
 
 import type { ColormapName } from './colormaps'
 
@@ -98,14 +98,22 @@ export const ZARR_URL =
 // The map probes for it at startup, so deploying this map before the mask job
 // has run just leaves the toggle disabled.
 export const SEASONAL_MASK_VARIABLE = 'seasonal_snow_pct'
-export const SEASONAL_MASK_THRESHOLD = 0.5 // "> 0" against the integer cascade
+// Percent-seasonal-snow a cell must reach to survive the filter. Only bites at
+// coarse levels: level 0 is exactly 0 or 100, so any 0 < threshold <= 100
+// behaves identically at native zoom. 50 = "at least half this cell's area is
+// seasonal snow"; drop toward 0.5 for the permissive "any seasonal snow here".
+export const SEASONAL_MASK_THRESHOLD = 50
 
-// Standalone 300 m Sturm & Liston (2021) classification store (NSIDC-0768),
-// point-queried for the snow-class row in the query card. Published by
-// visualize/interactive_map/build_snow_class_store.py.
+// Standalone 300 m Sturm & Liston (2021) classification pyramid (NSIDC-0768),
+// published by visualize/interactive_map/build_snow_class_store.py. Serves two
+// consumers: the snow-class row of the point-query card (reads level 0) and the
+// "snow class" basemap (a categorical zarr-layer, which needs the coarse
+// levels — a single-level 300 m array would read every chunk at world zoom).
 export const SNOW_CLASS_URL =
   process.env.NEXT_PUBLIC_SNOW_CLASS_URL ??
-  'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/snow_classification_300m_1'
+  'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/snow_classification_300m_multiscale_1'
+
+export const SNOW_CLASS_VARIABLE = 'snow_class'
 
 // Class code → name/color (easysnowdata convention; NSIDC-0768 user guide).
 // 8 (Ocean) and 9 (Fill) are non-classes for display purposes.

@@ -10,6 +10,8 @@ import {
   useStore,
   ZARR_URL,
   SNOW_CLASS_URL,
+  SNOW_CLASS_VARIABLE,
+  SNOW_CLASS_INFO,
   SEASONAL_MASK_VARIABLE,
   SEASONAL_MASK_THRESHOLD,
   VARIABLE_CONFIGS,
@@ -21,6 +23,35 @@ import { COLORMAP_ARRAYS } from '../lib/colormaps'
 
 const ACCENT = '#1dbd8f'
 const FILL_VALUE = -9999
+const SNOW_CLASS_FILL = 9
+const SNOW_CLASS_LAYER_ID = 'zarr-snow-class'
+
+/** '#rrggbb' → a GLSL vec3 literal in 0-1 space. */
+function hexToVec3(hex: string): string {
+  const n = parseInt(hex.slice(1), 16)
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) =>
+    (v / 255).toFixed(4)
+  )
+  return `vec3(${c.join(', ')})`
+}
+
+// Categorical shader for the snow-class basemap: class code → flat color.
+// Codes 8 (Ocean) and 9 (Fill, → NaN) carry no class, so they discard and the
+// basemap beneath shows through. A colormap texture can't express this — it
+// interpolates, which would invent colors between class codes.
+const SNOW_CLASS_FRAG = `
+  if (${SNOW_CLASS_VARIABLE} != ${SNOW_CLASS_VARIABLE}) { discard; }
+  int cls = int(${SNOW_CLASS_VARIABLE} + 0.5);
+  vec3 c;
+${Object.entries(SNOW_CLASS_INFO)
+  .map(
+    ([code, { color }], i) =>
+      `  ${i === 0 ? 'if' : 'else if'} (cls == ${code}) { c = ${hexToVec3(color)}; }`
+  )
+  .join('\n')}
+  else { discard; }
+  fragColor = vec4(c * opacity, opacity);
+`
 
 // Inject keyframes for the pulsing marker once at module load.
 if (typeof document !== 'undefined' && !document.getElementById('pulsing-marker-style')) {
@@ -132,7 +163,9 @@ const mapTheme = {
 
 let pmtilesRegistered = false
 
-const OWN_LAYER_IDS = new Set(['zarr-layer', 'esri-imagery', 'topo'])
+const OWN_LAYER_IDS = new Set([
+  'zarr-layer', 'esri-imagery', 'topo', SNOW_CLASS_LAYER_ID,
+])
 
 function setBasemapFillVisibility(map: maplibregl.Map, visible: boolean) {
   const vis = visible ? 'visible' : 'none'
@@ -178,6 +211,7 @@ export const Map = () => {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const zarrLayersRef = useRef<Partial<Record<Variable, InstanceType<typeof ZarrLayer>>>>({})
+  const snowClassLayerRef = useRef<InstanceType<typeof ZarrLayer> | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
   const lastClickRef = useRef<{ lng: number; lat: number } | null>(null)
   // Level-0 zarrita arrays opened once at mount — used for zoom-independent point queries
@@ -211,7 +245,10 @@ export const Map = () => {
       }),
       (async () => {
         try {
-          const arrayStore = new FetchStore(`${SNOW_CLASS_URL}/snow_class`)
+          // level 0 of the class pyramid = the native 300 m grid
+          const arrayStore = new FetchStore(
+            `${SNOW_CLASS_URL}/0/${SNOW_CLASS_VARIABLE}`
+          )
           snowClassArrayRef.current = await open(arrayStore, { kind: 'array' })
         } catch (e) {
           console.warn('Snow classification store unavailable:', e)
@@ -345,14 +382,23 @@ export const Map = () => {
     )
   }, [globeProjection, isMapLoaded])
 
-  // Basemap toggle — satellite/topo hide the vector basemap fills to avoid masking
+  // Basemap toggle — satellite/topo hide the vector basemap fills to avoid
+  // masking. The snow-class basemap keeps them: classes 8/9 (ocean, fill)
+  // discard, so the dark map still supplies ocean and unclassified ground.
   useEffect(() => {
     if (!mapRef.current || !isMapLoaded) return
     const map = mapRef.current
     map.setLayoutProperty('esri-imagery', 'visibility', basemap === 'satellite' ? 'visible' : 'none')
     map.setLayoutProperty('topo', 'visibility', basemap === 'topography' ? 'visible' : 'none')
-    setBasemapFillVisibility(map, basemap === 'dark')
+    setBasemapFillVisibility(map, basemap === 'dark' || basemap === 'snowclass')
     setBasemapSymbolVisibility(map, basemap !== 'topography')
+    // Same park/unpark as the data layers: only fetch chunks when selected.
+    const snowLayer = snowClassLayerRef.current
+    if (snowLayer) {
+      const active = basemap === 'snowclass'
+      ;(snowLayer as any).maxZoom = active ? Infinity : -1
+      snowLayer.setOpacity(active ? 1 : 0)
+    }
   }, [basemap, isMapLoaded])
 
   // Query all variables at the currently clicked point. Always reads from the
@@ -437,6 +483,28 @@ export const Map = () => {
       if (cancelled.val) return
       const state = useStore.getState()
 
+      let beforeIdBase: string | undefined
+      try { if (map.getLayer('address_label')) beforeIdBase = 'address_label' } catch {}
+
+      // Snow-class basemap first, so the data layers added below land on top
+      // of it (maplibre inserts each at the same beforeId, in call order).
+      const snowClassLayer = new ZarrLayer({
+        id: SNOW_CLASS_LAYER_ID,
+        source: SNOW_CLASS_URL,
+        variable: SNOW_CLASS_VARIABLE,
+        // clim/colormap are unused by the categorical shader but required by
+        // the constructor; the class palette doubles as the colormap array.
+        clim: [1, 7],
+        colormap: Object.values(SNOW_CLASS_INFO).map((c) => c.color),
+        opacity: state.basemap === 'snowclass' ? 1 : 0,
+        zarrVersion: 3,
+        fillValue: SNOW_CLASS_FILL,
+        customFrag: SNOW_CLASS_FRAG,
+        maxzoom: state.basemap === 'snowclass' ? Infinity : -1,
+      })
+      map.addLayer(snowClassLayer, beforeIdBase)
+      snowClassLayerRef.current = snowClassLayer
+
       ALL_VARIABLES.forEach((varName) => {
       const isActive = varName === state.variable
       const vCfg = VARIABLE_CONFIGS[varName]
@@ -498,11 +566,9 @@ export const Map = () => {
         // maxzoom:-1 so only the active variable fetches tile data.
         maxzoom: isActive ? Infinity : -1,
       }
-      let beforeId: string | undefined
-      try { if (map.getLayer('address_label')) beforeId = 'address_label' } catch {}
       if (!cancelled.val) {
         const layer = new ZarrLayer(options)
-        map.addLayer(layer, beforeId)
+        map.addLayer(layer, beforeIdBase)
         zarrLayersRef.current[varName] = layer
       }
       })
@@ -524,7 +590,9 @@ export const Map = () => {
       ALL_VARIABLES.forEach((varName) => {
         try { if (map.getLayer(`zarr-${varName}`)) map.removeLayer(`zarr-${varName}`) } catch {}
       })
+      try { if (map.getLayer(SNOW_CLASS_LAYER_ID)) map.removeLayer(SNOW_CLASS_LAYER_ID) } catch {}
       zarrLayersRef.current = {}
+      snowClassLayerRef.current = null
     }
   }, [isMapLoaded, setLoadingState, setClickInfo]) // eslint-disable-line react-hooks/exhaustive-deps
 

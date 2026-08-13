@@ -385,9 +385,11 @@ const SidebarContent = () => {
           {seasonalMaskAvailable ? (
             <>
               Hides pixels outside seasonal snow classes in the Sturm &amp;
-              Liston (2021) classification. Note this also hides valid
-              estimates in ephemeral-snow regions (e.g. UK, Denmark, lowland
-              Japan, New Zealand) — check the snow class in the point query.
+              Liston (2021) classification (zoomed out, cells less than half
+              seasonal snow). Note this also hides valid estimates in
+              ephemeral-snow regions (e.g. UK, Denmark, lowland Japan, New
+              Zealand) — check the snow class in the point query, or switch the
+              basemap to “snow class” to see the classification itself.
             </>
           ) : (
             <>Seasonal snow mask not yet available in this pyramid.</>
