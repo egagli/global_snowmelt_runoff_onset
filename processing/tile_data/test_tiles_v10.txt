@@ -1,0 +1,54 @@
+# Validation / shakedown tile battery ("row,col" per line, v10 grid indices).
+#
+# Usage: the 'tiles_file' input of Process Batch / Process All Tiles, or
+#   --tiles-file processing/tile_data/test_tiles_v10.txt
+# on scripts/get_tiles_for_batch.py. Pair it with water_years=missing to resume, or
+# an explicit year list to force a recompute. For a single tile locally, pass the
+# row/col straight to scripts/process_single_tile.py (run_tiles.py has no
+# --tiles-file; it selects work by status, not by list).
+#
+# Origin: this was the default matrix of the throwaway `test_tiles.yml` workflow
+# (deleted 2026-08-13 once the fleet completed); the list outlives the workflow
+# because it is the standing regression set — the same eight tiles are the
+# comparison set in 3_quality_check_tiles.ipynb. Each one exercises a failure mode
+# none of the others reach, so it is the right battery to rerun after an algorithm
+# change, a dependency bump, a new water year, or a store migration.
+#
+# Rows are on the EXTENDED v10 grid (2026-07-30: +2 tile rows in the north), i.e.
+# v10 row == v9 row + 2 — see processing/README.md "Grid extension". The v9 index
+# is given per tile so historical comparisons stay easy to set up.
+#
+# Dispatching all eight concurrently is itself part of the test: it exercises
+# icechunk's ConflictDetector under real concurrent commits to Azure, which no
+# local single-writer run can cover.
+
+10,0     #  [v9 8,0]     Antimeridian. Westernmost column, straddling 180/-180. Was 100%
+         #               nodata in every v9 water year despite success=True — odc-stac
+         #               computed a broken footprint for UTM zone 1N/60N source scenes and
+         #               silently dropped them during tile binning (fixed upstream in
+         #               odc-stac 0.5.3; see visualize/testing/test_antimeridian.ipynb).
+         #               Non-empty westernmost columns here are the end-to-end proof.
+9,138    #  [v9 7,138]   Densest S1 coverage on Earth (~594 scenes/yr). The peak-memory
+         #               acid test for a 16 GB runner: if the per-year loop fits here it
+         #               fits everywhere. Also where the dask-worker tiering and
+         #               MALLOC_ARENA_MAX=2 arena cap were tuned.
+25,39    #  [v9 23,39]   Mt. Rainier reference tile. Dense in-situ context, a v9 result to
+         #               cross-check against, and the source of the methods-figure panels.
+28,65    #  [v9 26,65]   Mixed outcomes in one tile: real data years alongside
+         #               no_valid_pixels empty years. Exercises the "failed != empty"
+         #               distinction — empty years must get an explicit marker commit with
+         #               a reason, failures must not commit at all.
+25,190   #  [v9 23,190]  Catalog backfill. v9 recorded "no S1 data" here; the 2026 catalog
+         #               has scenes, so this is the case where a re-probe changes the
+         #               answer. Confirms the registry rebuild, not just the pipeline.
+80,240   #  [v9 78,240]  Southern high latitudes: no_seasonal_snow empty years plus 2 data
+         #               years. Exercises the phenology-driven empty path and the southern
+         #               water-year convention.
+56,69    #  [v9 54,69]   Volcán Cayambe, north flank — the only place on Earth where
+         #               seasonal snow touches the equator. Row 56 overhangs latitude 0 by
+         #               2.78 px (~223 m), so processing.remove_equator_crossing must mask
+         #               the sliver on the wrong side to keep one hemisphere's water-year
+         #               convention per tile; it also sits on the bilinear MODIS phenology
+         #               reproject's northern/southern DOWY seam (~500 m wide).
+57,69    #  [v9 55,69]   Cayambe, south flank. The southern-hemisphere half of the same
+         #               pair — run both or the seam is only half tested.
