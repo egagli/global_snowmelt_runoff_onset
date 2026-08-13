@@ -176,7 +176,11 @@ Order of operations (also in the issue template):
   (blobs are served cache-immutable, so it is never mutated in place — every
   rebuild gets a new `_multiscale_N` generation via the config). Build with the
   **Build Visualization Pyramid** workflow, verify + set headers with
-  `visualize/pyramid/2_verify_pyramid.ipynb`; the interactive map
+  `visualize/pyramid/2_verify_pyramid.ipynb`; the workflow's `seasonal_snow` job
+  adds the Sturm & Liston (2021) `seasonal_snow_pct` mask variable (issue #9,
+  see `visualize/pyramid/README.md`) and can also run alone, additively,
+  against a live prefix (`--check-attrs` gates the root-attr byte stability);
+  the interactive map
   (`visualize/interactive_map/map/`, deployed by `deploy_map.yml`) and the global
   figure notebooks both follow the config automatically.
 - **Registry refresh**: rerun the catalog probe in `0_select_tiles_to_process.ipynb`
@@ -199,3 +203,127 @@ Order of operations (also in the issue template):
   future HH-capable pipeline.
 - **Read chunking is deliberately not bit-reproducible against v9** (2048-px reads);
   `--read-chunk-dim 512 --read-chunk-time 10` reproduces v9 exactly when needed.
+
+## Run order, end to end
+
+Everything in the repo, in the order it can be run, with the three gates that unlock
+downstream work. Rebuilding from nothing means walking the whole chart; adding a water
+year re-enters at **5_add_water_year** and follows the same path down (§5).
+
+```mermaid
+flowchart TD
+    subgraph SETUP["Anytime — no dependency on the dataset"]
+        CRED["Credentials: AZURE_STORAGE_ACCOUNT + SAS token"]
+        HILL["visualize/data/download_and_preprocess_hillshade.ipynb<br/>→ global_hillshade_robinson.tif, basemap for most figures"]
+        CBAR["visualize/colorbars/create_colorbars.ipynb<br/>colorbar demos from plot_utils"]
+        COV["visualize/s1_rtc_coverage/explore_s1_rtc_IW_polarization_spatial_distribution.ipynb<br/>MPC catalog polarization scan — evidence behind the registry rule"]
+        MISS["dataset_evaluation/.../how_much_seasonal_snow_do_we_miss.ipynb<br/>reads the phenology store only"]
+    end
+
+    subgraph BUILD["Build the dataset"]
+        N0["processing/0_select_tiles_to_process.ipynb<br/>→ tile registry geojson + S1 volume estimate"]
+        HELP["scripts/verify_grid_alignment.py — after any bbox change<br/>scripts/apply_manual_tiles.py — manual_tiles_v10.txt<br/>scripts/make_station_tile_list.py — station_tiles_v10.txt"]
+        N1["processing/1_create_icechunk_store.ipynb<br/>→ empty sharded Zarr v3 store. Destroys data if re-run"]
+        FLEET["Process All Tiles workflow → process_batch → process_single_tile<br/>work list from scripts/get_tiles_for_batch.py, snapshot-pinned<br/>or scripts/run_tiles.py locally / CryoCloud"]
+        N2["processing/2_check_tile_status.ipynb<br/>monitor, remaining work, compute accounting"]
+        N3["processing/3_quality_check_tiles.ipynb<br/>battery: tile_data/test_tiles_v10.txt · scripts/list_dropped_scenes.py"]
+        GA{"Gate A — remaining count is zero"}
+        N4["processing/4_finalize_icechunk_store.ipynb<br/>→ ledger parquet, release tag v10.N, GC"]
+        GB{"Gate B — release tag exists"}
+    end
+
+    subgraph EVAL["Evaluation — reads the store, ideally at the release tag"]
+        SP0["compare_to_all_public_snow_pillows/0_download_and_preprocess_all_snow_pillow_data.ipynb"]
+        SP1["1_create_snow_pillow_comparison_dataset.ipynb<br/>→ data/comparison_datasets/vN — the input for 2–5"]
+        SP2["2_compare_snow_pillows.ipynb"]
+        SP3["3_evaluate_snow_pillows.ipynb → Fig. 4, Fig. 5"]
+        SP4["4_snow_pillow_representativeness.ipynb → Fig. A5"]
+        SP5["5_station_density.ipynb → station-density stat"]
+        SP6["6_station_high_swe_low_swe_comparison.ipynb → Fig. A1, v10"]
+        TAB1["calculate_spatial_coverage_and_temporal_resolution.ipynb → Table 1"]
+        PASS["compare_to_passive/alaska_range_comparison.ipynb → Fig. 6<br/>compare_to_passive/kennicott_glacier_comparison.ipynb"]
+    end
+
+    subgraph VIZ["Visualization — everything flows through the pyramid"]
+        PYR["Build Visualization Pyramid workflow → visualize/pyramid/build_pyramid.py<br/>composites job first, then the yearly + seasonal_snow jobs in parallel"]
+        PVER["visualize/pyramid/2_verify_pyramid.ipynb<br/>acceptance gates + immutable Cache-Control pass"]
+        GC2{"Gate C — pyramid verified"}
+        MAP["deploy_map.yml → visualize/interactive_map/map<br/>auto-deploys on the config change"]
+        GLOB["visualize/global/global_composites.ipynb → Fig. 2, 3, A2, A4<br/>visualize/global/global_annual_runoff_onset_and_temporal_res.ipynb → Fig. A3"]
+        REG["visualize/regions/alps/alps.ipynb<br/>visualize/regions/iceland/iceland.ipynb"]
+        MET1["visualize/methods/create_methods_figure_components.ipynb<br/>needs registry + store + pyramid + hillshade"]
+        MET2["visualize/methods/combine_methods_figure_components.ipynb → Fig. 1"]
+        QGIS["QGIS / GDAL read the same store directly"]
+    end
+
+    subgraph PUB["Publish"]
+        DOCS["docs/results_and_figures.md — refresh both columns"]
+        ZEN["Zenodo new version + README, dataset/README, CITATION.cff"]
+    end
+
+    subgraph NEXTWY["Next water year — re-enter here, §5"]
+        WATCH["water_year_watch.yml opens an issue when a hemisphere becomes eligible"]
+        UP["Upstream MODIS_snow_phenology must hold the new year first"]
+        N5["processing/5_add_water_year.ipynb<br/>then bump WY_end, release_tag, multiscale_generation + prefix suffix"]
+    end
+
+    CRED --> N0
+    COV --> N0
+    N0 --> HELP --> N1 --> FLEET
+    FLEET <--> N2
+    FLEET --> N3 --> GA
+    GA -->|"redispatch until zero"| FLEET
+    GA --> N4 --> GB
+    GA -.->|"usable now, but pin to the tag"| SP1
+    GB --> PYR --> PVER --> GC2
+    GB --> SP1
+    GB --> TAB1
+    GB --> PASS
+    SP0 --> SP1 --> SP2 --> SP3
+    SP1 --> SP4
+    SP1 --> SP5
+    GB --> SP6
+    HILL --> SP3
+    HILL --> PASS
+    GC2 --> MAP
+    GC2 --> GLOB
+    GC2 --> REG
+    GC2 --> MET1 --> MET2
+    GC2 --> QGIS
+    HILL --> GLOB
+    HILL --> REG
+    HILL --> MET1
+    SP3 --> DOCS
+    TAB1 --> DOCS
+    PASS --> DOCS
+    GLOB --> DOCS
+    MET2 --> DOCS
+    MAP --> DOCS
+    DOCS --> ZEN
+    WATCH --> UP --> N5 --> FLEET
+```
+
+### The three gates
+
+| Gate | Condition | What it unlocks |
+| --- | --- | --- |
+| **A** | `2_check_tile_status` reports zero remaining work | Finalization. Evaluation *can* run against the `main` branch here, but anything whose numbers reach the manuscript should wait for the tag — a later append would otherwise silently change what a rerun produces |
+| **B** | `4_finalize_icechunk_store` has created `v10.N` | Everything that reads the dataset: all of `dataset_evaluation/`, and the pyramid build, whose source **must** be a tag, never a branch |
+| **C** | `2_verify_pyramid` gates pass and headers are set | Every visualization consumer — the map, the global and regional figure notebooks, the methods figure, and third-party QGIS/GDAL readers |
+
+### Not on the critical path
+
+- **`dataset_utils/`** — `compress_and_download_zarr`, `global_zarr_to_COG`, `split_dataset`,
+  `subset_global_dataset` are redistribution utilities still on the **v9 plain-Zarr path**
+  (`config.global_runoff_store`, which is `None` for icechunk configs). They need porting
+  before they can serve a v10 release. `test_open_zarr_lazy.ipynb` is a standalone smoke test.
+- **`dataset_evaluation/compare_to_snotel/`** — v9 Fig. A1 provenance, deliberately pinned to
+  v9; the v10 successor is `compare_to_all_public_snow_pillows/6_`. Not rerun per release.
+- **Parked** — `compare_to_NorSWE/`, `compare_to_NH-SWE/`, `compare_to_ucla_reanalysis/`.
+- **Ad hoc** — `visualize/testing/inspect_tile.ipynb` for single-tile inspection;
+  `visualize/testing/test_antimeridian.ipynb` is a closed historical diagnosis, not a QA step.
+- **Legacy, part of no current run** — `processing/create_zarr_store.ipynb` (v9 store init),
+  `processing/process_tiles.ipynb` and `process_tiles_serverless.ipynb` (v9 Coiled drivers,
+  which now raise `AttributeError` against any config), `scripts/consolidate_artifacts.py`
+  (v9 CSV status), `scripts/migrate_registry_to_extended_grid.py` (one-shot v9→v10 row shift,
+  executed 2026-07-30). Kept for provenance only.
