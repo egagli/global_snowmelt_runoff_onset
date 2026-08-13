@@ -158,6 +158,10 @@ Order of operations (also in the issue template):
    change (it bakes the config's multiscale prefix into the bundle), and the
    `visualize/global/` figure notebooks read the prefix from the config at run
    time (`build_pyramid.open_pyramid_level`), writing into `figures/<version>/`.
+   The map's seasonal-snow toggle needs no coordination with the pyramid build:
+   it probes `{prefix}/0/seasonal_snow_pct/zarr.json` at page load and renders
+   disabled until the new generation's `seasonal_snow` job has written the mask,
+   so map deploys and pyramid jobs can land in either order.
 
 ## 6. Store & repo maintenance
 
@@ -183,6 +187,21 @@ Order of operations (also in the issue template):
   the interactive map
   (`visualize/interactive_map/map/`, deployed by `deploy_map.yml`) and the global
   figure notebooks both follow the config automatically.
+- **Map build dependency**: `deploy_map.yml` builds the map against the
+  `egagli/zarr-layer` fork, branch `aux-variables` (checked out adjacent to the
+  repo and consumed via a `file:` dependency — the aux-band sampling the
+  seasonal-snow shader arm needs isn't in upstream 0.8.0). Deleting or renaming
+  that branch breaks map deploys; when the feature lands on the fork's `main`
+  (or upstream), update the `ref:` in the workflow and the note in
+  `visualize/interactive_map/README.md`.
+- **Snow-classification point-query store**: the map's "snow class" row reads
+  the standalone `snow_classification_300m_1` store, built **once** by
+  `visualize/interactive_map/build_snow_class_store.py` (then again with
+  `--set-cache-headers`). It is independent of the pyramid and of generation
+  bumps — it only needs rebuilding if the upstream Sturm & Liston raster ever
+  changes, in which case bump its `_N` suffix (same immutable-prefix
+  convention) and the map's `SNOW_CLASS_URL` in
+  `visualize/interactive_map/map/lib/store.ts`.
 - **Registry refresh**: rerun the catalog probe in `0_select_tiles_to_process.ipynb`
   when S1 coverage evolves (e.g. Greenland VV backfill); newly-`to_process` tiles
   flow into the next `incomplete` dispatch as wholly-missing tiles.
@@ -218,6 +237,7 @@ flowchart TD
         CBAR["visualize/colorbars/create_colorbars.ipynb<br/>colorbar demos from plot_utils"]
         COV["visualize/s1_rtc_coverage/explore_s1_rtc_IW_polarization_spatial_distribution.ipynb<br/>MPC catalog polarization scan — evidence behind the registry rule"]
         MISS["dataset_evaluation/.../how_much_seasonal_snow_do_we_miss.ipynb<br/>reads the phenology store only"]
+        SC["visualize/interactive_map/build_snow_class_store.py<br/>→ snow_classification_300m_1 (one-time; + --set-cache-headers)<br/>feeds the map's snow-class query row"]
     end
 
     subgraph BUILD["Build the dataset"]
@@ -286,6 +306,7 @@ flowchart TD
     HILL --> SP3
     HILL --> PASS
     GC2 --> MAP
+    SC --> MAP
     GC2 --> GLOB
     GC2 --> REG
     GC2 --> MET1 --> MET2
