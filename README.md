@@ -15,9 +15,9 @@ Eric Gagliano (egagli@uw.edu)
 
 Global 80-meter resolution dataset of snowmelt runoff onset timing from Sentinel-1 SAR and MODIS snow phenology, spanning water years 2015-2024. Evaluated against snow pillows at 1,116 automated weather stations (Western U.S. including Alaska, British Columbia, Norway, Nepal): median timing difference −2.0 days, median absolute deviation 10.0 days.
 
-The dataset is described in the accompanying paper, accepted at *Earth System Science Data*:
+The dataset is described in the accompanying paper, published in *Earth System Science Data*:
 
-> Gagliano, E., Shean, D., and Henderson, S.: A global high-resolution dataset of snowmelt runoff onset timing from Sentinel-1 SAR, 2015–2024, Earth Syst. Sci. Data, in press, <https://doi.org/10.5194/essd-2026-216>, 2026.
+> Gagliano, E., Shean, D., and Henderson, S.: A global high-resolution dataset of snowmelt runoff onset timing from Sentinel-1 SAR, 2015–2024, Earth Syst. Sci. Data, 18, 5871–5894, <https://doi.org/10.5194/essd-18-5871-2026>, 2026.
 
 ## Details
 
@@ -181,9 +181,9 @@ Day-to-day operations follow the numbered notebooks in [`processing/`](processin
 
 ## Citation
 
-**Paper** (accepted; final volume/pages/DOI pending — update when the typeset article is published):
+**Paper:**
 
-> Gagliano, E., Shean, D., and Henderson, S.: A global high-resolution dataset of snowmelt runoff onset timing from Sentinel-1 SAR, 2015–2024, Earth Syst. Sci. Data, in press, <https://doi.org/10.5194/essd-2026-216>, 2026.
+> Gagliano, E., Shean, D., and Henderson, S.: A global high-resolution dataset of snowmelt runoff onset timing from Sentinel-1 SAR, 2015–2024, Earth Syst. Sci. Data, 18, 5871–5894, <https://doi.org/10.5194/essd-18-5871-2026>, 2026.
 
 **Dataset:**
 

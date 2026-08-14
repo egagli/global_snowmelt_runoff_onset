@@ -42,5 +42,9 @@ preferred-citation:
       affiliation: University of Washington
   journal: "Earth System Science Data"
   year: 2026
-  doi: 10.5194/essd-2026-216
-  notes: "In press; the DOI currently points to the preprint. Update to the final article DOI once assigned."
+  volume: 18
+  issue: 8
+  start: 5871
+  end: 5894
+  doi: 10.5194/essd-18-5871-2026
+  url: "https://essd.copernicus.org/articles/18/5871/2026/"

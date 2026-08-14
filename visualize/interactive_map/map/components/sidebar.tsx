@@ -223,16 +223,26 @@ const SidebarContent = () => {
           (the C-band backscatter minimum within a MODIS-derived snow season search window) and
           the effective temporal resolution of that estimate [days]. Multi-year median and
           median-absolute-deviation composites summarize the full record. For methods, code,
-          and data access, see the GitHub repo linked below.
+          and data access, see the paper and GitHub repo linked below.
         </div>
-        <a
-          href='https://github.com/egagli/global_snowmelt_runoff_onset'
-          target='_blank'
-          rel='noopener noreferrer'
-          style={{ fontSize: 11, color: ACCENT, textDecoration: 'none' }}
-        >
-          egagli/global_snowmelt_runoff_onset ↗
-        </a>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <a
+            href='https://doi.org/10.5194/essd-18-5871-2026'
+            target='_blank'
+            rel='noopener noreferrer'
+            style={{ fontSize: 11, color: ACCENT, textDecoration: 'none' }}
+          >
+            Gagliano et al. (2026), Earth Syst. Sci. Data ↗
+          </a>
+          <a
+            href='https://github.com/egagli/global_snowmelt_runoff_onset'
+            target='_blank'
+            rel='noopener noreferrer'
+            style={{ fontSize: 11, color: ACCENT, textDecoration: 'none' }}
+          >
+            egagli/global_snowmelt_runoff_onset ↗
+          </a>
+        </div>
       </div>
 
       <div style={{ borderTop: `1px solid ${BORDER}` }} />
