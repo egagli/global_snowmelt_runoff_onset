@@ -153,8 +153,50 @@ Caveat worth keeping in the UI copy: excluding class 4 matches the tile
 registry's accepted-class rule, but 165 registry tiles were manually added
 *because* their only Sturm class is Ephemeral while the MODIS per-pixel gate
 found real seasonal snow (UK/Ireland, S Scandinavia, lowland Japan, NZ, …) —
-the toggle hides those regions' valid estimates entirely, which is why it
-defaults off and the point-query card shows the snow class regardless.
+the toggle hides those regions' valid estimates entirely. It nevertheless
+**defaults on** since issue #13 (2026-08-24; originally it defaulted off for
+exactly this reason): the sidebar copy now says it's on by default and to turn
+it off to see ephemeral-region estimates, and the point-query card shows the
+snow class regardless of the toggle.
+
+## Issue #13 additions (2026-08-24): version dropdown, GMBA overlay, zonal warnings
+
+Three features added in one pass ([issue #13](https://github.com/egagli/global_snowmelt_runoff_onset/issues/13)),
+plus the seasonal-filter default flip above:
+
+- **Dataset-version dropdown** (sidebar). `VERSION_CONFIGS` in `map/lib/store.ts`
+  maps each version to a pyramid URL and water-year list; the map probes every
+  version's root `zarr.json` at startup, so a version whose pyramid doesn't
+  exist renders disabled ("pyramid not yet published") rather than breaking.
+  Per-version level-0 grids for point queries are parsed from each pyramid's
+  own `spatial:transform`/`spatial:shape` attrs (`fetchVersionGrid` in
+  `map/components/map.tsx`) — nothing per-version is hardcoded, so
+  **publishing a v9 pyramid at
+  `…/snowmelt_runoff_onset/global_runoff_onset_v9_multiscale_1` activates the
+  v9 entry with zero map changes.** That build is the open follow-up: it needs
+  a `build_pyramid.py` source adapter for the legacy v9 Zarr-v2 store
+  (`open_source` is icechunk-tag-only today). Switching versions tears down
+  and recreates the zarr layers, reopens the level-0 query arrays, re-probes
+  the seasonal mask, and keeps the selected water *year* when the target
+  version has it (v9 lacks 2025).
+- **GMBA mountain-range overlay** (sidebar "overlays", default off). 290
+  polygons from the GMBA Mountain Inventory v2.0 standard 300-selection
+  (Snethlage et al. 2022, doi:10.1038/s41597-022-01256-y), simplified and
+  published by [`prepare_gmba_overlay.py`](prepare_gmba_overlay.py) as a
+  gzip-encoded (~2 MB transfer), immutable-cached GeoJSON blob:
+  `https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/gmba_v2_standard_300_1.geojson`.
+  The map lazy-loads it on first enable; hovering highlights the range
+  (maplibre feature-state) and shows a card with name, feature type,
+  countries, area, and elevation span. To regenerate, bump the `_1` suffix in
+  the script's `--dest-blob` **and** `GMBA_URL` in `map/lib/store.ts` together.
+- **Zonal warning toasts** (same pattern as the MODIS_snow_phenology map):
+  `WARNING_ZONES` in `map/components/map.tsx` is checked against the viewport
+  on every moveend/zoomend and surfaces a dismissible toast. Six zones:
+  Greenland and the Canadian Arctic Archipelago (no data — MPC S1 RTC is
+  HH/HV there, VV required), the equator hemisphere seam at Volcán Cayambe
+  (issue #7), and the three MODIS-input artifact zones that propagate into
+  our melt-search window (Atacama/Altiplano salt flats, Tibetan Plateau
+  lakes, eastern tropical Andes cloud cover).
 
 ## References
 

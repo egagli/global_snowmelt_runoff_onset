@@ -1,7 +1,7 @@
 import React, { CSSProperties, useEffect, useRef, useState } from 'react'
 import {
   useStore,
-  WATER_YEARS,
+  VERSION_CONFIGS,
   VARIABLE_CONFIGS,
   COMPOSITE_VARIABLES,
   ANNUAL_VARIABLES,
@@ -196,9 +196,10 @@ const QUERY_ROWS: Variable[] = [...COMPOSITE_VARIABLES, ...ANNUAL_VARIABLES]
 
 const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
   const clickInfo = useStore((s) => s.clickInfo)
+  const version = useStore((s) => s.version)
   const waterYearIndex = useStore((s) => s.waterYearIndex)
   const activeVariable = useStore((s) => s.variable)
-  const waterYear = WATER_YEARS[waterYearIndex]
+  const waterYear = VERSION_CONFIGS[version].waterYears[waterYearIndex]
   const southernHemisphere = (clickInfo?.lat ?? 0) < 0
 
   return (
@@ -298,6 +299,116 @@ const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
 }
 
 // ---------------------------------------------------------------------------
+// WarningToast — region-specific caution notification (issue #13; same
+// pattern as the MODIS_snow_phenology map). Set from WARNING_ZONES in
+// map.tsx on every moveend/zoomend; dismissible per zone.
+// ---------------------------------------------------------------------------
+
+const WarningToast = () => {
+  const activeWarning = useStore((s) => s.activeWarning)
+  const sidebarWidth = useStore((s) => s.sidebarWidth)
+  const [dismissed, setDismissed] = useState(false)
+
+  // A new zone re-arms the toast; re-entering the same zone after dismissing
+  // it does not (the name only changes when the zone does).
+  useEffect(() => { setDismissed(false) }, [activeWarning?.name])
+
+  if (!activeWarning || dismissed) return null
+
+  const left = (sidebarWidth ?? 0) + 16
+  const right = CARD_WIDTH + 32 // leave room for the floating cards
+
+  return (
+    <div style={{
+      position: 'absolute',
+      top: 12,
+      left,
+      right,
+      margin: '0 auto',
+      maxWidth: 520,
+      background: BG,
+      border: '1px solid rgba(251,191,36,0.55)',
+      backdropFilter: 'blur(6px)',
+      borderRadius: 8,
+      padding: '10px 14px',
+      color: TEXT,
+      fontSize: 12,
+      zIndex: 20,
+      display: 'flex',
+      gap: 10,
+      alignItems: 'flex-start',
+    }}>
+      <span style={{ fontSize: 16, lineHeight: 1.4, flexShrink: 0 }}>⚠</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, color: '#fbbf24', marginBottom: 3, fontSize: 12 }}>
+          {activeWarning.name}
+        </div>
+        <div style={{ color: DIM, lineHeight: 1.5 }}>{activeWarning.message}</div>
+      </div>
+      <button
+        onClick={() => setDismissed(true)}
+        style={{
+          background: 'none', border: 'none', color: DIM,
+          cursor: 'pointer', fontSize: 16, lineHeight: 1,
+          padding: 0, flexShrink: 0,
+        }}
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// GmbaHoverCard — details of the hovered GMBA range (issue #13). Fed by the
+// mousemove handler on the overlay's fill layer in map.tsx; pointerEvents
+// none so it never steals the hover it displays.
+// ---------------------------------------------------------------------------
+
+const GmbaHoverCard = () => {
+  const gmbaHover = useStore((s) => s.gmbaHover)
+  const sidebarWidth = useStore((s) => s.sidebarWidth)
+
+  if (!gmbaHover) return null
+
+  const fmtInt = (v: number | null) =>
+    v === null ? '—' : Math.round(v).toLocaleString('en-US')
+
+  return (
+    <div style={{
+      position: 'absolute',
+      left: (sidebarWidth ?? 0) + 16,
+      bottom: 24,
+      maxWidth: 360,
+      background: BG,
+      border: `1px solid ${BORDER}`,
+      backdropFilter: 'blur(6px)',
+      borderRadius: 8,
+      padding: '10px 14px',
+      color: TEXT,
+      fontSize: 12,
+      zIndex: 15,
+      pointerEvents: 'none',
+    }}>
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>
+        {gmbaHover.name}
+      </div>
+      <div style={{ color: DIM, fontSize: 11, marginBottom: 6, lineHeight: 1.4 }}>
+        {gmbaHover.feature}
+        {gmbaHover.countries ? ` · ${gmbaHover.countries}` : ''}
+      </div>
+      <div style={{ display: 'flex', gap: 16, fontFamily: 'monospace', fontSize: 12 }}>
+        <span>{fmtInt(gmbaHover.areaKm2)} km²</span>
+        <span>{fmtInt(gmbaHover.elevLow)}–{fmtInt(gmbaHover.elevHigh)} m</span>
+      </div>
+      <div style={{ color: DIM, fontSize: 9.5, marginTop: 6 }}>
+        GMBA Mountain Inventory v2.0 (Snethlage et al., 2022)
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // FloatingCards — always rendered (desktop only via parent Box in index.tsx)
 // ---------------------------------------------------------------------------
 
@@ -326,6 +437,8 @@ export const FloatingCards = () => {
       <TopRightCard right={CARD_RIGHT} top={TOP_RIGHT_TOP} innerRef={topCardRef} />
       <PointQueryCard right={CARD_RIGHT} top={QUERY_CARD_TOP} />
       <ZoomDisplay right={CARD_RIGHT} bottom={8} />
+      <WarningToast />
+      <GmbaHoverCard />
     </>
   )
 }

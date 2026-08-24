@@ -8,7 +8,9 @@ import { layers, namedFlavor } from '@protomaps/basemaps'
 import { Protocol } from 'pmtiles'
 import {
   useStore,
-  ZARR_URL,
+  VERSION_CONFIGS,
+  ALL_VERSIONS,
+  GMBA_URL,
   SNOW_CLASS_URL,
   SNOW_CLASS_VARIABLE,
   SNOW_CLASS_INFO,
@@ -16,6 +18,7 @@ import {
   SEASONAL_MASK_THRESHOLD,
   VARIABLE_CONFIGS,
   ALL_VARIABLES,
+  type DatasetVersion,
   type Variable,
   type ClickInfo,
 } from '../lib/store'
@@ -25,6 +28,82 @@ const ACCENT = '#1dbd8f'
 const FILL_VALUE = -9999
 const SNOW_CLASS_FILL = 9
 const SNOW_CLASS_LAYER_ID = 'zarr-snow-class'
+const GMBA_SOURCE_ID = 'gmba'
+const GMBA_FILL_ID = 'gmba-fill'
+const GMBA_LINE_ID = 'gmba-line'
+
+// Regions where estimates are known to be absent or need caution — checked
+// against the viewport on every moveend/zoomend and surfaced as a dismissible
+// toast (issue #13; same pattern as the MODIS_snow_phenology map). The MODIS
+// zones matter here too because that product defines this dataset's
+// melt-search window, so its false-snow artifacts propagate.
+const WARNING_ZONES: {
+  name: string
+  message: string
+  bbox: [number, number, number, number] // [west, south, east, north]
+  minZoom: number
+}[] = [
+  {
+    name: 'Greenland — no data (HH polarization)',
+    bbox: [-74, 59, -10, 84],
+    minZoom: 3,
+    message:
+      'Sentinel-1 RTC scenes over Greenland are acquired in HH/HV polarization. ' +
+      'This dataset requires VV backscatter, so Greenland has no runoff onset ' +
+      'estimates. HH support is a candidate for a future version.',
+  },
+  {
+    name: 'Canadian Arctic Archipelago — no data (HH polarization)',
+    bbox: [-128, 66, -60, 84],
+    minZoom: 3,
+    message:
+      'Sentinel-1 RTC scenes over the Canadian Arctic Archipelago are acquired ' +
+      'in HH/HV polarization. This dataset requires VV backscatter, so the ' +
+      'archipelago has no runoff onset estimates. HH support is a candidate ' +
+      'for a future version.',
+  },
+  {
+    name: 'Equator — hemisphere seam (Volcán Cayambe)',
+    bbox: [-79.5, -1.5, -76.5, 1.5],
+    minZoom: 7,
+    message:
+      'Tiles are processed per hemisphere with different water-year ' +
+      'conventions, which meet at the equator: a ~160 m no-data strip sits ' +
+      'just south of it, and the MODIS-derived snow-season window blends both ' +
+      'conventions within ~500 m of it. Volcán Cayambe is the only ' +
+      'seasonal-snow area on the equator — interpret estimates here with caution.',
+  },
+  {
+    name: 'Salt Flats — Atacama / Altiplano',
+    bbox: [-73, -28, -60, -14],
+    minZoom: 6,
+    message:
+      'Salt flats in this region (e.g., Salar de Uyuni, Salar de Coipasa) cause ' +
+      'false-positive snow detections in the MODIS snow product that defines ' +
+      'this dataset’s melt-search window. Runoff onset estimates on or near ' +
+      'salares may reflect a spurious snow season — interpret with caution.',
+  },
+  {
+    name: 'Tibetan Plateau — Turbid & Shallow Lakes',
+    bbox: [78, 27, 105, 38],
+    minZoom: 6,
+    message:
+      'Turbid and shallow water bodies, especially on the Tibetan Plateau, can ' +
+      'trigger false-positive snow presence in the MODIS snow product that ' +
+      'defines this dataset’s melt-search window. Interpret estimates on or ' +
+      'near lakes with caution.',
+  },
+  {
+    name: 'Eastern Tropical Andes — Cloud Cover',
+    bbox: [-82, -22, -68, 8],
+    minZoom: 6,
+    message:
+      'Near-permanent cloud cover on the eastern slopes of the tropical Andes ' +
+      'causes cloud–snow misclassification in the MODIS snow product that ' +
+      'defines this dataset’s melt-search window. Interpret estimates in this ' +
+      'region with caution.',
+  },
+]
 
 /** '#rrggbb' → a GLSL vec3 literal in 0-1 space. */
 function hexToVec3(hex: string): string {
@@ -91,23 +170,62 @@ function createPulsingMarkerElement(): HTMLElement {
   return wrap
 }
 
-// Level-0 spatial constants (from the pyramid root zarr.json spatial:transform,
-// pixel registration: x = a*col + c, y = e*row + f give the pixel's top-left
-// corner). Used for point queries so they always hit the full-resolution data
-// regardless of map zoom.
-const L0_X_ORIGIN = -179.99945999946
-const L0_Y_ORIGIN = 84.04856404856403
-const L0_X_RES = 0.0007200007200083292
-const L0_Y_RES = 0.0007200007199941183
-const L0_N_ROWS = 204800
-const L0_N_COLS = 499998
+// Level-0 grid of a version's pyramid, for zoom-independent point queries.
+// Parsed at startup from the store's own spatial:transform / spatial:shape
+// root attrs (pixel registration: x = a*col + c, y = e*row + f give the
+// pixel's top-left corner), so per-version grids are never hardcoded — a new
+// version's pyramid self-describes. The v10 constants below are only the
+// offline fallback if that fetch fails.
+type GridSpec = {
+  xOrigin: number
+  yOrigin: number
+  xRes: number
+  yRes: number
+  nRows: number
+  nCols: number
+}
 
-/** Convert WGS84 (lat, lon in degrees) → level-0 [row, col].
- *  Returns null if the point is outside the grid. */
-function latlonToL0RowCol(lat: number, lon: number): [number, number] | null {
-  const col = Math.floor((lon - L0_X_ORIGIN) / L0_X_RES)
-  const row = Math.floor((L0_Y_ORIGIN - lat) / L0_Y_RES)
-  if (row < 0 || row >= L0_N_ROWS || col < 0 || col >= L0_N_COLS) return null
+const V10_FALLBACK_GRID: GridSpec = {
+  xOrigin: -179.99945999946,
+  yOrigin: 84.04856404856403,
+  xRes: 0.0007200007200083292,
+  yRes: 0.0007200007199941183,
+  nRows: 204800,
+  nCols: 499998,
+}
+
+/** Fetch + parse a pyramid's level-0 grid from its root zarr.json. Returns
+ *  null when the store doesn't exist (probe-disabled version) or the attrs
+ *  don't parse. */
+async function fetchVersionGrid(zarrUrl: string): Promise<GridSpec | null> {
+  try {
+    const res = await fetch(`${zarrUrl}/zarr.json`)
+    if (!res.ok) return null
+    const attrs = (await res.json())?.attributes ?? {}
+    const t = attrs['spatial:transform']
+    const shape = attrs['spatial:shape']
+    if (!Array.isArray(t) || t.length !== 6 || !Array.isArray(shape) || shape.length !== 2) {
+      return null
+    }
+    return {
+      xRes: t[0],
+      xOrigin: t[2],
+      yRes: -t[4], // stored as the (negative) row step
+      yOrigin: t[5],
+      nRows: shape[0],
+      nCols: shape[1],
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Convert WGS84 (lat, lon in degrees) → level-0 [row, col] on a version's
+ *  grid. Returns null if the point is outside the grid. */
+function latlonToRowCol(lat: number, lon: number, grid: GridSpec): [number, number] | null {
+  const col = Math.floor((lon - grid.xOrigin) / grid.xRes)
+  const row = Math.floor((grid.yOrigin - lat) / grid.yRes)
+  if (row < 0 || row >= grid.nRows || col < 0 || col >= grid.nCols) return null
   return [row, col]
 }
 
@@ -165,6 +283,7 @@ let pmtilesRegistered = false
 
 const OWN_LAYER_IDS = new Set([
   'zarr-layer', 'esri-imagery', 'topo', SNOW_CLASS_LAYER_ID,
+  GMBA_FILL_ID, GMBA_LINE_ID,
 ])
 
 function setBasemapFillVisibility(map: maplibregl.Map, visible: boolean) {
@@ -195,12 +314,13 @@ const EMPTY_VALUES = Object.fromEntries(
   ALL_VARIABLES.map((v) => [v, null])
 ) as ClickInfo['values']
 
-/** Probe whether the pyramid carries the seasonal-snow mask variable. The map
- *  can deploy before the mask job has written it — the toggle stays disabled
- *  and no layer references the missing array (which would fail level loads). */
-async function probeSeasonalMask(): Promise<boolean> {
+/** Probe whether a version's pyramid carries the seasonal-snow mask variable.
+ *  The map can deploy before the mask job has written it — the toggle stays
+ *  disabled and no layer references the missing array (which would fail level
+ *  loads). */
+async function probeSeasonalMask(zarrUrl: string): Promise<boolean> {
   try {
-    const res = await fetch(`${ZARR_URL}/0/${SEASONAL_MASK_VARIABLE}/zarr.json`)
+    const res = await fetch(`${zarrUrl}/0/${SEASONAL_MASK_VARIABLE}/zarr.json`)
     return res.ok
   } catch {
     return false
@@ -214,7 +334,8 @@ export const Map = () => {
   const snowClassLayerRef = useRef<InstanceType<typeof ZarrLayer> | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
   const lastClickRef = useRef<{ lng: number; lat: number } | null>(null)
-  // Level-0 zarrita arrays opened once at mount — used for zoom-independent point queries
+  // Level-0 zarrita arrays for the ACTIVE version — reopened on version switch
+  // and used for zoom-independent point queries.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const l0ArraysRef = useRef<Partial<Record<Variable, any>>>({})
   // Promise that resolves when all arrays are open — awaited in requeryAllVariables
@@ -223,47 +344,24 @@ export const Map = () => {
   // The standalone 300 m snow-classification array (query card class row).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const snowClassArrayRef = useRef<any>(null)
-  // Resolves to whether the pyramid has the seasonal-snow mask — awaited by
-  // the layer-creation effect so the shader only samples an existing array.
+  // Resolves to whether the active version's pyramid has the seasonal-snow
+  // mask — awaited by the layer-creation effect so the shader only samples an
+  // existing array.
   const seasonalMaskProbeRef = useRef<Promise<boolean> | null>(null)
+  // Per-version level-0 grids, parsed from each pyramid's root attrs at mount.
+  const gridSpecsRef = useRef<Partial<Record<DatasetVersion, GridSpec>>>({})
+  const gridPromisesRef = useRef<Partial<Record<DatasetVersion, Promise<GridSpec | null>>>>({})
+  // Feature id currently hovered on the GMBA overlay (maplibre feature-state).
+  const hoveredGmbaIdRef = useRef<number | string | null>(null)
 
   const setSeasonalMaskAvailable = useStore((s) => s.setSeasonalMaskAvailable)
-
-  // Open level-0 arrays for all variables at mount (runs once). Each variable
-  // gets its own FetchStore pointing at its sub-URL so zarrita opens the array
-  // at the correct path.
-  useEffect(() => {
-    l0ArraysPromiseRef.current = Promise.all([
-      ...ALL_VARIABLES.map(async (varName) => {
-        try {
-          const arrayStore = new FetchStore(`${ZARR_URL}/0/${varName}`)
-          const arr = await open(arrayStore, { kind: 'array' })
-          l0ArraysRef.current[varName] = arr
-        } catch (e) {
-          console.warn(`Failed to open level-0 array for ${varName}:`, e)
-        }
-      }),
-      (async () => {
-        try {
-          // level 0 of the class pyramid = the native 300 m grid
-          const arrayStore = new FetchStore(
-            `${SNOW_CLASS_URL}/0/${SNOW_CLASS_VARIABLE}`
-          )
-          snowClassArrayRef.current = await open(arrayStore, { kind: 'array' })
-        } catch (e) {
-          console.warn('Snow classification store unavailable:', e)
-        }
-      })(),
-    ]).then(() => undefined)
-
-    seasonalMaskProbeRef.current = probeSeasonalMask().then((ok) => {
-      setSeasonalMaskAvailable(ok)
-      return ok
-    })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const setVersionAvailable = useStore((s) => s.setVersionAvailable)
+  const setGmbaHover = useStore((s) => s.setGmbaHover)
+  const setActiveWarning = useStore((s) => s.setActiveWarning)
 
   const [isMapLoaded, setIsMapLoaded] = useState(false)
 
+  const version = useStore((s) => s.version)
   const variable = useStore((s) => s.variable)
   const waterYearIndex = useStore((s) => s.waterYearIndex)
   const opacity = useStore((s) => s.opacity)
@@ -272,12 +370,74 @@ export const Map = () => {
   const sidebarWidth = useStore((s) => s.sidebarWidth)
   const loadingState = useStore((s) => s.loadingState)
   const basemap = useStore((s) => s.basemap)
+  const gmbaOn = useStore((s) => s.gmbaOn)
   const setLoadingState = useStore((s) => s.setLoadingState)
   const setClickInfo = useStore((s) => s.setClickInfo)
   const setZoomLevel = useStore((s) => s.setZoomLevel)
 
   // fixed matplotlib ramp per variable (no user colormap selection)
   const colormapArray = COLORMAP_ARRAYS[VARIABLE_CONFIGS[variable].colormap]
+
+  // Probe every version's pyramid at mount: availability drives the sidebar
+  // dropdown; the parsed grid drives point queries. v10 falls back to the
+  // baked-in grid so the app still works if the metadata fetch fails.
+  useEffect(() => {
+    ALL_VERSIONS.forEach((v) => {
+      const promise = fetchVersionGrid(VERSION_CONFIGS[v].zarrUrl).then((grid) => {
+        if (!grid && v === 'v10') grid = V10_FALLBACK_GRID
+        if (grid) gridSpecsRef.current[v] = grid
+        setVersionAvailable(v, !!grid)
+        return grid
+      })
+      gridPromisesRef.current[v] = promise
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The standalone snow-class array is version-independent — open once at mount.
+  useEffect(() => {
+    ;(async () => {
+      try {
+        // level 0 of the class pyramid = the native 300 m grid
+        const arrayStore = new FetchStore(
+          `${SNOW_CLASS_URL}/0/${SNOW_CLASS_VARIABLE}`
+        )
+        snowClassArrayRef.current = await open(arrayStore, { kind: 'array' })
+      } catch (e) {
+        console.warn('Snow classification store unavailable:', e)
+      }
+    })()
+  }, [])
+
+  // Open level-0 arrays for all variables of the ACTIVE version (re-runs on
+  // version switch). Each variable gets its own FetchStore pointing at its
+  // sub-URL so zarrita opens the array at the correct path.
+  useEffect(() => {
+    const cancelled = { val: false }
+    const zarrUrl = VERSION_CONFIGS[version].zarrUrl
+    l0ArraysRef.current = {}
+    setSeasonalMaskAvailable(false)
+    l0ArraysPromiseRef.current = Promise.all(
+      ALL_VARIABLES.map(async (varName) => {
+        try {
+          const arrayStore = new FetchStore(`${zarrUrl}/0/${varName}`)
+          const arr = await open(arrayStore, { kind: 'array' })
+          if (!cancelled.val) l0ArraysRef.current[varName] = arr
+        } catch (e) {
+          console.warn(`Failed to open level-0 array for ${varName}:`, e)
+        }
+      })
+    ).then(() => undefined)
+
+    seasonalMaskProbeRef.current = probeSeasonalMask(zarrUrl).then((ok) => {
+      if (!cancelled.val) setSeasonalMaskAvailable(ok)
+      return ok
+    })
+
+    // Re-query a pinned point against the new version's data.
+    if (lastClickRef.current) requeryAllVariables(cancelled)
+
+    return () => { cancelled.val = true }
+  }, [version]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Map initialization — runs once
   useEffect(() => {
@@ -363,16 +523,30 @@ export const Map = () => {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Zoom display — update on every moveend/zoomend
+  // Zoom display + warning zones — update on every moveend/zoomend
   useEffect(() => {
     const map = mapRef.current
     if (!map || !isMapLoaded) return
-    const check = () => setZoomLevel(map.getZoom())
+    const check = () => {
+      const zoom = map.getZoom()
+      setZoomLevel(zoom)
+      const b = map.getBounds()
+      const w = b.getWest(), e = b.getEast(), s = b.getSouth(), n = b.getNorth()
+      for (const zone of WARNING_ZONES) {
+        if (zoom < zone.minZoom) continue
+        const [zw, zs, ze, zn] = zone.bbox
+        if (w < ze && e > zw && s < zn && n > zs) {
+          setActiveWarning({ name: zone.name, message: zone.message })
+          return
+        }
+      }
+      setActiveWarning(null)
+    }
     map.on('moveend', check)
     map.on('zoomend', check)
     check()
     return () => { map.off('moveend', check); map.off('zoomend', check) }
-  }, [isMapLoaded, setZoomLevel])
+  }, [isMapLoaded, setZoomLevel, setActiveWarning])
 
   // Projection toggle
   useEffect(() => {
@@ -401,10 +575,108 @@ export const Map = () => {
     }
   }, [basemap, isMapLoaded])
 
+  // GMBA mountain-range overlay (issue #13). The GeoJSON source is added
+  // lazily on first enable (maplibre fetches GMBA_URL itself — ~2 MB gzip);
+  // afterwards the toggle is a pure visibility flip. Hover drives a
+  // feature-state highlight plus the info card in floating-cards.tsx.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !isMapLoaded) return
+
+    if (gmbaOn && !map.getSource(GMBA_SOURCE_ID)) {
+      // generateId gives numeric feature ids, required for setFeatureState.
+      map.addSource(GMBA_SOURCE_ID, {
+        type: 'geojson',
+        data: GMBA_URL,
+        generateId: true,
+        attribution:
+          '<a href="https://doi.org/10.1038/s41597-022-01256-y">GMBA Mountain Inventory v2.0</a>',
+      })
+      // Keep place labels above the overlay, same convention as the data layers.
+      let beforeId: string | undefined
+      try { if (map.getLayer('address_label')) beforeId = 'address_label' } catch {}
+      map.addLayer({
+        id: GMBA_FILL_ID,
+        type: 'fill',
+        source: GMBA_SOURCE_ID,
+        paint: {
+          'fill-color': ACCENT,
+          // Near-invisible base fill keeps the whole polygon hoverable; the
+          // hovered range gets a visible tint.
+          'fill-opacity': [
+            'case', ['boolean', ['feature-state', 'hover'], false], 0.14, 0.02,
+          ],
+        },
+      }, beforeId)
+      map.addLayer({
+        id: GMBA_LINE_ID,
+        type: 'line',
+        source: GMBA_SOURCE_ID,
+        paint: {
+          'line-color': [
+            'case', ['boolean', ['feature-state', 'hover'], false],
+            ACCENT, 'rgba(208,208,208,0.6)',
+          ],
+          'line-width': [
+            'case', ['boolean', ['feature-state', 'hover'], false], 2, 0.8,
+          ],
+        },
+      }, beforeId)
+
+      map.on('mousemove', GMBA_FILL_ID, (e) => {
+        const f = e.features?.[0]
+        if (!f || f.id === undefined) return
+        if (hoveredGmbaIdRef.current !== null && hoveredGmbaIdRef.current !== f.id) {
+          map.setFeatureState(
+            { source: GMBA_SOURCE_ID, id: hoveredGmbaIdRef.current },
+            { hover: false }
+          )
+        }
+        hoveredGmbaIdRef.current = f.id
+        map.setFeatureState({ source: GMBA_SOURCE_ID, id: f.id }, { hover: true })
+        const p = f.properties ?? {}
+        setGmbaHover({
+          name: p.name ?? '—',
+          feature: p.feature ?? '',
+          countries: p.countries ?? '',
+          areaKm2: typeof p.area_km2 === 'number' ? p.area_km2 : null,
+          elevLow: typeof p.elev_low === 'number' ? p.elev_low : null,
+          elevHigh: typeof p.elev_high === 'number' ? p.elev_high : null,
+        })
+      })
+      map.on('mouseleave', GMBA_FILL_ID, () => {
+        if (hoveredGmbaIdRef.current !== null) {
+          map.setFeatureState(
+            { source: GMBA_SOURCE_ID, id: hoveredGmbaIdRef.current },
+            { hover: false }
+          )
+          hoveredGmbaIdRef.current = null
+        }
+        setGmbaHover(null)
+      })
+    }
+
+    for (const id of [GMBA_FILL_ID, GMBA_LINE_ID]) {
+      if (map.getLayer(id)) {
+        map.setLayoutProperty(id, 'visibility', gmbaOn ? 'visible' : 'none')
+      }
+    }
+    if (!gmbaOn) {
+      if (hoveredGmbaIdRef.current !== null && map.getSource(GMBA_SOURCE_ID)) {
+        map.setFeatureState(
+          { source: GMBA_SOURCE_ID, id: hoveredGmbaIdRef.current },
+          { hover: false }
+        )
+        hoveredGmbaIdRef.current = null
+      }
+      setGmbaHover(null)
+    }
+  }, [gmbaOn, isMapLoaded, setGmbaHover])
+
   // Query all variables at the currently clicked point. Always reads from the
-  // level-0 (finest) zarr arrays so values are zoom-independent, exact, and
-  // consistent across variables. Yearly variables read the selected water
-  // year; composites are year-less.
+  // active version's level-0 (finest) zarr arrays so values are
+  // zoom-independent, exact, and consistent across variables. Yearly variables
+  // read the selected water year; composites are year-less.
   const requeryAllVariables = (cancelled: { val: boolean }) => {
     const coords = lastClickRef.current
     if (!coords) return
@@ -415,8 +687,14 @@ export const Map = () => {
       if (l0ArraysPromiseRef.current) await l0ArraysPromiseRef.current
       if (cancelled.val) return
 
-      const waterYearIdx = useStore.getState().waterYearIndex
-      const rowCol = latlonToL0RowCol(coords.lat, coords.lng)
+      const state = useStore.getState()
+      const waterYearIdx = state.waterYearIndex
+      const grid =
+        (await (gridPromisesRef.current[state.version] ?? Promise.resolve(null))) ??
+        gridSpecsRef.current[state.version] ??
+        null
+      if (cancelled.val) return
+      const rowCol = grid ? latlonToRowCol(coords.lat, coords.lng, grid) : null
 
       // Sturm & Liston class at the point (own 300 m grid, own store).
       // Codes 8 (Ocean) / 9 (Fill) are non-classes -> null.
@@ -470,11 +748,14 @@ export const Map = () => {
     runQuery()
   }
 
-  // Create all five ZarrLayers once when map loads; attach single click handler
+  // Create all five ZarrLayers for the active version when the map loads (and
+  // again on every version switch — the cleanup below removes the old
+  // version's layers first); attach a single click handler.
   useEffect(() => {
     if (!mapRef.current || !isMapLoaded) return
     const map = mapRef.current
     const cancelled = { val: false }
+    const zarrUrl = VERSION_CONFIGS[version].zarrUrl
 
     const createLayers = async () => {
       // Only reference the mask variable when it exists in the pyramid — a
@@ -537,7 +818,7 @@ export const Map = () => {
       `
       const options: ZarrLayerOptions = {
         id: `zarr-${varName}`,
-        source: ZARR_URL,
+        source: zarrUrl,
         variable: varName,
         clim: isActive ? state.clim : vCfg.clim,
         colormap: COLORMAP_ARRAYS[vCfg.colormap],
@@ -594,7 +875,7 @@ export const Map = () => {
       zarrLayersRef.current = {}
       snowClassLayerRef.current = null
     }
-  }, [isMapLoaded, setLoadingState, setClickInfo]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isMapLoaded, version, setLoadingState, setClickInfo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Switch which layer is visible when variable changes; re-query selected point
   useEffect(() => {

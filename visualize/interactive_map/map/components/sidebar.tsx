@@ -4,9 +4,11 @@ import { Slider, Input } from '@carbonplan/components'
 import {
   useStore,
   VARIABLE_CONFIGS,
-  WATER_YEARS,
+  VERSION_CONFIGS,
+  ALL_VERSIONS,
   COMPOSITE_VARIABLES,
   ANNUAL_VARIABLES,
+  type DatasetVersion,
   type Variable,
 } from '../lib/store'
 import { COLORMAP_ARRAYS, MONTH_STARTS_DOWY } from '../lib/colormaps'
@@ -139,22 +141,29 @@ const FixedColorbar = ({
 }
 
 const SidebarContent = () => {
+  const version = useStore((s) => s.version)
+  const versionAvailable = useStore((s) => s.versionAvailable)
   const variable = useStore((s) => s.variable)
   const waterYearIndex = useStore((s) => s.waterYearIndex)
   const opacity = useStore((s) => s.opacity)
   const clim = useStore((s) => s.clim)
   const seasonalOnly = useStore((s) => s.seasonalOnly)
   const seasonalMaskAvailable = useStore((s) => s.seasonalMaskAvailable)
+  const gmbaOn = useStore((s) => s.gmbaOn)
+  const setVersion = useStore((s) => s.setVersion)
   const setVariable = useStore((s) => s.setVariable)
   const setWaterYearIndex = useStore((s) => s.setWaterYearIndex)
   const setOpacity = useStore((s) => s.setOpacity)
   const setClim = useStore((s) => s.setClim)
   const setSeasonalOnly = useStore((s) => s.setSeasonalOnly)
+  const setGmbaOn = useStore((s) => s.setGmbaOn)
 
   const vCfg = VARIABLE_CONFIGS[variable]
   const colormap = COLORMAP_ARRAYS[vCfg.colormap]
   const isDowy = vCfg.units === 'day of water year'
   const annualActive = vCfg.hasWaterYear
+  // Water years of the ACTIVE dataset version (v9 lacks 2025).
+  const waterYears = VERSION_CONFIGS[version].waterYears
 
   const [climInputs, setClimInputs] = useState<[string, string]>([
     String(clim[0]),
@@ -247,12 +256,52 @@ const SidebarContent = () => {
 
       <div style={{ borderTop: `1px solid ${BORDER}` }} />
 
+      {/* Dataset version (issue #13) — options are probe-driven: a version
+          whose pyramid hasn't been published yet renders disabled. */}
+      <div>
+        <div style={sectionLabelStyle}>dataset version</div>
+        <select
+          value={version}
+          onChange={(e) => setVersion(e.target.value as DatasetVersion)}
+          style={{
+            width: '100%',
+            padding: '5px 8px',
+            borderRadius: 4,
+            border: `1px solid ${BORDER}`,
+            background: BG,
+            color: TEXT,
+            fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          {ALL_VERSIONS.map((v) => {
+            const avail = versionAvailable[v]
+            // Disable while the probe is in flight too (except the current
+            // selection), so the user can't switch onto a missing pyramid.
+            const disabled = v !== version && avail !== true
+            return (
+              <option key={v} value={v} disabled={disabled}>
+                {VERSION_CONFIGS[v].label}
+                {avail === false ? ' — pyramid not yet published' : ''}
+              </option>
+            )
+          })}
+        </select>
+        <div style={{ fontSize: 10, color: DIM, marginTop: 4, lineHeight: 1.5 }}>
+          {VERSION_CONFIGS[version].note}
+          {versionAvailable.v9 === false && version === 'v10' && (
+            <> The v9 (manuscript) option activates once its visualization
+            pyramid is published.</>
+          )}
+        </div>
+      </div>
+
       {/* Variable — two columns: composites | annual */}
       <div>
         <div style={sectionLabelStyle}>variable</div>
         <div style={{ display: 'flex', gap: 10 }}>
           {renderVariableColumn(
-            `multi-year composite products (WY${WATER_YEARS[0]}–WY${WATER_YEARS[WATER_YEARS.length - 1]})`,
+            `multi-year composite products (WY${waterYears[0]}–WY${waterYears[waterYears.length - 1]})`,
             COMPOSITE_VARIABLES
           )}
           {renderVariableColumn('annual products', ANNUAL_VARIABLES)}
@@ -272,14 +321,14 @@ const SidebarContent = () => {
       >
         <div style={{ ...sectionLabelStyle, marginBottom: 4 }}>
           water year —{' '}
-          <span style={{ color: TEXT, fontWeight: 700 }}>{WATER_YEARS[waterYearIndex]}</span>
+          <span style={{ color: TEXT, fontWeight: 700 }}>{waterYears[waterYearIndex]}</span>
           {!annualActive && (
             <span style={{ fontWeight: 400 }}> (composite spans all years)</span>
           )}
         </div>
         <Slider
           min={0}
-          max={WATER_YEARS.length - 1}
+          max={waterYears.length - 1}
           step={1}
           value={waterYearIndex}
           disabled={!annualActive}
@@ -288,7 +337,7 @@ const SidebarContent = () => {
           }
         />
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-          {WATER_YEARS.map((year, i) => (
+          {waterYears.map((year, i) => (
             <button
               key={year}
               onClick={() => setWaterYearIndex(i)}
@@ -394,16 +443,66 @@ const SidebarContent = () => {
         <div style={{ fontSize: 10, color: DIM, lineHeight: 1.5 }}>
           {seasonalMaskAvailable ? (
             <>
-              Hides pixels outside seasonal snow classes in the Sturm &amp;
-              Liston (2021) classification (zoomed out, cells less than half
-              seasonal snow). Note this also hides valid estimates in
+              On by default: hides pixels outside seasonal snow classes in the
+              Sturm &amp; Liston (2021) classification (zoomed out, cells less
+              than half seasonal snow). Note this also hides valid estimates in
               ephemeral-snow regions (e.g. UK, Denmark, lowland Japan, New
-              Zealand) — check the snow class in the point query, or switch the
-              basemap to “snow class” to see the classification itself.
+              Zealand) — turn it off to see them, check the snow class in the
+              point query, or switch the basemap to “snow class” to see the
+              classification itself.
             </>
           ) : (
             <>Seasonal snow mask not yet available in this pyramid.</>
           )}
+        </div>
+      </div>
+
+      {/* Overlays (issue #13) — GMBA mountain-range outlines; the GeoJSON is
+          lazy-loaded on first enable, so leaving this off costs nothing. */}
+      <div>
+        <div style={sectionLabelStyle}>overlays</div>
+        <button
+          onClick={() => setGmbaOn(!gmbaOn)}
+          role='checkbox'
+          aria-checked={gmbaOn}
+          style={{
+            ...variableButtonStyle(gmbaOn),
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span
+            aria-hidden
+            style={{
+              width: 12,
+              height: 12,
+              flexShrink: 0,
+              borderRadius: 3,
+              border: `1px solid ${gmbaOn ? ACCENT : DIM}`,
+              background: gmbaOn ? ACCENT : 'transparent',
+              color: '#fff',
+              fontSize: 10,
+              lineHeight: '12px',
+              textAlign: 'center',
+            }}
+          >
+            {gmbaOn ? '✓' : ''}
+          </span>
+          GMBA mountain ranges (v2.0)
+        </button>
+        <div style={{ fontSize: 10, color: DIM, lineHeight: 1.5 }}>
+          Outlines of 290 major ranges from the{' '}
+          <a
+            href='https://doi.org/10.1038/s41597-022-01256-y'
+            target='_blank'
+            rel='noopener noreferrer'
+            style={{ color: DIM }}
+          >
+            GMBA Mountain Inventory v2.0
+          </a>{' '}
+          (Snethlage et al., 2022). Hover a range for its name, countries,
+          area, and elevation span.
         </div>
       </div>
 

@@ -204,6 +204,12 @@ Order of operations (also in the issue template):
   rebuilding if the upstream Sturm & Liston raster changes, in which case bump
   its `_N` suffix (same immutable-prefix convention) and `SNOW_CLASS_URL` in
   `visualize/interactive_map/map/lib/store.ts`.
+- **GMBA overlay blob** (issue #13): the map's "GMBA mountain ranges" overlay
+  lazy-loads `snowmelt_runoff_onset/gmba_v2_standard_300_1.geojson` (gzip
+  Content-Encoding, immutable-cached), built and uploaded **once** by
+  `visualize/interactive_map/prepare_gmba_overlay.py`. Rebuild only if the
+  upstream GMBA inventory changes: bump the `_N` suffix in the script's
+  `--dest-blob` and `GMBA_URL` in `map/lib/store.ts` together.
 - **Retiring a superseded prefix** (e.g. the pre-pyramid
   `snow_classification_300m_1`, or last generation's
   `..._multiscale_N-1` runoff pyramid): delete only after a **deployed** map is

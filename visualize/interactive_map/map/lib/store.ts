@@ -81,15 +81,48 @@ export const ANNUAL_VARIABLES: Variable[] = [
   'runoff_onset', 'temporal_resolution',
 ]
 
-export const WATER_YEARS = [
-  2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025,
-] as const
+// ---------------------------------------------------------------------------
+// Dataset versions (issue #13)
+// ---------------------------------------------------------------------------
 
-// Injected at build time via NEXT_PUBLIC_ZARR_URL; falls back to the current
-// production pyramid so local `npm run dev` works without setting the env var.
-export const ZARR_URL =
-  process.env.NEXT_PUBLIC_ZARR_URL ??
-  'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/global_runoff_onset_v10_multiscale_1'
+export type DatasetVersion = 'v10' | 'v9'
+
+// Per-version pyramid URL + water-year coverage. The map probes each
+// pyramid's root zarr.json at startup: versions whose pyramid does not exist
+// (yet) render disabled in the sidebar dropdown, so this list can safely name
+// versions ahead of their pyramid build. Grid/affine metadata is NOT
+// hardcoded per version — the probe parses spatial:transform/spatial:shape
+// from the store itself (fetchVersionGrid in map.tsx), so publishing a v9
+// pyramid at the URL below lights the option up with no code change.
+export const VERSION_CONFIGS: Record<
+  DatasetVersion,
+  { label: string; note: string; zarrUrl: string; waterYears: number[] }
+> = {
+  v10: {
+    label: 'v10 — WY2015–2025 (latest)',
+    note: 'Icechunk rebuild: 11 water years, grid extended to 84.05°N–63.41°S.',
+    // Injected at build time via NEXT_PUBLIC_ZARR_URL (deploy_map.yml derives
+    // it from the config); falls back to the current production pyramid so
+    // local `npm run dev` works without setting the env var.
+    zarrUrl:
+      process.env.NEXT_PUBLIC_ZARR_URL ??
+      'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/global_runoff_onset_v10_multiscale_1',
+    waterYears: [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
+  },
+  v9: {
+    label: 'v9 — WY2015–2024 (manuscript)',
+    note: 'The dataset version described in Gagliano et al. (2026).',
+    // No v9 pyramid has been published yet — the dropdown entry stays
+    // disabled until one exists at this URL (probe-driven, see above).
+    zarrUrl:
+      process.env.NEXT_PUBLIC_ZARR_URL_V9 ??
+      'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/global_runoff_onset_v9_multiscale_1',
+    waterYears: [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+  },
+}
+
+export const ALL_VERSIONS: DatasetVersion[] = ['v10', 'v9']
+export const DEFAULT_VERSION: DatasetVersion = 'v10'
 
 // Display-side seasonal-snow mask (issue #9): a sixth pyramid variable holding
 // percent seasonal-snow area per cell (0-100, int16, -9999 fill), reclassified
@@ -128,6 +161,30 @@ export const SNOW_CLASS_INFO: Record<number, { name: string; color: string }> =
     7: { name: 'Ice', color: '#aaaaaa' },
   }
 
+// ---------------------------------------------------------------------------
+// GMBA mountain inventory overlay (issue #13)
+// ---------------------------------------------------------------------------
+
+// Simplified GMBA Mountain Inventory v2.0 standard 300-selection (290 major
+// ranges; Snethlage et al. 2022, doi:10.1038/s41597-022-01256-y), published
+// as a gzip-encoded GeoJSON blob by prepare_gmba_overlay.py. Lazy-loaded the
+// first time the overlay is toggled on. Immutable-cache convention: bump the
+// _1 suffix here and in the script's --dest-blob together.
+export const GMBA_URL =
+  process.env.NEXT_PUBLIC_GMBA_URL ??
+  'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/gmba_v2_standard_300_1.geojson'
+
+// Properties carried by each overlay feature (see FIELD_MAP in
+// prepare_gmba_overlay.py) — what the hover card shows.
+export type GmbaInfo = {
+  name: string
+  feature: string
+  countries: string
+  areaKm2: number | null
+  elevLow: number | null
+  elevHigh: number | null
+}
+
 export type ClickInfo = {
   lng: number
   lat: number
@@ -140,21 +197,33 @@ export type ClickInfo = {
 }
 
 interface AppState {
+  version: DatasetVersion
+  // null = probe still in flight; false = pyramid missing (option disabled).
+  versionAvailable: Record<DatasetVersion, boolean | null>
   variable: Variable
   waterYearIndex: number
   opacity: number
   clim: [number, number]
   globeProjection: boolean
   // Display-side filter: hide pixels outside Sturm & Liston seasonal snow
-  // classes (default off — the unfiltered dataset is the default view).
+  // classes (default ON since issue #13; the sidebar copy explains what the
+  // filter hides, and the point-query card ignores it).
   seasonalOnly: boolean
   // Whether the pyramid actually has the mask variable (probed at startup).
   seasonalMaskAvailable: boolean
+  // GMBA mountain-range outlines overlay (issue #13; default off).
+  gmbaOn: boolean
+  gmbaHover: GmbaInfo | null
+  // Region-specific caution toast (issue #13; same pattern as the
+  // MODIS_snow_phenology map). Set from WARNING_ZONES on map move.
+  activeWarning: { name: string; message: string } | null
   loadingState: LoadingState
   sidebarWidth: number | null
   basemap: Basemap
   clickInfo: ClickInfo | null
   zoomLevel: number
+  setVersion: (v: DatasetVersion) => void
+  setVersionAvailable: (v: DatasetVersion, ok: boolean) => void
   setVariable: (v: Variable) => void
   setWaterYearIndex: (i: number) => void
   setOpacity: (o: number) => void
@@ -162,6 +231,9 @@ interface AppState {
   setGlobeProjection: (g: boolean) => void
   setSeasonalOnly: (s: boolean) => void
   setSeasonalMaskAvailable: (a: boolean) => void
+  setGmbaOn: (g: boolean) => void
+  setGmbaHover: (h: GmbaInfo | null) => void
+  setActiveWarning: (w: { name: string; message: string } | null) => void
   setLoadingState: (s: LoadingState) => void
   setSidebarWidth: (w: number | null) => void
   setBasemap: (b: Basemap) => void
@@ -170,18 +242,40 @@ interface AppState {
 }
 
 export const useStore = create<AppState>((set) => ({
+  version: DEFAULT_VERSION,
+  versionAvailable: { v10: null, v9: null },
   variable: 'runoff_onset_median',
-  waterYearIndex: WATER_YEARS.length - 1,
+  waterYearIndex: VERSION_CONFIGS[DEFAULT_VERSION].waterYears.length - 1,
   opacity: 1,
   clim: VARIABLE_CONFIGS.runoff_onset_median.clim,
   globeProjection: true,
-  seasonalOnly: false,
+  seasonalOnly: true,
   seasonalMaskAvailable: false,
+  gmbaOn: false,
+  gmbaHover: null,
+  activeWarning: null,
   loadingState: { loading: false, metadata: false, chunks: false },
   sidebarWidth: null,
   basemap: 'dark',
   clickInfo: null,
   zoomLevel: 2.4,
+  // Version switch keeps the same water YEAR when the target version has it
+  // (v9 lacks 2025), else snaps to the target's latest year.
+  setVersion: (version) =>
+    set((state) => {
+      const prevYear =
+        VERSION_CONFIGS[state.version].waterYears[state.waterYearIndex]
+      const years = VERSION_CONFIGS[version].waterYears
+      const idx = years.indexOf(prevYear)
+      return {
+        version,
+        waterYearIndex: idx >= 0 ? idx : years.length - 1,
+      }
+    }),
+  setVersionAvailable: (v, ok) =>
+    set((state) => ({
+      versionAvailable: { ...state.versionAvailable, [v]: ok },
+    })),
   setVariable: (variable) =>
     set({
       variable,
@@ -194,6 +288,9 @@ export const useStore = create<AppState>((set) => ({
   setSeasonalOnly: (seasonalOnly) => set({ seasonalOnly }),
   setSeasonalMaskAvailable: (seasonalMaskAvailable) =>
     set({ seasonalMaskAvailable }),
+  setGmbaOn: (gmbaOn) => set({ gmbaOn }),
+  setGmbaHover: (gmbaHover) => set({ gmbaHover }),
+  setActiveWarning: (activeWarning) => set({ activeWarning }),
   setLoadingState: (loadingState) => set({ loadingState }),
   setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
   setBasemap: (basemap) => set({ basemap }),
