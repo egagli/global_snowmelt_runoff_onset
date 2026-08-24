@@ -1,11 +1,9 @@
 # Global snowmelt runoff onset from Sentinel-1 SAR
 
-[![Paper](https://img.shields.io/badge/paper-10.5194%2Fessd--18--5871--2026-1a7f5a)](https://doi.org/10.5194/essd-18-5871-2026)
-[![Dataset DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.16953614.svg)](https://doi.org/10.5281/zenodo.16953614)
-[![Repository DOI](https://zenodo.org/badge/873255484.svg)](https://doi.org/10.5281/zenodo.19115464)
-[![Interactive map](https://img.shields.io/badge/interactive-map-1dbd8f)](https://egagli.github.io/global_snowmelt_runoff_onset/)
+Published manuscript in _Earth System Science Data_: [![Paper](https://img.shields.io/badge/paper-10.5194%2Fessd--18--5871--2026-1a7f5a)](https://doi.org/10.5194/essd-18-5871-2026)  
+Dataset DOI: [![Dataset DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.16953614.svg)](https://doi.org/10.5281/zenodo.16953614)  
+Repository DOI: [![Repository DOI](https://zenodo.org/badge/873255484.svg)](https://doi.org/10.5281/zenodo.19115464)  
 
-Cite the **paper** for the science and methods, the **dataset** DOI for the data (concept DOI, resolves to the latest version), and the **repository** DOI for the code.
 
 Eric Gagliano (egagli@uw.edu)
 
