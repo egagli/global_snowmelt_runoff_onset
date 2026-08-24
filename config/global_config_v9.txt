@@ -26,3 +26,10 @@ tile_results_path = processing/tile_data/tile_results_v9.csv
 global_runoff_zarr_store_azure_path = snowmelt/snowmelt_runoff_onset/global_v9.zarr
 seasonal_snow_mask_zarr_store_azure_path = snowmelt/snow_cover/global_modis_snow_cover.zarr
 seasonal_snow_mask_reproject_method = rasterio
+
+# Multiscale visualization pyramid derived from the frozen v9 store (added
+# 2026-08-24 for the interactive map's version dropdown, issue #13). This
+# describes a visualization artifact built AFTER the fact -- it is not part of
+# the record of how v9 was produced, which is everything above this line.
+global_runoff_multiscale_azure_prefix = snowmelt/snowmelt_runoff_onset/global_runoff_onset_v9_multiscale_1
+multiscale_generation = 1

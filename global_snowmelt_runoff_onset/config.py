@@ -219,26 +219,6 @@ class Config:
             self.global_runoff_icechunk_azure_prefix: str = self.config.get(
                 'VALUES', 'global_runoff_icechunk_azure_prefix')
             self.tile_results_path = None
-            # Released snapshot tag (created by 4_finalize_icechunk_store) and
-            # the multiscale visualization store derived from it. The pyramid
-            # prefix is versioned by dataset version + generation: appending a
-            # water year means bumping WY_end, release_tag, AND
-            # multiscale_generation (+ the prefix suffix) together here.
-            self.release_tag: Optional[str] = self.config.get(
-                'VALUES', 'release_tag', fallback=None)
-            self.global_runoff_multiscale_azure_prefix: Optional[str] = self.config.get(
-                'VALUES', 'global_runoff_multiscale_azure_prefix', fallback=None)
-            self.multiscale_generation: Optional[int] = self.config.getint(
-                'VALUES', 'multiscale_generation', fallback=None)
-            if self.global_runoff_multiscale_azure_prefix is not None:
-                # tripwire: the prefix suffix and the generation key must agree
-                expected_suffix = f"_multiscale_{self.multiscale_generation}"
-                if not self.global_runoff_multiscale_azure_prefix.endswith(expected_suffix):
-                    raise ValueError(
-                        f"global_runoff_multiscale_azure_prefix must end with "
-                        f"'{expected_suffix}' (multiscale_generation = "
-                        f"{self.multiscale_generation}); got "
-                        f"'{self.global_runoff_multiscale_azure_prefix}'")
         else:
             self.output_store_is_icechunk: bool = False
             self.global_runoff_zarr_store_azure_path: str = self.config.get(
@@ -252,6 +232,32 @@ class Config:
             "tr_2015", "tr_2016", "tr_2017", "tr_2018", "tr_2019", "tr_2020", "tr_2021", "tr_2022", "tr_2023","tr_2024",
             "pix_ct_2015","pix_ct_2016","pix_ct_2017","pix_ct_2018","pix_ct_2019","pix_ct_2020","pix_ct_2021","pix_ct_2022","pix_ct_2023","pix_ct_2024",
             "start_time","total_time","success","error_messages")
+
+        # Released snapshot tag (created by 4_finalize_icechunk_store; icechunk
+        # configs only -- None for <= v9, which have no tags) and the multiscale
+        # visualization pyramid derived from the output store. Parsed for EVERY
+        # config era (hoisted out of the icechunk branch 2026-08-24): the
+        # pyramid is a visualization artifact, not part of how the dataset was
+        # produced, and the frozen v9 store carries one too so the map's
+        # version dropdown can serve it (issue #13). The pyramid prefix is
+        # versioned by dataset version + generation: appending a water year
+        # means bumping WY_end, release_tag, AND multiscale_generation
+        # (+ the prefix suffix) together here.
+        self.release_tag: Optional[str] = self.config.get(
+            'VALUES', 'release_tag', fallback=None)
+        self.global_runoff_multiscale_azure_prefix: Optional[str] = self.config.get(
+            'VALUES', 'global_runoff_multiscale_azure_prefix', fallback=None)
+        self.multiscale_generation: Optional[int] = self.config.getint(
+            'VALUES', 'multiscale_generation', fallback=None)
+        if self.global_runoff_multiscale_azure_prefix is not None:
+            # tripwire: the prefix suffix and the generation key must agree
+            expected_suffix = f"_multiscale_{self.multiscale_generation}"
+            if not self.global_runoff_multiscale_azure_prefix.endswith(expected_suffix):
+                raise ValueError(
+                    f"global_runoff_multiscale_azure_prefix must end with "
+                    f"'{expected_suffix}' (multiscale_generation = "
+                    f"{self.multiscale_generation}); got "
+                    f"'{self.global_runoff_multiscale_azure_prefix}'")
 
     def _init_derived_values(self) -> None:
         """

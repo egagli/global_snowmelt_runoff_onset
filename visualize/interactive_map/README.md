@@ -173,9 +173,15 @@ plus the seasonal-filter default flip above:
   `map/components/map.tsx`) — nothing per-version is hardcoded, so
   **publishing a v9 pyramid at
   `…/snowmelt_runoff_onset/global_runoff_onset_v9_multiscale_1` activates the
-  v9 entry with zero map changes.** That build is the open follow-up: it needs
-  a `build_pyramid.py` source adapter for the legacy v9 Zarr-v2 store
-  (`open_source` is icechunk-tag-only today). Switching versions tears down
+  v9 entry with zero map changes.** The build machinery for that landed
+  2026-08-24: `build_pyramid.open_source` now branches on the config era
+  (legacy ≤ v9 configs open the frozen Zarr-v2 store, pinned by its
+  `.zmetadata` ETag in place of a tag), and `global_config_v9.txt` carries the
+  pyramid prefix/generation keys — so all that remains is dispatching
+  `build_pyramid.yml` with `config_file: global_config_v9.txt` (redispatch
+  with `mode: resume` after any timeout), then running
+  `2_verify_pyramid.ipynb` with the config flipped to v9 (its gates are
+  era-aware) including its Cache-Control pass. Switching versions tears down
   and recreates the zarr layers, reopens the level-0 query arrays, re-probes
   the seasonal mask, and keeps the selected water *year* when the target
   version has it (v9 lacks 2025).

@@ -1,5 +1,8 @@
 """
 Build the multiscale visualization pyramid (plain Zarr v3) from the icechunk store.
+(For legacy <= v9 configs the source is the frozen plain-Zarr v2 store instead,
+with the consolidated-metadata ETag standing in for the snapshot id — see
+``open_source``. Added 2026-08-24 for the map's version dropdown, issue #13.)
 
 topozarr does the heavy lifting end-to-end: level 0 is streamed region by
 region from the source, each coarser level is block-reduced from the
@@ -196,13 +199,42 @@ def load_config(args):
     return Config(str(Path(__file__).parent.parent.parent / "config" / name))
 
 
+def source_store_path(config):
+    """Container/prefix of the pyramid's source store, era-appropriate."""
+    return (config.global_runoff_icechunk_azure_prefix
+            if config.output_store_is_icechunk
+            else config.global_runoff_zarr_store_azure_path)
+
+
 def open_source(config, tag):
-    """Open the output store at ``tag``, raw and lazy (no dask, no decoding)."""
-    repo = config.open_output_repo()
-    snapshot_id = repo.lookup_tag(tag)
-    session = repo.readonly_session(tag=tag)
-    ds = xr.open_zarr(session.store, zarr_format=3, consolidated=False,
-                      mask_and_scale=False, chunks=None)
+    """Open the output store at ``tag``, raw and lazy (no dask, no decoding).
+
+    Icechunk configs (>= v10) open the repository pinned at ``tag`` (never a
+    branch). Legacy (<= v9) configs open the frozen plain-Zarr v2 store
+    instead: there is no tag to pin, so ``tag`` is ignored and the "snapshot
+    id" carried into the progress markers and the pyramid's provenance attrs
+    is the ETag of the store's consolidated .zmetadata blob — stable while
+    the store stays frozen, and changed by exactly the kind of write that
+    would make a resume unsafe (same role the snapshot id plays for
+    icechunk sources). The v9 schema needs no adaptation: same five variable
+    names, int16/-9999, and 0.1 scale_factors as v10 (verified 2026-08-24).
+    """
+    if config.output_store_is_icechunk:
+        repo = config.open_output_repo()
+        snapshot_id = repo.lookup_tag(tag)
+        session = repo.readonly_session(tag=tag)
+        ds = xr.open_zarr(session.store, zarr_format=3, consolidated=False,
+                          mask_and_scale=False, chunks=None)
+    else:
+        etag = blob_etag(
+            f"https://{config.azure_storage_account}.blob.core.windows.net/"
+            f"{config.global_runoff_zarr_store_azure_path}/.zmetadata")
+        if etag:
+            snapshot_id = "zmetadata-etag-" + etag.strip('"')
+        else:
+            snapshot_id = "legacy-zarr-v2"
+        ds = xr.open_zarr(config.global_runoff_store, consolidated=True,
+                          mask_and_scale=False, chunks=None)
     # fresh CRS assignment: the pyramid encoding is topozarr's business, and
     # the grid is EPSG:4326 by construction
     ds = ds.drop_encoding().drop_vars("spatial_ref", errors="ignore")
@@ -439,10 +471,10 @@ def build_job(ds, job_name, job_vars, args, config, snapshot_id):
     if seasonal_job:
         pyramid.attrs = {}
 
-    # Deterministic provenance (identical across the icechunk-sourced jobs of
+    # Deterministic provenance (identical across the source-derived jobs of
     # one build, so the last-writer-wins race between parallel jobs is benign).
     provenance = None if seasonal_job else {
-        "source_store": config.global_runoff_icechunk_azure_prefix,
+        "source_store": source_store_path(config),
         "source_tag": args.source_tag,
         "source_snapshot_id": snapshot_id,
         "levels": args.levels,
@@ -527,14 +559,21 @@ def main():
         args.source_tag = config.release_tag
     if args.dest_prefix is None:
         args.dest_prefix = config.global_runoff_multiscale_azure_prefix
-    if args.source_tag is None or args.dest_prefix is None:
+    if args.dest_prefix is None:
         raise SystemExit(
-            "config lacks release_tag / global_runoff_multiscale_azure_prefix "
-            "(added for v10 on 2026-08-12) and no CLI overrides were given")
+            "config lacks global_runoff_multiscale_azure_prefix and no "
+            "--dest-prefix override was given")
+    # Legacy (<= v9) sources are frozen plain-Zarr stores with no tags, so a
+    # missing release_tag is only an error for icechunk configs.
+    if args.source_tag is None and config.output_store_is_icechunk:
+        raise SystemExit(
+            "config lacks release_tag (icechunk sources always build from a "
+            "tag, never a branch) and no --source-tag override was given")
 
     ds, snapshot_id = open_source(config, args.source_tag)
     log.info("Source: %s @ %s (snapshot %s) -> %s [%s]",
-             config.global_runoff_icechunk_azure_prefix, args.source_tag,
+             source_store_path(config),
+             args.source_tag or "frozen legacy store (no tag)",
              snapshot_id, args.dest_prefix, args.mode)
 
     if args.variables:

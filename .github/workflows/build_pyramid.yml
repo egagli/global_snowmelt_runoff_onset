@@ -1,7 +1,10 @@
 name: Build Visualization Pyramid
 
 # Builds the multiscale visualization pyramid (visualize/pyramid/) from a
-# tagged icechunk snapshot. Always all six variables, four jobs: composites
+# tagged icechunk snapshot — or, for legacy <= v9 configs (config_file:
+# global_config_v9.txt), from the frozen plain-Zarr v2 store, pinned by its
+# .zmetadata ETag instead of a tag (issue #13: the map's version dropdown).
+# Always all six variables, four jobs: composites
 # runs first, alone (it creates the store structure and convention attrs),
 # then the two yearly-variable jobs and the seasonal_snow mask job in
 # parallel (they own disjoint zarr arrays, so they never conflict). The
