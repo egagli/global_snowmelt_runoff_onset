@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tile_row:
-        description: 'Tile row coordinate (0-95)'
+        description: 'Tile row coordinate (0-99)'
         required: true
         type: number
       tile_col:

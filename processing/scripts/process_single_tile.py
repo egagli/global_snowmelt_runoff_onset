@@ -390,8 +390,8 @@ def process_tile(config, repo, tile_row, tile_col, water_years, branch,
     # Chunked, those comparisons stay lazy and memory tracks dask chunks.
     mask_ds = mask_ds.chunk({
         "water_year": 1,
-        "latitude": config.spatial_chunk_dim_s1_process,
-        "longitude": config.spatial_chunk_dim_s1_process,
+        "latitude": read_chunks["y"],
+        "longitude": read_chunks["x"],
     })
     log_memory("snow mask computed")
 
@@ -773,7 +773,7 @@ def main():
     parser.add_argument("--dask-workers", type=str, default=None,
                         help="Threaded-scheduler worker count (default: all cores), "
                              "or 'auto' to pick per water year from scene density "
-                             "(16/12/8/6 threads for <=150/<=300/<=450/>450 scenes: "
+                             "(16/12/8 threads for <=150/<=300/>300 scenes: "
                              "S1 loading is latency-bound so more in-flight requests "
                              "= faster, but peak RSS scales with concurrency and "
                              "dense years must stay low to fit a 16 GB runner). "
