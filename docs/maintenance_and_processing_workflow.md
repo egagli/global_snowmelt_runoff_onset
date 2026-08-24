@@ -157,7 +157,7 @@ Order of operations (also in the issue template):
 8. Nothing else needs touching: `deploy_map.yml` re-deploys the map on the config
    change (it bakes the config's multiscale prefix into the bundle), and the
    `visualize/global/` figure notebooks read the prefix from the config at run
-   time (`build_pyramid.open_pyramid_level`), writing into `figures/<version>/`.
+   time (`global_snowmelt_runoff_onset.pyramid.open_pyramid_level`), writing into `figures/<version>/`.
    The map's seasonal-snow toggle needs no coordination with the pyramid build:
    it probes `{prefix}/0/seasonal_snow_pct/zarr.json` at page load and renders
    disabled until the new generation's `seasonal_snow` job has written the mask,

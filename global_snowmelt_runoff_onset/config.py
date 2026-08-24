@@ -276,39 +276,25 @@ class Config:
         self.geobox_tiles: odc.geo.GeoboxTiles = odc.geo.geobox.GeoboxTiles(self.global_geobox, self.spatial_chunk_dims_zarr)
         self._validate_grid()
         
-        # Cloud storage setup
-        # Try to get credentials from environment variables first
-        # (for GitHub Actions) Fall back to local files for development
-        sas_token_env = os.getenv('AZURE_STORAGE_SAS_TOKEN')
-        if sas_token_env:
-            self.sas_token: str = sas_token_env
-        else:
-            # Fallback to local file for development
-            sas_token_file = pathlib.Path(
-                self._resolve_repo_path('config/sas_token.txt'))
-            if sas_token_file.exists():
-                self.sas_token: str = sas_token_file.read_text().strip()
-            else:
-                raise ValueError("Azure SAS token not found in environment "
-                                 "variable AZURE_STORAGE_SAS_TOKEN or "
-                                 "config/sas_token.txt")
-                
-        self._check_sas_token_expiration()
-        
+        # Cloud storage setup. Credentials are LAZY: config.sas_token is a
+        # property that reads AZURE_STORAGE_SAS_TOKEN (GitHub Actions) or
+        # config/sas_token.txt (development) on FIRST ACCESS, i.e. only when
+        # something private is actually opened. The multiscale pyramid and the
+        # published stores are anonymous-blob-readable, so figure/offline work
+        # can construct a Config with no token present at all (2026-08-24;
+        # previously a missing/expired token failed the constructor).
+        self._sas_token: Optional[str] = None
+
         # Azure storage account name from environment or default
         self.azure_storage_account: str = os.getenv('AZURE_STORAGE_ACCOUNT', 'uwcryo')
-        account_name = self.azure_storage_account
-        
+
         # adlfs/fsspec is only needed for the legacy (<= v9) plain-Zarr stores;
         # icechunk does its own (Rust object-store) I/O, and Sentinel-1 COGs are
-        # read via rasterio/GDAL. Constructed lazily so icechunk-era runs never
-        # build it at all.
+        # read via rasterio/GDAL. Constructed lazily (like the legacy output
+        # mapper, see the global_runoff_store property) so icechunk-era runs
+        # never build it at all — and so v9 configs also load token-free.
         self._azure_blob_fs: Optional[adlfs.AzureBlobFileSystem] = None
-        if self.output_store_is_icechunk:
-            self.global_runoff_store = None
-        else:
-            self.global_runoff_store = self.azure_blob_fs.get_mapper(
-                self.global_runoff_zarr_store_azure_path)
+        self._global_runoff_store = None
         self._snow_phenology_store = None
         self._output_repo = None
         self._load_valid_tiles()
@@ -364,17 +350,52 @@ class Config:
                     "changes that row's footprint instead of being a pure append."
                 )
 
+    @property
+    def sas_token(self) -> str:
+        """
+        Azure SAS token, loaded lazily on first access.
+
+        Sources, in order: the AZURE_STORAGE_SAS_TOKEN environment variable
+        (GitHub Actions), then config/sas_token.txt (development). Loading is
+        deferred so a Config is fully usable without credentials for
+        anonymous-public reads (the multiscale pyramid via
+        pyramid.open_pyramid_level) and offline figure work — the expiry
+        check runs once, on first access, not at construction. Fleet jobs are
+        unaffected: they touch the token at the first store open, seconds in.
+
+        Raises:
+            ValueError: when no token can be found, or the found token is
+                expired (raised by the expiry check).
+        """
+        if self._sas_token is None:
+            token = os.getenv('AZURE_STORAGE_SAS_TOKEN')
+            if not token:
+                sas_token_file = pathlib.Path(
+                    self._resolve_repo_path('config/sas_token.txt'))
+                if sas_token_file.exists():
+                    token = sas_token_file.read_text().strip()
+                else:
+                    raise ValueError(
+                        "Azure SAS token not found in environment variable "
+                        "AZURE_STORAGE_SAS_TOKEN or config/sas_token.txt. "
+                        "It is only needed for private/write access — "
+                        "anonymous public reads (e.g. the visualization "
+                        "pyramid) work without one.")
+            self._sas_token = token
+            self._check_sas_token_expiration()
+        return self._sas_token
+
     def _check_sas_token_expiration(self) -> None:
         """
         Check if the SAS token is expired or about to expire.
-        
+
         Parses the SAS token to extract the expiration date and warns the user
         if the token is expired or expires within 24 hours.
         """
         try:
             # Parse the SAS token parameters
             # Remove any leading '?' if present
-            token = self.sas_token.lstrip('?')
+            token = self._sas_token.lstrip('?')
             params = parse_qs(token)
             
             if 'se' not in params:
@@ -457,6 +478,20 @@ class Config:
             )
         self._azure_blob_fs.invalidate_cache()
         return self._azure_blob_fs
+
+    @property
+    def global_runoff_store(self):
+        """
+        Legacy (<= v9) plain-Zarr output store mapper; None for icechunk
+        configs (v10+). Lazily created — first access loads the SAS token,
+        so v9 configs also construct token-free.
+        """
+        if self.output_store_is_icechunk:
+            return None
+        if self._global_runoff_store is None:
+            self._global_runoff_store = self.azure_blob_fs.get_mapper(
+                self.global_runoff_zarr_store_azure_path)
+        return self._global_runoff_store
 
     @property
     def snow_phenology_store(self):

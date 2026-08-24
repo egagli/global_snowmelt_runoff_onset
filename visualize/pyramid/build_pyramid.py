@@ -100,6 +100,11 @@ TOPOZARR_VERSION = topozarr.__version__
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from global_snowmelt_runoff_onset.config import Config  # noqa: E402
+# The consumer-side reader was promoted into the installable package
+# (2026-08-24) so figure notebooks import it without sys.path hacks;
+# re-exported here for existing `from build_pyramid import ...` callers
+# (e.g. 2_verify_pyramid.ipynb).
+from global_snowmelt_runoff_onset.pyramid import open_pyramid_level  # noqa: E402, F401
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("build_pyramid")
@@ -325,36 +330,6 @@ def azure_prefix_store(config, dest_prefix):
 def dest_store(config, dest_prefix, read_only=False):
     return zarr.storage.ObjectStore(azure_prefix_store(config, dest_prefix),
                                     read_only=read_only)
-
-
-def open_pyramid_level(config, level, dest_prefix=None, decode=True,
-                       chunks=None):
-    """
-    Open one pyramid level as an xarray Dataset (read-only, via obstore).
-
-    The consumer-side counterpart of this builder — used by the global figure
-    notebooks (visualize/global/) in place of the retired v9 coarsened store.
-    Resolution at level n is ~80 m * 2**n (level 4 ~1.3 km, level 5 ~2.6 km,
-    level 7 ~10 km). Open levels individually: xr.open_datatree on a
-    multiscale hierarchy tries to align same-named dims with different
-    coordinates across levels and fails.
-
-    Args:
-        config: Config (supplies the Azure account + SAS token AND the
-            pyramid prefix via global_runoff_multiscale_azure_prefix).
-        level: Pyramid level number (0 = native ~80 m).
-        dest_prefix: Override the container/prefix.
-        decode: Decode CF metadata (fill -> NaN, scale_factor applied).
-        chunks: xarray chunking. None (default) = lazy backend arrays, no
-            dask -- right for figure-scale levels (>= 4). Pass 'auto' for
-            dask-backed reads of the big fine levels (0-3).
-    """
-    if dest_prefix is None:
-        dest_prefix = config.global_runoff_multiscale_azure_prefix
-    return xr.open_zarr(dest_store(config, dest_prefix, read_only=True),
-                        group=str(level), zarr_format=3, consolidated=False,
-                        mask_and_scale=decode, decode_coords="all",
-                        chunks=chunks)
 
 
 def read_progress(az, job_name):
