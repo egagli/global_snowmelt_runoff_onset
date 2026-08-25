@@ -210,13 +210,6 @@ Order of operations (also in the issue template):
   `visualize/interactive_map/prepare_gmba_overlay.py`. Rebuild only if the
   upstream GMBA inventory changes: bump the `_N` suffix in the script's
   `--dest-blob` and `GMBA_URL` in `map/lib/store.ts` together.
-- **One deliberate immutability exception (2026-08-24):** the v10 pyramid's
-  `seasonal_snow_pct` was re-run **in place** for the ocean→0 reclass (v2)
-  via `build_pyramid.yml` `jobs: seasonal_snow_only` — a user-accepted
-  rewrite of cache-immutable chunks. Consequence: returning visitors may see
-  a mixed old/new mask until their browser caches expire; data variables
-  were untouched. Don't generalize from this — the convention stands, and
-  the next mask change should ride a `multiscale_generation` bump.
 - **Retiring a superseded prefix** (e.g. the pre-pyramid
   `snow_classification_300m_1`, or last generation's
   `..._multiscale_N-1` runoff pyramid): delete only after a **deployed** map is

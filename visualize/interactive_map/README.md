@@ -159,39 +159,6 @@ exactly this reason): the sidebar copy now says it's on by default and to turn
 it off to see ephemeral-region estimates, and the point-query card shows the
 snow class regardless of the toggle.
 
-Behavior of the filter around water (investigated + decided 2026-08-24
-against the live stores):
-
-- **Ocean (class 8) fails CLOSED — reclass v2.** Originally ocean mapped to
-  fill (NaN, never hidden — coastline-mismatch protection), but that let the
-  ~500 m MODIS coastal-smear fringe of onset values show through the filter:
-  measured in a Lofoten/Vestfjorden window, 52,616 px (6.2% of data pixels)
-  survived via the fail-open, all Sturm class 8, median 160 m / p90 466 m /
-  max 1.3 km past the Sturm shoreline. Since reclass v2 (2026-08-24, ocean
-  → 0, `SNOW_CLASS_OCEAN` in `build_pyramid.py`) the filter hides that
-  fringe. Two accepted tradeoffs, chosen deliberately: (1) genuine land
-  pixels inside Sturm's coarse shoreline (≤ ~300 m) are hidden while the
-  filter is on — the point query still reports them and the toggle turns
-  them back on; (2) ocean now enters the mean cascade as a valid 0, so at
-  coarse zooms mixed land/water coastal cells dilute below the 50% threshold
-  and hide. Only fill (class 9) / off-grid still fails open (NaN).
-  **Deployment note:** the v10 pyramid's mask was re-run **in place**
-  (`build_pyramid.yml` with `jobs: seasonal_snow_only`), knowingly rewriting
-  immutable-cached chunks — returning visitors may see a mixed old/new mask
-  until their caches expire; new visitors get the fixed mask.
-- **Inland water is not class 8 at all.** Sturm & Liston is a climatological
-  classification that carries land classes across lake surfaces — Namtso
-  (Tibet) is class 1 Tundra, Lake Superior class 5 Prairie — so
-  `seasonal_snow_pct` is 100 over large lakes and the toggle *cannot* hide
-  on-water artifacts (the Tibetan-lakes case). The warning-zone toasts are
-  the current mitigation; the real fix is a `water_pct` aux variable from
-  ESA WorldCover (10 m — also restores the coastline precision that
-  tradeoff (1) gives up) — a v11-pyramid candidate, since aux bands must
-  live in the same store on the same grid. (Contrast Salar de Uyuni: class
-  4 Ephemeral → pct 0, the toggle genuinely suppresses the salt-flat false
-  onsets. Broad frozen seas — Bothnia, Hudson Bay, White Sea — carry no
-  data at all: the MODIS phenology input is ocean-masked.)
-
 ## Issue #13 additions (2026-08-24): version dropdown, GMBA overlay, zonal warnings
 
 Three features added in one pass ([issue #13](https://github.com/egagli/global_snowmelt_runoff_onset/issues/13)),
@@ -230,7 +197,10 @@ plus the seasonal-filter default flip above:
   the script's `--dest-blob` **and** `GMBA_URL` in `map/lib/store.ts` together.
 - **Zonal warning toasts** (same pattern as the MODIS_snow_phenology map):
   `WARNING_ZONES` in `map/components/map.tsx` is checked against the viewport
-  on every moveend/zoomend and surfaces a dismissible toast. Six zones:
+  on every moveend/zoomend and surfaces a dismissible toast. A zone fires
+  only when it covers ≥ 30% of the viewport (`WARNING_MIN_VIEWPORT_FRACTION`,
+  added 2026-08-24 — plain bbox-intersection fired the big Arctic zones from
+  as far away as Iceland at low zoom). Six zones:
   Greenland and the Canadian Arctic Archipelago (no data — MPC S1 RTC is
   HH/HV there, VV required), the equator hemisphere seam at Volcán Cayambe
   (issue #7), and the three MODIS-input artifact zones that propagate into

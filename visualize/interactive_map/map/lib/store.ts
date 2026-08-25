@@ -134,10 +134,9 @@ export const SEASONAL_MASK_VARIABLE = 'seasonal_snow_pct'
 // Percent-seasonal-snow a cell must reach to survive the filter. Only bites at
 // coarse levels: level 0 is exactly 0 or 100, so any 0 < threshold <= 100
 // behaves identically at native zoom. 50 = "at least half this cell's area is
-// seasonal snow" — literally cell AREA since reclass v2 (2026-08-24, ocean
-// counts as 0), so mixed land/water coastal cells can drop below it at
-// coarse zooms (accepted; toggle off to see them). Drop toward 0.5 for the
-// permissive "any seasonal snow here".
+// seasonal snow" (ocean counts as 0, so mixed land/water coastal cells can
+// drop below it at coarse zooms). Drop toward 0.5 for the permissive "any
+// seasonal snow here".
 export const SEASONAL_MASK_THRESHOLD = 50
 
 // Standalone 300 m Sturm & Liston (2021) classification pyramid (NSIDC-0768),

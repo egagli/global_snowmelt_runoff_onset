@@ -37,6 +37,15 @@ const GMBA_LINE_ID = 'gmba-line'
 // toast (issue #13; same pattern as the MODIS_snow_phenology map). The MODIS
 // zones matter here too because that product defines this dataset's
 // melt-search window, so its false-snow artifacts propagate.
+//
+// A zone fires only when it covers at least this fraction of the viewport
+// (in degree² — approximate at high latitudes, fine for a toast). Plain
+// bbox-touches-viewport (the MODIS map's test) fired the big Arctic zones
+// from as far away as Iceland or Norway at low zoom; requiring real coverage
+// encodes "you are mostly looking at this region". A viewport fully inside a
+// zone is fraction 1, so zoomed-in behavior is unchanged.
+const WARNING_MIN_VIEWPORT_FRACTION = 0.3
+
 const WARNING_ZONES: {
   name: string
   message: string
@@ -45,7 +54,9 @@ const WARNING_ZONES: {
 }[] = [
   {
     name: 'Greenland — no data (HH polarization)',
-    bbox: [-74, 59, -10, 84],
+    // hugs the landmass; the coverage-fraction test (not this box) is what
+    // keeps Iceland/Svalbard/Norway views from firing it
+    bbox: [-73, 59.7, -11, 83.7],
     minZoom: 3,
     message:
       'Sentinel-1 RTC scenes over Greenland are acquired in HH/HV polarization. ' +
@@ -54,7 +65,7 @@ const WARNING_ZONES: {
   },
   {
     name: 'Canadian Arctic Archipelago — no data (HH polarization)',
-    bbox: [-128, 66, -60, 84],
+    bbox: [-124, 66.5, -61, 83.2],
     minZoom: 3,
     message:
       'Sentinel-1 RTC scenes over the Canadian Arctic Archipelago are acquired ' +
@@ -532,13 +543,16 @@ export const Map = () => {
       setZoomLevel(zoom)
       const b = map.getBounds()
       const w = b.getWest(), e = b.getEast(), s = b.getSouth(), n = b.getNorth()
+      const viewportArea = Math.max((e - w) * (n - s), 1e-9)
       for (const zone of WARNING_ZONES) {
         if (zoom < zone.minZoom) continue
         const [zw, zs, ze, zn] = zone.bbox
-        if (w < ze && e > zw && s < zn && n > zs) {
-          setActiveWarning({ name: zone.name, message: zone.message })
-          return
-        }
+        const iw = Math.min(e, ze) - Math.max(w, zw)
+        const ih = Math.min(n, zn) - Math.max(s, zs)
+        if (iw <= 0 || ih <= 0) continue
+        if ((iw * ih) / viewportArea < WARNING_MIN_VIEWPORT_FRACTION) continue
+        setActiveWarning({ name: zone.name, message: zone.message })
+        return
       }
       setActiveWarning(null)
     }
@@ -805,11 +819,9 @@ export const Map = () => {
       // auxVariables), CF-decoded to 0-100 with NaN fill. `< threshold` is
       // false for NaN, so mask-FILL pixels (Sturm fill class 9, off-grid) are
       // never hidden by the toggle — the main variable's own fill discard
-      // already handles pixels without data. Ocean, however, fails CLOSED
-      // since reclass v2 (2026-08-24): class 8 maps to pct 0, so the toggle
-      // hides the ~500 m MODIS coastal-smear fringe of onset values past the
-      // Sturm shoreline (previously ocean was fill → the fringe showed
-      // through). See visualize/interactive_map/README.md for the tradeoffs.
+      // already handles pixels without data. Ocean (class 8) is pct 0, not
+      // fill, so the toggle hides it — including the ~500 m MODIS
+      // coastal-smear fringe of onset values past the Sturm shoreline.
       const seasonalArm = maskAvailable
         ? `if (u_seasonal_only > 0.5 && ${SEASONAL_MASK_VARIABLE} < u_seasonal_threshold) { discard; }\n        `
         : ''
