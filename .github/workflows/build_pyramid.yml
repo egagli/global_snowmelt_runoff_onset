@@ -37,6 +37,14 @@ on:
         options:
           - fresh
           - resume
+      jobs:
+        description: 'all = full build; seasonal_snow_only = re-run just the mask job against a live prefix (e.g. a reclass change) without rebuilding the data variables'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - seasonal_snow_only
 
 permissions:
   contents: read
@@ -48,6 +56,7 @@ env:
 jobs:
   composites:
     name: composites (creates store structure)
+    if: ${{ inputs.jobs != 'seasonal_snow_only' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -92,6 +101,10 @@ jobs:
   seasonal_snow:
     name: seasonal_snow (Sturm & Liston 2021 mask)
     needs: composites
+    # After composites on a full build; alone (composites skipped) when
+    # jobs=seasonal_snow_only -- safe because the mask job is additive and
+    # gates itself with --check-attrs below.
+    if: ${{ !cancelled() && (needs.composites.result == 'success' || inputs.jobs == 'seasonal_snow_only') }}
     runs-on: ubuntu-latest
     timeout-minutes: 180  # one 2-D variable; composites did three in ~1h46m
     steps:

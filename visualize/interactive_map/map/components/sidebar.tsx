@@ -444,9 +444,10 @@ const SidebarContent = () => {
           {seasonalMaskAvailable ? (
             <>
               On by default: hides pixels outside seasonal snow classes in the
-              Sturm &amp; Liston (2021) classification (zoomed out, cells less
-              than half seasonal snow). Turn it off to see valid estimates
-              within Sturm &amp; Liston (2021) ephemeral snow pixels. You can also view
+              Sturm &amp; Liston (2021) classification, including open ocean
+              (zoomed out, cells less than half seasonal snow). Turn it off to
+              see valid estimates within Sturm &amp; Liston (2021) ephemeral
+              snow pixels or within ~300 m of the shoreline. You can also view
               the snow class in the point query, or switch the basemap to “snow class” to see the
               classification itself.
             </>

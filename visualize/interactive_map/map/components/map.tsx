@@ -803,9 +803,13 @@ export const Map = () => {
       //
       // Seasonal-snow arm (issue #9): seasonal_snow_pct is an aux band (fork
       // auxVariables), CF-decoded to 0-100 with NaN fill. `< threshold` is
-      // false for NaN, so mask-fill pixels (ocean/off-grid, plus 300 m
-      // coastline mismatch slivers) are NEVER hidden by the toggle — the main
-      // variable's own fill discard already handles pixels without data.
+      // false for NaN, so mask-FILL pixels (Sturm fill class 9, off-grid) are
+      // never hidden by the toggle — the main variable's own fill discard
+      // already handles pixels without data. Ocean, however, fails CLOSED
+      // since reclass v2 (2026-08-24): class 8 maps to pct 0, so the toggle
+      // hides the ~500 m MODIS coastal-smear fringe of onset values past the
+      // Sturm shoreline (previously ocean was fill → the fringe showed
+      // through). See visualize/interactive_map/README.md for the tradeoffs.
       const seasonalArm = maskAvailable
         ? `if (u_seasonal_only > 0.5 && ${SEASONAL_MASK_VARIABLE} < u_seasonal_threshold) { discard; }\n        `
         : ''

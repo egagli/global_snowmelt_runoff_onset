@@ -132,7 +132,15 @@ DEFAULT_SNOW_CLASS_TIF = ("https://uwcryo.blob.core.windows.net/snowmelt/eric/"
                           "snow_classification/SnowClass_GL_300m_10.0arcsec_2021_v01.0.tif")
 SNOW_CLASSES_SEASONAL = (1, 2, 3, 5, 6, 7)  # Tundra, Boreal Forest, Maritime, Prairie, Montane Forest, Ice
 SNOW_CLASS_EPHEMERAL = 4                    # excluded from "seasonal" by design (issue #9)
-SNOW_CLASS_FILL = -9999                     # ocean (8), fill (9), anything unexpected
+SNOW_CLASS_OCEAN = 8                        # -> 0 since 2026-08-24 (reclass v2): ocean fails
+                                            # CLOSED so the display filter hides the ~500 m
+                                            # MODIS coastal-smear fringe of onset values past
+                                            # the shoreline. Accepted tradeoffs (deliberate,
+                                            # see visualize/interactive_map/README.md): mixed
+                                            # land/water cells dilute below the 50% threshold
+                                            # at coarse zooms, and the v10 in-place re-run
+                                            # rewrites immutable-cached mask chunks.
+SNOW_CLASS_FILL = -9999                     # fill (9), anything unexpected
 
 # Defaults for generic zarr-layer viewers, in DECODED units (zarr-layer applies
 # scale_factor before clim). The map app sets its own colormaps/clims; DOWY
@@ -250,8 +258,16 @@ def seasonal_snow_pct_dataarray(ds, tif_path, chunk=2048):
     """Lazy (latitude, longitude) int16 percent-seasonal-snow mask on ``ds``'s grid.
 
     Nearest-neighbor lookup from the Sturm & Liston (2021) snow classification
-    GeoTIFF, reclassified: accepted classes -> 100, Ephemeral (4) -> 0,
-    everything else (ocean 8, fill 9, unexpected) -> -9999. Both grids are
+    GeoTIFF, reclassified: accepted classes -> 100, Ephemeral (4) AND Ocean
+    (8) -> 0, fill (9)/unexpected -> -9999. Ocean fails CLOSED (reclass v2,
+    2026-08-24): with ocean as fill, the shader's NaN fail-open let the
+    ~500 m MODIS coastal-smear fringe of onset values show through the
+    seasonal-snow display filter (measured: 52,616 px = 6.2% of data in a
+    Lofoten test window, median 160 m past the Sturm shoreline). As a valid
+    0 it also enters the mean cascade, so coarse levels become percent of
+    CELL AREA that is seasonal snow -- mixed land/water coastal cells now
+    dilute below the 50% display threshold at coarse zooms (accepted
+    tradeoff; toggle off to see them). Both grids are
     regular EPSG:4326 lattices, so nearest-neighbor is exact integer affine
     index arithmetic: the source cell containing each target cell center is
     ``floor((center - origin) / pixel_size)``, precomputed per axis as two
@@ -300,6 +316,7 @@ def seasonal_snow_pct_dataarray(ds, tif_path, chunk=2048):
     lut = np.full(256, SNOW_CLASS_FILL, dtype=np.int16)
     lut[list(SNOW_CLASSES_SEASONAL)] = 100
     lut[SNOW_CLASS_EPHEMERAL] = 0
+    lut[SNOW_CLASS_OCEAN] = 0
 
     handles = threading.local()  # one GDAL dataset handle per reader thread
 
@@ -330,9 +347,9 @@ def seasonal_snow_pct_dataarray(ds, tif_path, chunk=2048):
                 "nearest-neighbor reclassification: snow classes 1-3 and 5-7 "
                 "(Tundra, Boreal Forest, Maritime, Prairie, Montane Forest, Ice) "
                 "= 100; class 4 (Ephemeral snow) = 0 (excluded from 'seasonal' "
-                "by design); ocean/fill = -9999. Coarser levels are the "
-                "fill-aware integer mean, i.e. the percent of seasonal-snow "
-                "area among classified land in each cell."),
+                "by design); class 8 (Ocean) = 0 (reclass v2, 2026-08-24); "
+                "fill = -9999. Coarser levels are the fill-aware integer mean, "
+                "i.e. the percent of cell area that is seasonal snow."),
             "units": "percent",
             "grid_mapping": "spatial_ref",
             "_FillValue": SNOW_CLASS_FILL,
