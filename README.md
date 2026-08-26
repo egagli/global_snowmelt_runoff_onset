@@ -2,7 +2,10 @@
 
 Published manuscript in _Earth System Science Data_: [![Paper](https://img.shields.io/badge/paper-10.5194%2Fessd--18--5871--2026-1a7f5a)](https://doi.org/10.5194/essd-18-5871-2026)  
 Dataset DOI: [![Dataset DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.16953614.svg)](https://doi.org/10.5281/zenodo.16953614)  
-Repository DOI: [![Repository DOI](https://zenodo.org/badge/873255484.svg)](https://doi.org/10.5281/zenodo.19115464)  
+Repository DOI: [![Repository DOI](https://zenodo.org/badge/873255484.svg)](https://doi.org/10.5281/zenodo.19115464)    
+
+
+Check out our interactive map: https://egagli.github.io/maps/global-snowmelt-runoff-onset.html  
 
 
 Eric Gagliano (egagli@uw.edu)
