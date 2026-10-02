@@ -520,6 +520,7 @@ export const Map = () => {
 
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left')
     mapRef.current = map
+    if (process.env.NEXT_PUBLIC_BENCH === '1') (window as any).__map = map
 
     map.on('load', () => {
       setIsMapLoaded(true)
