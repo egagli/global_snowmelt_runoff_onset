@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { track, trackDebounced } from './analytics'
 import type { LoadingState } from '@carbonplan/zarr-layer'
 
 export type Variable =
@@ -316,6 +317,7 @@ export const useStore = create<AppState>((set) => ({
   // (v9 lacks 2025), else snaps to the target's latest year.
   setVersion: (version) =>
     set((state) => {
+      if (version !== state.version) track('map_version_change', { version })
       const prevYear =
         VERSION_CONFIGS[state.version].waterYears[state.waterYearIndex]
       const years = VERSION_CONFIGS[version].waterYears
@@ -330,18 +332,38 @@ export const useStore = create<AppState>((set) => ({
       versionAvailable: { ...state.versionAvailable, [v]: ok },
     })),
   setVariable: (variable) =>
-    set({
-      variable,
-      clim: VARIABLE_CONFIGS[variable].clim,
+    set((state) => {
+      if (variable !== state.variable) track('map_layer_change', { layer: variable })
+      return { variable, clim: VARIABLE_CONFIGS[variable].clim }
     }),
-  setWaterYearIndex: (waterYearIndex) => set({ waterYearIndex }),
+  setWaterYearIndex: (waterYearIndex) =>
+    set((state) => {
+      trackDebounced('map_time_change', {
+        water_year: VERSION_CONFIGS[state.version].waterYears[waterYearIndex],
+      })
+      return { waterYearIndex }
+    }),
   setOpacity: (opacity) => set({ opacity }),
   setClim: (clim) => set({ clim }),
-  setGlobeProjection: (globeProjection) => set({ globeProjection }),
-  setSeasonalOnly: (seasonalOnly) => set({ seasonalOnly }),
+  setGlobeProjection: (globeProjection) =>
+    set((state) => {
+      if (globeProjection !== state.globeProjection)
+        track('map_projection_change', { projection: globeProjection ? 'globe' : 'mercator' })
+      return { globeProjection }
+    }),
+  setSeasonalOnly: (seasonalOnly) => {
+    track('map_filter_toggle', { seasonal_only: seasonalOnly })
+    set({ seasonalOnly })
+  },
   setSeasonalMaskAvailable: (seasonalMaskAvailable) =>
     set({ seasonalMaskAvailable }),
-  setGmbaOn: (gmbaOn) => set({ gmbaOn }),
+  // track on change only: search re-enables the overlay on every range pick
+  setGmbaOn: (gmbaOn) =>
+    set((state) => {
+      if (gmbaOn !== state.gmbaOn)
+        track('map_overlay_toggle', { overlay: 'gmba', visible: gmbaOn })
+      return { gmbaOn }
+    }),
   setGmbaIndex: (gmbaIndex) => set({ gmbaIndex }),
   setGmbaPinnedId: (gmbaPinnedId) => set({ gmbaPinnedId }),
   requestNav: (r) =>
@@ -351,7 +373,15 @@ export const useStore = create<AppState>((set) => ({
   setActiveWarning: (activeWarning) => set({ activeWarning }),
   setLoadingState: (loadingState) => set({ loadingState }),
   setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
-  setBasemap: (basemap) => set({ basemap }),
-  setClickInfo: (clickInfo) => set({ clickInfo }),
+  setBasemap: (basemap) =>
+    set((state) => {
+      if (basemap !== state.basemap) track('map_basemap_change', { basemap })
+      return { basemap }
+    }),
+  setClickInfo: (clickInfo) =>
+    set((state) => {
+      if (clickInfo?.status === 'querying') track('map_point_query', { layer: state.variable })
+      return { clickInfo }
+    }),
   setZoomLevel: (zoomLevel) => set({ zoomLevel }),
 }))
