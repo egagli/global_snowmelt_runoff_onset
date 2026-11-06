@@ -10,7 +10,9 @@ import {
   useStore,
   VERSION_CONFIGS,
   ALL_VERSIONS,
-  GMBA_URL,
+  DEFAULT_VERSION,
+  GMBA_PMTILES_URL,
+  loadGmbaIndex,
   SNOW_CLASS_URL,
   SNOW_CLASS_VARIABLE,
   SNOW_CLASS_INFO,
@@ -23,6 +25,7 @@ import {
   type ClickInfo,
 } from '../lib/store'
 import { COLORMAP_ARRAYS } from '../lib/colormaps'
+import { initialCamera } from '../lib/url-hash'
 
 const ACCENT = '#1dbd8f'
 const FILL_VALUE = -9999
@@ -31,6 +34,9 @@ const SNOW_CLASS_LAYER_ID = 'zarr-snow-class'
 const GMBA_SOURCE_ID = 'gmba'
 const GMBA_FILL_ID = 'gmba-fill'
 const GMBA_LINE_ID = 'gmba-line'
+const GMBA_CASING_ID = 'gmba-casing'
+const GMBA_LABEL_ID = 'gmba-label'
+const GMBA_TOOLTIP_BG = 'rgba(22,25,30,0.92)'
 
 // Regions where estimates are known to be absent or need caution — checked
 // against the viewport on every moveend/zoomend and surfaced as a dismissible
@@ -143,7 +149,8 @@ ${Object.entries(SNOW_CLASS_INFO)
   fragColor = vec4(c * opacity, opacity);
 `
 
-// Inject keyframes for the pulsing marker once at module load.
+// Inject keyframes for the pulsing marker once at module load, plus the
+// GMBA hover tooltip's popup skin (maplibre's default popup is a white card).
 if (typeof document !== 'undefined' && !document.getElementById('pulsing-marker-style')) {
   const s = document.createElement('style')
   s.id = 'pulsing-marker-style'
@@ -151,6 +158,13 @@ if (typeof document !== 'undefined' && !document.getElementById('pulsing-marker-
     @keyframes markerPulse {
       0%   { transform: translate(-50%,-50%) scale(1); opacity: 0.55; }
       100% { transform: translate(-50%,-50%) scale(3.5); opacity: 0; }
+    }
+    .gmba-tooltip { pointer-events: none; }
+    .gmba-tooltip .maplibregl-popup-tip { display: none; }
+    .gmba-tooltip .maplibregl-popup-content {
+      background: ${GMBA_TOOLTIP_BG}; color: #e6e6e6;
+      padding: 3px 8px; border-radius: 4px; font-size: 11px;
+      box-shadow: none; border: 1px solid #2e3138;
     }
   `
   document.head.appendChild(s)
@@ -294,8 +308,33 @@ let pmtilesRegistered = false
 
 const OWN_LAYER_IDS = new Set([
   'zarr-layer', 'esri-imagery', 'topo', SNOW_CLASS_LAYER_ID,
-  GMBA_FILL_ID, GMBA_LINE_ID,
+  GMBA_FILL_ID, GMBA_CASING_ID, GMBA_LINE_ID, GMBA_LABEL_ID,
 ])
+
+// Feature-state helpers for the GMBA vector source: state is keyed per
+// source-layer, so the pinned range is flagged on both its outline and its
+// label (they share the GMBA id).
+function setGmbaState(
+  map: maplibregl.Map,
+  id: number | string,
+  state: Record<string, boolean>,
+  layers: string[] = ['ranges'],
+) {
+  if (!map.getSource(GMBA_SOURCE_ID)) return
+  for (const sourceLayer of layers) {
+    map.setFeatureState({ source: GMBA_SOURCE_ID, sourceLayer, id }, state)
+  }
+}
+
+/** Padding that keeps a fitBounds target clear of the floating sidebar and
+ *  cards on desktop (on mobile the panel sits below the map instead). */
+function viewPadding(sidebarWidth: number | null) {
+  const desktop =
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 64em)').matches
+  return desktop
+    ? { top: 70, bottom: 40, left: (sidebarWidth ?? 0) + 30, right: 380 }
+    : { top: 60, bottom: 20, left: 20, right: 20 }
+}
 
 function setBasemapFillVisibility(map: maplibregl.Map, visible: boolean) {
   const vis = visible ? 'visible' : 'none'
@@ -362,12 +401,16 @@ export const Map = () => {
   // Per-version level-0 grids, parsed from each pyramid's root attrs at mount.
   const gridSpecsRef = useRef<Partial<Record<DatasetVersion, GridSpec>>>({})
   const gridPromisesRef = useRef<Partial<Record<DatasetVersion, Promise<GridSpec | null>>>>({})
-  // Feature id currently hovered on the GMBA overlay (maplibre feature-state).
+  // GMBA overlay (maplibre feature-state): hovered and pinned feature ids,
+  // plus the one-line name tooltip that follows the cursor over a range.
   const hoveredGmbaIdRef = useRef<number | string | null>(null)
+  const pinnedGmbaIdRef = useRef<number | string | null>(null)
+  const gmbaTooltipRef = useRef<maplibregl.Popup | null>(null)
+  const lastNavSeqRef = useRef(0)
 
   const setSeasonalMaskAvailable = useStore((s) => s.setSeasonalMaskAvailable)
   const setVersionAvailable = useStore((s) => s.setVersionAvailable)
-  const setGmbaHover = useStore((s) => s.setGmbaHover)
+  const setGmbaPinnedId = useStore((s) => s.setGmbaPinnedId)
   const setActiveWarning = useStore((s) => s.setActiveWarning)
 
   const [isMapLoaded, setIsMapLoaded] = useState(false)
@@ -382,6 +425,8 @@ export const Map = () => {
   const loadingState = useStore((s) => s.loadingState)
   const basemap = useStore((s) => s.basemap)
   const gmbaOn = useStore((s) => s.gmbaOn)
+  const gmbaPinnedId = useStore((s) => s.gmbaPinnedId)
+  const navRequest = useStore((s) => s.navRequest)
   const setLoadingState = useStore((s) => s.setLoadingState)
   const setClickInfo = useStore((s) => s.setClickInfo)
   const setZoomLevel = useStore((s) => s.setZoomLevel)
@@ -398,6 +443,10 @@ export const Map = () => {
         if (!grid && v === 'v10') grid = V10_FALLBACK_GRID
         if (grid) gridSpecsRef.current[v] = grid
         setVersionAvailable(v, !!grid)
+        // A shared link can name a version whose pyramid isn't published.
+        if (!grid && useStore.getState().version === v) {
+          useStore.getState().setVersion(DEFAULT_VERSION)
+        }
         return grid
       })
       gridPromisesRef.current[v] = promise
@@ -474,6 +523,7 @@ export const Map = () => {
       layout: { visibility: 'none' as const },
     }
     const styleLayers = [pmLayers[0], satLayer, topoLayer, ...pmLayers.slice(1)]
+    const camera = initialCamera()
 
     const map = new maplibregl.Map({
       container: mapContainer.current,
@@ -514,8 +564,13 @@ export const Map = () => {
         layers: styleLayers,
       },
       // Data spans ~81°N–60°S but is concentrated in NH mountains
-      center: [0, 40],
-      zoom: window.innerWidth < 640 ? 1.2 : 2.4,
+      center: camera?.center ?? [0, 40],
+      zoom: camera?.zoom ?? (window.innerWidth < 640 ? 1.2 : 2.4),
+      bearing: camera?.bearing ?? 0,
+      pitch: camera?.pitch ?? 0,
+      // Camera lives in the URL as #map=zoom/lat/lon; maplibre's named hash
+      // leaves the other params (written by lib/url-hash.ts) alone.
+      hash: 'map',
     })
 
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left')
@@ -590,23 +645,26 @@ export const Map = () => {
     }
   }, [basemap, isMapLoaded])
 
-  // GMBA mountain-range overlay (issue #13). The GeoJSON source is added
-  // lazily on first enable (maplibre fetches GMBA_URL itself — ~2 MB gzip);
-  // afterwards the toggle is a pure visibility flip. Hover drives a
-  // feature-state highlight plus the info card in floating-cards.tsx.
+  // GMBA mountain-range overlay (issues #13, #36). Vector tiles of the
+  // full-resolution 300-selection, read from a PMTiles archive the first time
+  // the overlay is enabled; afterwards the toggle is a pure visibility flip.
+  // Outline-only: hovering brightens the outline and shows a one-line name
+  // tooltip; clicking pins the range (accent outline + faint fill + the range
+  // card in floating-cards.tsx) without stealing the point query.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !isMapLoaded) return
 
     if (gmbaOn && !map.getSource(GMBA_SOURCE_ID)) {
-      // generateId gives numeric feature ids, required for setFeatureState.
+      loadGmbaIndex()
       map.addSource(GMBA_SOURCE_ID, {
-        type: 'geojson',
-        data: GMBA_URL,
-        generateId: true,
+        type: 'vector',
+        url: `pmtiles://${GMBA_PMTILES_URL}`,
         attribution:
           '<a href="https://doi.org/10.1038/s41597-022-01256-y">GMBA Mountain Inventory v2.0</a>',
       })
+      const pinned = ['boolean', ['feature-state', 'pinned'], false]
+      const hover = ['boolean', ['feature-state', 'hover'], false]
       // Keep place labels above the overlay, same convention as the data layers.
       let beforeId: string | undefined
       try { if (map.getLayer('address_label')) beforeId = 'address_label' } catch {}
@@ -614,79 +672,187 @@ export const Map = () => {
         id: GMBA_FILL_ID,
         type: 'fill',
         source: GMBA_SOURCE_ID,
+        'source-layer': 'ranges',
         paint: {
           'fill-color': ACCENT,
-          // Near-invisible base fill keeps the whole polygon hoverable; the
-          // hovered range gets a visible tint.
-          'fill-opacity': [
-            'case', ['boolean', ['feature-state', 'hover'], false], 0.14, 0.02,
-          ],
+          // Invisible except for the pinned range; a 0-opacity fill still
+          // hit-tests, which is what makes the whole polygon hoverable.
+          'fill-opacity': ['case', pinned, 0.1, 0] as any,
+        },
+      }, beforeId)
+      // Faint dark casing from z4 on, so a light outline still reads where it
+      // crosses bright data (late-onset yellow); absent at world zoom, where
+      // it would only darken the data.
+      map.addLayer({
+        id: GMBA_CASING_ID,
+        type: 'line',
+        source: GMBA_SOURCE_ID,
+        'source-layer': 'ranges',
+        minzoom: 3,
+        layout: { 'line-join': 'round' },
+        paint: {
+          'line-color': backgroundColor,
+          'line-opacity': ['interpolate', ['linear'], ['zoom'], 3, 0, 5, 0.55],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 3, 1.5, 6, 2.6, 10, 3.4],
         },
       }, beforeId)
       map.addLayer({
         id: GMBA_LINE_ID,
         type: 'line',
         source: GMBA_SOURCE_ID,
+        'source-layer': 'ranges',
+        layout: { 'line-join': 'round' },
         paint: {
-          'line-color': [
-            'case', ['boolean', ['feature-state', 'hover'], false],
-            ACCENT, 'rgba(208,208,208,0.6)',
-          ],
+          'line-color': ['case', pinned, ACCENT, hover, '#ffffff', '#e6e6e6'] as any,
+          // Thin and dim at world zoom (where 290 outlines would otherwise
+          // crosshatch the data), firmer as you zoom in.
+          'line-opacity': [
+            'interpolate', ['linear'], ['zoom'],
+            1, ['case', ['any', pinned, hover], 1, 0.3],
+            7, ['case', ['any', pinned, hover], 1, 0.6],
+          ] as any,
           'line-width': [
-            'case', ['boolean', ['feature-state', 'hover'], false], 2, 0.8,
-          ],
+            'interpolate', ['linear'], ['zoom'],
+            1, ['case', pinned, 1.6, hover, 1.3, 0.5],
+            6, ['case', pinned, 2.2, hover, 1.8, 0.9],
+            10, ['case', pinned, 3, hover, 2.4, 1.3],
+          ] as any,
+        },
+      }, beforeId)
+      map.addLayer({
+        id: GMBA_LABEL_ID,
+        type: 'symbol',
+        source: GMBA_SOURCE_ID,
+        'source-layer': 'labels',
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-font': ['Relative Pro Book'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 2, 10, 8, 13],
+          'text-letter-spacing': 0.05,
+          'text-max-width': 7,
+          'text-padding': 6,
+          // Bigger ranges win label collisions.
+          'symbol-sort-key': ['-', 0, ['get', 'area_km2']],
+        },
+        paint: {
+          'text-color': ['case', pinned, ACCENT, 'rgba(230,230,230,0.8)'] as any,
+          'text-halo-color': 'rgba(27,30,35,0.9)',
+          'text-halo-width': 1.2,
         },
       }, beforeId)
 
+      gmbaTooltipRef.current = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        className: 'gmba-tooltip',
+        offset: 12,
+        anchor: 'left',
+      })
       map.on('mousemove', GMBA_FILL_ID, (e) => {
         const f = e.features?.[0]
         if (!f || f.id === undefined) return
-        if (hoveredGmbaIdRef.current !== null && hoveredGmbaIdRef.current !== f.id) {
-          map.setFeatureState(
-            { source: GMBA_SOURCE_ID, id: hoveredGmbaIdRef.current },
-            { hover: false }
-          )
+        if (hoveredGmbaIdRef.current !== f.id) {
+          if (hoveredGmbaIdRef.current !== null) {
+            setGmbaState(map, hoveredGmbaIdRef.current, { hover: false })
+          }
+          hoveredGmbaIdRef.current = f.id
+          setGmbaState(map, f.id, { hover: true })
+          gmbaTooltipRef.current?.setText(String(f.properties?.name ?? ''))
         }
-        hoveredGmbaIdRef.current = f.id
-        map.setFeatureState({ source: GMBA_SOURCE_ID, id: f.id }, { hover: true })
-        const p = f.properties ?? {}
-        setGmbaHover({
-          name: p.name ?? '—',
-          feature: p.feature ?? '',
-          countries: p.countries ?? '',
-          areaKm2: typeof p.area_km2 === 'number' ? p.area_km2 : null,
-          elevLow: typeof p.elev_low === 'number' ? p.elev_low : null,
-          elevHigh: typeof p.elev_high === 'number' ? p.elev_high : null,
-        })
+        gmbaTooltipRef.current?.setLngLat(e.lngLat).addTo(map)
       })
       map.on('mouseleave', GMBA_FILL_ID, () => {
         if (hoveredGmbaIdRef.current !== null) {
-          map.setFeatureState(
-            { source: GMBA_SOURCE_ID, id: hoveredGmbaIdRef.current },
-            { hover: false }
-          )
+          setGmbaState(map, hoveredGmbaIdRef.current, { hover: false })
           hoveredGmbaIdRef.current = null
         }
-        setGmbaHover(null)
+        gmbaTooltipRef.current?.remove()
       })
     }
 
-    for (const id of [GMBA_FILL_ID, GMBA_LINE_ID]) {
+    for (const id of [GMBA_FILL_ID, GMBA_CASING_ID, GMBA_LINE_ID, GMBA_LABEL_ID]) {
       if (map.getLayer(id)) {
         map.setLayoutProperty(id, 'visibility', gmbaOn ? 'visible' : 'none')
       }
     }
     if (!gmbaOn) {
-      if (hoveredGmbaIdRef.current !== null && map.getSource(GMBA_SOURCE_ID)) {
-        map.setFeatureState(
-          { source: GMBA_SOURCE_ID, id: hoveredGmbaIdRef.current },
-          { hover: false }
-        )
+      if (hoveredGmbaIdRef.current !== null) {
+        setGmbaState(map, hoveredGmbaIdRef.current, { hover: false })
         hoveredGmbaIdRef.current = null
       }
-      setGmbaHover(null)
+      gmbaTooltipRef.current?.remove()
+      setGmbaPinnedId(null)
     }
-  }, [gmbaOn, isMapLoaded, setGmbaHover])
+  }, [gmbaOn, isMapLoaded, setGmbaPinnedId])
+
+  // Pinned range -> feature-state on its outline and label. Runs after the
+  // overlay effect above (declaration order), so the source exists by the
+  // time a pin from search or the URL hash is applied; state set before the
+  // tiles arrive is applied as they load.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !isMapLoaded || !map.getSource(GMBA_SOURCE_ID)) return
+    if (pinnedGmbaIdRef.current !== null) {
+      setGmbaState(map, pinnedGmbaIdRef.current, { pinned: false }, ['ranges', 'labels'])
+    }
+    pinnedGmbaIdRef.current = gmbaPinnedId
+    if (gmbaPinnedId !== null) {
+      setGmbaState(map, gmbaPinnedId, { pinned: true }, ['ranges', 'labels'])
+    }
+  }, [gmbaPinnedId, gmbaOn, isMapLoaded])
+
+  /** Pin the GMBA range under a lng/lat once the camera has settled and the
+   *  overlay's tiles there are loaded (after a search jump or URL restore —
+   *  a map click pins directly). Off every range → unpin. */
+  const pinGmbaAt = (lng: number, lat: number) => {
+    const map = mapRef.current
+    if (!map || !useStore.getState().gmbaOn) return
+    const tryPin = () => {
+      if (!map.getLayer(GMBA_FILL_ID) || !map.isSourceLoaded(GMBA_SOURCE_ID)) {
+        map.once('idle', tryPin)
+        return
+      }
+      const hit = map.queryRenderedFeatures(map.project([lng, lat]), { layers: [GMBA_FILL_ID] })[0]
+      setGmbaPinnedId(typeof hit?.id === 'number' ? hit.id : null)
+    }
+    if (map.isMoving()) map.once('moveend', tryPin)
+    else tryPin()
+  }
+
+  // Drop the marker at a point and query it (map click, search, URL hash).
+  const queryPoint = (lng: number, lat: number) => {
+    const map = mapRef.current
+    if (!map) return
+    lastClickRef.current = { lng, lat }
+    markerRef.current?.remove()
+    markerRef.current = new maplibregl.Marker({ element: createPulsingMarkerElement(), anchor: 'center' }).setLngLat([lng, lat]).addTo(map)
+    requeryAllVariables({ val: false })
+  }
+
+  // Navigation requests from the search box / URL hash (lib/store.ts).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !isMapLoaded || !navRequest) return
+    if (navRequest.seq === lastNavSeqRef.current) return
+    lastNavSeqRef.current = navRequest.seq
+    const padding = viewPadding(useStore.getState().sidebarWidth)
+    if (navRequest.kind === 'bounds') {
+      const [w, s, e, n] = navRequest.bbox
+      map.fitBounds([[w, s], [e, n]], { padding, maxZoom: 9, duration: 2500 })
+    } else {
+      if (navRequest.fly) {
+        map.flyTo({
+          center: [navRequest.lng, navRequest.lat],
+          zoom: Math.max(map.getZoom(), 10),
+          padding,
+          duration: 2500,
+        })
+        // A restored URL already names its range; a search jump re-pins.
+        pinGmbaAt(navRequest.lng, navRequest.lat)
+      }
+      queryPoint(navRequest.lng, navRequest.lat)
+    }
+  }, [navRequest, isMapLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Query all variables at the currently clicked point. Always reads from the
   // active version's level-0 (finest) zarr arrays so values are
@@ -779,8 +945,14 @@ export const Map = () => {
       if (cancelled.val) return
       const state = useStore.getState()
 
+      // Below the GMBA overlay when it already exists (overlay enabled from a
+      // shared URL, or a version switch rebuilding these layers), else below
+      // the place labels.
       let beforeIdBase: string | undefined
-      try { if (map.getLayer('address_label')) beforeIdBase = 'address_label' } catch {}
+      try {
+        if (map.getLayer(GMBA_FILL_ID)) beforeIdBase = GMBA_FILL_ID
+        else if (map.getLayer('address_label')) beforeIdBase = 'address_label'
+      } catch {}
 
       // Snow-class basemap first, so the data layers added below land on top
       // of it (maplibre inserts each at the same beforeId, in call order).
@@ -875,10 +1047,13 @@ export const Map = () => {
 
     const clickHandler = (event: maplibregl.MapMouseEvent) => {
       const { lng, lat } = event.lngLat
-      lastClickRef.current = { lng, lat }
-      markerRef.current?.remove()
-      markerRef.current = new maplibregl.Marker({ element: createPulsingMarkerElement(), anchor: 'center' }).setLngLat([lng, lat]).addTo(map)
-      requeryAllVariables({ val: false })
+      queryPoint(lng, lat)
+      // With the GMBA overlay on, the same click also pins the range under
+      // it (or unpins, off any range) — the data query above always runs.
+      if (useStore.getState().gmbaOn && map.getLayer(GMBA_FILL_ID)) {
+        const hit = map.queryRenderedFeatures(event.point, { layers: [GMBA_FILL_ID] })[0]
+        setGmbaPinnedId(typeof hit?.id === 'number' ? hit.id : null)
+      }
     }
     map.on('click', clickHandler)
 

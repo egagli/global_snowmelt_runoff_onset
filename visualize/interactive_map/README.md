@@ -193,8 +193,9 @@ plus the seasonal-filter default flip above:
   `https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/gmba_v2_standard_300_1.geojson`.
   The map lazy-loads it on first enable; hovering highlights the range
   (maplibre feature-state) and shows a card with name, feature type,
-  countries, area, and elevation span. To regenerate, bump the `_1` suffix in
-  the script's `--dest-blob` **and** `GMBA_URL` in `map/lib/store.ts` together.
+  countries, area, and elevation span. *Superseded by the PMTiles overlay and
+  click-to-pin card in the issue #36 section below; the `_1` GeoJSON blob is
+  no longer read.*
 - **Zonal warning toasts** (same pattern as the MODIS_snow_phenology map):
   `WARNING_ZONES` in `map/components/map.tsx` is checked against the viewport
   on every moveend/zoomend and surfaces a dismissible toast. A zone fires
@@ -206,6 +207,57 @@ plus the seasonal-filter default flip above:
   (issue #7), and the three MODIS-input artifact zones that propagate into
   our melt-search window (Atacama/Altiplano salt flats, Tibetan Plateau
   lakes, eastern tropical Andes cloud cover).
+
+## Issue #36 additions (2026-11-06): sharper, quieter GMBA overlay, median date, search, shareable URLs
+
+- **GMBA overlay as vector tiles.** Still the 290-range standard
+  300-selection (the full inventory was considered and skipped: too busy for a
+  reference layer), but now published by
+  [`prepare_gmba_overlay.py`](prepare_gmba_overlay.py) as a PMTiles archive
+  (tippecanoe z0–z10, ~48 MB total, range-read through the `pmtiles://`
+  protocol the basemap already registers) plus a ~20 KB (gzip) JSON index:
+  `…/snowmelt_runoff_onset/gmba_v2_standard_300_2.pmtiles` and
+  `…/gmba_v2_standard_300_index_2.json`. The world view costs ~0.2 MB instead
+  of the old 2 MB GeoJSON, and outlines sharpen to the full-resolution source
+  from z7. GMBA ranges are multipolygons of hill-sized fragments (25.6k parts,
+  half under 50 km², together ~1% of the area) that read as speckle when
+  zoomed out, so each range is written in four zoom tiers that drop parts and
+  holes under 5000 / 1000 / 100 / 0 km² (z0–2 / 3–4 / 5–6 / 7+; a range always
+  keeps its largest part). Tiles carry only `id` + `name`; the card and search
+  read everything else (hierarchy path, feature type, countries, area,
+  elevation span, Wikidata id, bbox, label point) from the index. tippecanoe
+  runs through `pixi exec`, so it is not a project dependency.
+- **Quieter interaction.** Outline-only (thin and dim at world zoom, a faint
+  dark casing from z4 so outlines read over bright data), range labels
+  (bigger ranges win collisions), hover = brighter outline + a one-line name
+  tooltip, click = pin: accent outline, faint fill, and a card (bottom-left)
+  with the hierarchy breadcrumbs, details, "zoom to range", and a Wikidata
+  link. The same click still runs the point query; clicking off every range
+  unpins.
+- **Median DOWY as a date.** Composite onset rows read `127 (~Feb 4)`:
+  month-day in a fixed non-leap reference water year, hemisphere-aware, `~`
+  for the ±1-day leap-year ambiguity. Fixed alongside: both date helpers
+  added `n × 86400000` ms to local midnight, which after the DST change lands
+  at 23:00 the previous day, so annual dates from early November on showed
+  one day early for anyone in a DST timezone.
+- **Search box** (top-left of the map): coordinates (`46.5, 8.0`,
+  `46.5N 8.0E`) fly there and run the point query; GMBA ranges match on name,
+  then hierarchy path (`alps` also finds the Southern and Dinaric Alps), then
+  pin + fit bounds (antimeridian ranges get `east > 180` bboxes); places come
+  from [Photon](https://photon.komoot.io) (OSM-based, allows as-you-type
+  use, unlike Nominatim; debounced 350 ms, attributed in the dropdown) and fit
+  the place's extent or fly + query for point features like peaks. A search
+  jump re-pins the range under the new point.
+- **URL hash state** (`map/lib/url-hash.ts`):
+  `#map=zoom/lat/lon&v=&var=&wy=&pt=lat,lon&gmba=1&range=<GMBA id>&bm=`.
+  maplibre's named hash owns `map=`; the store owns the rest. Opening a link
+  restores the view, variable, year, basemap, pinned range, and re-runs the
+  point query. (The MODIS_snow_phenology map turned out to have no URL state
+  to copy.)
+
+To publish: run `prepare_gmba_overlay.py` (uploads both `_2` blobs), then
+deploy the map. Until the blobs exist, enabling the overlay draws nothing and
+range search finds nothing; place and coordinate search still work.
 
 ## References
 

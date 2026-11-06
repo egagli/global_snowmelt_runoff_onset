@@ -492,7 +492,7 @@ const SidebarContent = () => {
           GMBA mountain ranges (v2.0)
         </button>
         <div style={{ fontSize: 10, color: DIM, lineHeight: 1.5 }}>
-          Outlines of 290 major ranges from the{' '}
+          Outlines of the 290 major ranges of the{' '}
           <a
             href='https://doi.org/10.1038/s41597-022-01256-y'
             target='_blank'
@@ -501,8 +501,10 @@ const SidebarContent = () => {
           >
             GMBA Mountain Inventory v2.0
           </a>{' '}
-          (Snethlage et al., 2022). Hover a range for its name, countries,
-          area, and elevation span.
+          (Snethlage et al., 2022) standard selection, sharpening to full
+          resolution as you zoom in. Hover a range for its name; click it to
+          pin its details (the point query still runs). Search finds ranges by
+          name too.
         </div>
       </div>
 

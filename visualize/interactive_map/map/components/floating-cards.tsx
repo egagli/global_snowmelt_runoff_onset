@@ -6,6 +6,7 @@ import {
   COMPOSITE_VARIABLES,
   ANNUAL_VARIABLES,
   SNOW_CLASS_INFO,
+  type GmbaInfo,
   type Variable,
   type Basemap,
 } from '../lib/store'
@@ -57,13 +58,25 @@ function chip(active: boolean): CSSProperties {
   }
 }
 
-// DOWY → calendar date, hemisphere-aware.
+// DOWY → calendar date, hemisphere-aware. Day arithmetic goes through the
+// Date constructor's day field, not milliseconds: adding n×86400000 to local
+// midnight lands at 23:00 the previous day once DST ends, which showed every
+// NH winter date one day early for users in DST timezones.
 function dowyToDate(dowy: number, waterYear: number, southernHemisphere: boolean): string {
-  const start = southernHemisphere
-    ? new Date(waterYear, 3, 1)
-    : new Date(waterYear - 1, 9, 1)
-  const target = new Date(start.getTime() + (Math.round(dowy) - 1) * 86400000)
+  const target = southernHemisphere
+    ? new Date(waterYear, 3, Math.round(dowy))
+    : new Date(waterYear - 1, 9, Math.round(dowy))
   return target.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// DOWY → month-day with no year, for the multi-year composites: computed in a
+// fixed non-leap water year (NH Oct 1 2000 → Sep 30 2001; SH Apr 1 2001 →
+// Mar 31 2002), so it can be a day off in leap years — hence the '~'.
+function dowyToMonthDay(dowy: number, southernHemisphere: boolean): string {
+  const target = southernHemisphere
+    ? new Date(2001, 3, Math.round(dowy))
+    : new Date(2000, 9, Math.round(dowy))
+  return target.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function formatValue(
@@ -78,12 +91,12 @@ function formatValue(
     return `${value.toFixed(1)} days`
   }
   // DOWY variables: the yearly one maps to a calendar date; the multi-year
-  // median has no single year to anchor a date to.
+  // median has no single year, so it gets an approximate month-day.
   const dowy = Math.round(value)
   if (variable === 'runoff_onset') {
     return `${dowy} (${dowyToDate(dowy, waterYear, southernHemisphere)})`
   }
-  return `DOWY ${dowy}`
+  return `${dowy} (~${dowyToMonthDay(dowy, southernHemisphere)})`
 }
 
 // ---------------------------------------------------------------------------
@@ -321,7 +334,7 @@ const WarningToast = () => {
   return (
     <div style={{
       position: 'absolute',
-      top: 12,
+      top: 64, // below the search box
       left,
       right,
       margin: '0 auto',
@@ -360,49 +373,101 @@ const WarningToast = () => {
 }
 
 // ---------------------------------------------------------------------------
-// GmbaHoverCard — details of the hovered GMBA range (issue #13). Fed by the
-// mousemove handler on the overlay's fill layer in map.tsx; pointerEvents
-// none so it never steals the hover it displays.
+// GmbaRangeCard — the pinned GMBA range (issue #36). Pinned by clicking a
+// range (map.tsx) or picking one in search; stays until closed, another range
+// is pinned, or a click lands off every range. Details come from the GMBA
+// index (lib/store.ts), so the card can render before any tile is loaded.
 // ---------------------------------------------------------------------------
 
-const GmbaHoverCard = () => {
-  const gmbaHover = useStore((s) => s.gmbaHover)
-  const sidebarWidth = useStore((s) => s.sidebarWidth)
+const linkButtonStyle: CSSProperties = {
+  background: 'none', border: 'none', padding: 0,
+  color: ACCENT, fontSize: 11, cursor: 'pointer', textDecoration: 'none',
+}
 
-  if (!gmbaHover) return null
+const GmbaRangeCard = () => {
+  const gmbaOn = useStore((s) => s.gmbaOn)
+  const pinnedId = useStore((s) => s.gmbaPinnedId)
+  const index = useStore((s) => s.gmbaIndex)
+  const sidebarWidth = useStore((s) => s.sidebarWidth)
+  const setGmbaPinnedId = useStore((s) => s.setGmbaPinnedId)
+  const requestNav = useStore((s) => s.requestNav)
+
+  const range: GmbaInfo | undefined =
+    pinnedId === null ? undefined : index?.find((r) => r.id === pinnedId)
+  if (!gmbaOn || !range) return null
 
   const fmtInt = (v: number | null) =>
     v === null ? '—' : Math.round(v).toLocaleString('en-US')
+  // path ends at the range itself; show its parents as breadcrumbs
+  const parents = range.path.split(' > ').slice(0, -1)
 
   return (
     <div style={{
       position: 'absolute',
       left: (sidebarWidth ?? 0) + 16,
       bottom: 24,
-      maxWidth: 360,
+      width: 340,
       background: BG,
       border: `1px solid ${BORDER}`,
       backdropFilter: 'blur(6px)',
       borderRadius: 8,
-      padding: '10px 14px',
+      padding: '10px 14px 12px',
       color: TEXT,
       fontSize: 12,
       zIndex: 15,
-      pointerEvents: 'none',
     }}>
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>
-        {gmbaHover.name}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <div style={sectionLabelStyle}>mountain range</div>
+        <button
+          onClick={() => setGmbaPinnedId(null)}
+          aria-label='Close mountain range card'
+          style={{
+            background: 'none', border: 'none', color: DIM,
+            cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0,
+          }}
+        >
+          ×
+        </button>
       </div>
-      <div style={{ color: DIM, fontSize: 11, marginBottom: 6, lineHeight: 1.4 }}>
-        {gmbaHover.feature}
-        {gmbaHover.countries ? ` · ${gmbaHover.countries}` : ''}
+      {parents.length > 0 && (
+        <div style={{ color: DIM, fontSize: 10.5, marginBottom: 2, lineHeight: 1.4 }}>
+          {parents.join(' › ')}
+        </div>
+      )}
+      <div style={{ fontWeight: 700, fontSize: 14, color: ACCENT, marginBottom: 2 }}>
+        {range.name}
       </div>
-      <div style={{ display: 'flex', gap: 16, fontFamily: 'monospace', fontSize: 12 }}>
-        <span>{fmtInt(gmbaHover.areaKm2)} km²</span>
-        <span>{fmtInt(gmbaHover.elevLow)}–{fmtInt(gmbaHover.elevHigh)} m</span>
+      <div style={{ color: DIM, fontSize: 11, marginBottom: 8, lineHeight: 1.4 }}>
+        {range.feature}
+        {range.countries ? ` · ${range.countries}` : ''}
       </div>
-      <div style={{ color: DIM, fontSize: 9.5, marginTop: 6 }}>
-        GMBA Mountain Inventory v2.0 (Snethlage et al., 2022)
+      <div style={{ display: 'flex', gap: 18, fontFamily: 'monospace', fontSize: 12, marginBottom: 8 }}>
+        <span><span style={{ color: DIM }}>area </span>{fmtInt(range.area_km2)} km²</span>
+        <span>
+          <span style={{ color: DIM }}>elev </span>
+          {fmtInt(range.elev_low)}–{fmtInt(range.elev_high)} m
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'baseline' }}>
+        <button
+          onClick={() => requestNav({ kind: 'bounds', bbox: range.bbox })}
+          style={linkButtonStyle}
+        >
+          zoom to range
+        </button>
+        {range.wikidata && (
+          <a
+            href={`https://www.wikidata.org/wiki/${range.wikidata}`}
+            target='_blank'
+            rel='noopener noreferrer'
+            style={linkButtonStyle}
+          >
+            Wikidata ↗
+          </a>
+        )}
+        <span style={{ color: DIM, fontSize: 9.5, marginLeft: 'auto' }}>
+          GMBA v2.0 (Snethlage et al., 2022)
+        </span>
       </div>
     </div>
   )
@@ -438,7 +503,7 @@ export const FloatingCards = () => {
       <PointQueryCard right={CARD_RIGHT} top={QUERY_CARD_TOP} />
       <ZoomDisplay right={CARD_RIGHT} bottom={8} />
       <WarningToast />
-      <GmbaHoverCard />
+      <GmbaRangeCard />
     </>
   )
 }

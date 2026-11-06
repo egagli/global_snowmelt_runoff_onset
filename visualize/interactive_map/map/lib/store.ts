@@ -167,25 +167,67 @@ export const SNOW_CLASS_INFO: Record<number, { name: string; color: string }> =
 // GMBA mountain inventory overlay (issue #13)
 // ---------------------------------------------------------------------------
 
-// Simplified GMBA Mountain Inventory v2.0 standard 300-selection (290 major
-// ranges; Snethlage et al. 2022, doi:10.1038/s41597-022-01256-y), published
-// as a gzip-encoded GeoJSON blob by prepare_gmba_overlay.py. Lazy-loaded the
-// first time the overlay is toggled on. Immutable-cache convention: bump the
-// _1 suffix here and in the script's --dest-blob together.
-export const GMBA_URL =
-  process.env.NEXT_PUBLIC_GMBA_URL ??
-  'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/gmba_v2_standard_300_1.geojson'
+// GMBA Mountain Inventory v2.0 standard 300-selection (290 major ranges;
+// Snethlage et al. 2022, doi:10.1038/s41597-022-01256-y), published by
+// prepare_gmba_overlay.py as two blobs (issue #36):
+//  - full-resolution outlines as vector tiles (PMTiles, z0-z10, range-read via
+//    the pmtiles:// protocol), so outlines sharpen as you zoom in while the
+//    world view stays ~0.3 MB. Features carry only id + name.
+//  - a ~20 KB (gzip) index with everything else, one entry per range: feeds
+//    the range card (looked up by the clicked feature's id) and the search box.
+// Both are lazy-loaded (tiles when the overlay is first enabled; the index
+// then or on first search). Immutable-cache convention: bump the _2 suffix
+// here and the script's --suffix together.
+export const GMBA_PMTILES_URL =
+  process.env.NEXT_PUBLIC_GMBA_PMTILES_URL ??
+  'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/gmba_v2_standard_300_2.pmtiles'
+export const GMBA_INDEX_URL =
+  process.env.NEXT_PUBLIC_GMBA_INDEX_URL ??
+  'https://uwcryo.blob.core.windows.net/snowmelt/snowmelt_runoff_onset/gmba_v2_standard_300_index_2.json'
 
-// Properties carried by each overlay feature (see FIELD_MAP in
-// prepare_gmba_overlay.py) — what the hover card shows.
+// One index entry (write_index in prepare_gmba_overlay.py).
 export type GmbaInfo = {
+  id: number
   name: string
-  feature: string
+  path: string // 'Eurasia > Europe > Alps > Western Alps', ending at this range
   countries: string
-  areaKm2: number | null
-  elevLow: number | null
-  elevHigh: number | null
+  feature: string
+  level: number | null
+  area_km2: number | null
+  elev_low: number | null
+  elev_high: number | null
+  wikidata: string // Q-id, '' when GMBA has none
+  bbox: [number, number, number, number] // east may exceed 180 (antimeridian)
+  center: [number, number] // label point, always inside the range
 }
+
+let gmbaIndexPromise: Promise<GmbaInfo[] | null> | null = null
+
+/** Fetch the GMBA index once (memoized) and put it in the store. */
+export function loadGmbaIndex(): Promise<GmbaInfo[] | null> {
+  if (!gmbaIndexPromise) {
+    gmbaIndexPromise = fetch(GMBA_INDEX_URL)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((entries: GmbaInfo[] | null) => {
+        if (entries) useStore.getState().setGmbaIndex(entries)
+        return entries
+      })
+      .catch((e) => {
+        console.warn('GMBA index unavailable:', e)
+        gmbaIndexPromise = null // allow a retry on the next request
+        return null
+      })
+  }
+  return gmbaIndexPromise
+}
+
+// A request from outside the map (search box, URL hash) for the map to move
+// and/or run a point query. seq makes repeat requests for the same target
+// distinct, so the map's effect fires every time.
+export type NavTarget =
+  | { kind: 'point'; lng: number; lat: number; fly: boolean }
+  | { kind: 'bounds'; bbox: [number, number, number, number] }
+export type NavRequest = NavTarget & { seq: number }
 
 export type ClickInfo = {
   lng: number
@@ -215,7 +257,12 @@ interface AppState {
   seasonalMaskAvailable: boolean
   // GMBA mountain-range outlines overlay (issue #13; default off).
   gmbaOn: boolean
-  gmbaHover: GmbaInfo | null
+  // Lazy-loaded GMBA index (null until fetched) and the pinned range's id —
+  // set by clicking a range or picking one in search; the card reads the
+  // index entry, so an id can be pinned before the index has arrived.
+  gmbaIndex: GmbaInfo[] | null
+  gmbaPinnedId: number | null
+  navRequest: NavRequest | null
   // Region-specific caution toast (issue #13; same pattern as the
   // MODIS_snow_phenology map). Set from WARNING_ZONES on map move.
   activeWarning: { name: string; message: string } | null
@@ -234,7 +281,9 @@ interface AppState {
   setSeasonalOnly: (s: boolean) => void
   setSeasonalMaskAvailable: (a: boolean) => void
   setGmbaOn: (g: boolean) => void
-  setGmbaHover: (h: GmbaInfo | null) => void
+  setGmbaIndex: (entries: GmbaInfo[]) => void
+  setGmbaPinnedId: (id: number | null) => void
+  requestNav: (r: NavTarget) => void
   setActiveWarning: (w: { name: string; message: string } | null) => void
   setLoadingState: (s: LoadingState) => void
   setSidebarWidth: (w: number | null) => void
@@ -254,7 +303,9 @@ export const useStore = create<AppState>((set) => ({
   seasonalOnly: true,
   seasonalMaskAvailable: false,
   gmbaOn: false,
-  gmbaHover: null,
+  gmbaIndex: null,
+  gmbaPinnedId: null,
+  navRequest: null,
   activeWarning: null,
   loadingState: { loading: false, metadata: false, chunks: false },
   sidebarWidth: null,
@@ -291,7 +342,12 @@ export const useStore = create<AppState>((set) => ({
   setSeasonalMaskAvailable: (seasonalMaskAvailable) =>
     set({ seasonalMaskAvailable }),
   setGmbaOn: (gmbaOn) => set({ gmbaOn }),
-  setGmbaHover: (gmbaHover) => set({ gmbaHover }),
+  setGmbaIndex: (gmbaIndex) => set({ gmbaIndex }),
+  setGmbaPinnedId: (gmbaPinnedId) => set({ gmbaPinnedId }),
+  requestNav: (r) =>
+    set((state) => ({
+      navRequest: { ...r, seq: (state.navRequest?.seq ?? 0) + 1 },
+    })),
   setActiveWarning: (activeWarning) => set({ activeWarning }),
   setLoadingState: (loadingState) => set({ loadingState }),
   setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
