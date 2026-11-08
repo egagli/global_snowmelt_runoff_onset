@@ -25,7 +25,7 @@ import {
   type ClickInfo,
 } from '../lib/store'
 import { COLORMAP_ARRAYS } from '../lib/colormaps'
-import { initialCamera } from '../lib/url-hash'
+import { initialCamera, notifyParent } from '../lib/url-hash'
 
 const ACCENT = '#1dbd8f'
 const FILL_VALUE = -9999
@@ -580,6 +580,8 @@ export const Map = () => {
     map.on('load', () => {
       setIsMapLoaded(true)
     })
+    // maplibre rewrites `map=` itself on moveend; pass the new view to the embedding page
+    map.on('moveend', notifyParent)
 
     return () => {
       markerRef.current?.remove()

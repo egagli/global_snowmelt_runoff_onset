@@ -1,4 +1,4 @@
-import React, { useEffect, useState, CSSProperties } from 'react'
+import React, { useEffect, useRef, useState, CSSProperties } from 'react'
 import { Box, Flex } from 'theme-ui'
 import { Slider, Input } from '@carbonplan/components'
 import {
@@ -12,6 +12,8 @@ import {
   type Variable,
 } from '../lib/store'
 import { COLORMAP_ARRAYS, MONTH_STARTS_DOWY } from '../lib/colormaps'
+import { shareUrl } from '../lib/url-hash'
+import { track } from '../lib/analytics'
 
 export const SIDEBAR_WIDTH = 380
 const BG = 'rgba(22,25,30,0.96)'
@@ -136,6 +138,62 @@ const FixedColorbar = ({
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+// "Share this view": copies a link to this map on egagli.github.io with the current
+// view in it (see lib/url-hash.ts). If the clipboard is unavailable, shows the link in
+// a selected text field to copy by hand.
+const ShareView = () => {
+  const [status, setStatus] = useState<'idle' | 'copied' | 'manual'>('idle')
+  const [link, setLink] = useState('')
+  const timer = useRef<ReturnType<typeof setTimeout>>()
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const share = () => {
+    const url = shareUrl()
+    setLink(url)
+    track('map_share_view')
+    const manual = () => setStatus('manual')
+    try {
+      navigator.clipboard.writeText(url).then(() => {
+        setStatus('copied')
+        clearTimeout(timer.current)
+        timer.current = setTimeout(() => setStatus('idle'), 2000)
+      }, manual)
+    } catch {
+      manual()
+    }
+  }
+
+  return (
+    <div>
+      <div style={sectionLabelStyle}>share</div>
+      <button
+        onClick={share}
+        style={{ ...variableButtonStyle(status === 'copied'), textAlign: 'center' }}
+      >
+        {status === 'copied' ? 'link copied' : 'share this view'}
+      </button>
+      {status === 'manual' && (
+        <input
+          readOnly
+          autoFocus
+          value={link}
+          aria-label='Link to this view'
+          onFocus={(e) => e.currentTarget.select()}
+          style={{
+            width: '100%', boxSizing: 'border-box', marginBottom: 4, padding: '4px 6px',
+            fontSize: 11, fontFamily: 'monospace', color: TEXT, background: 'transparent',
+            border: `1px solid ${BORDER}`, borderRadius: 4,
+          }}
+        />
+      )}
+      <div style={{ fontSize: 10, color: DIM, lineHeight: 1.5 }}>
+        Copies a link that reopens this view: place, zoom, dataset version, variable,
+        year, range, filter, basemap, overlays and the selected point.
+      </div>
     </div>
   )
 }
@@ -507,6 +565,8 @@ const SidebarContent = () => {
           name too.
         </div>
       </div>
+
+      <ShareView />
 
     </div>
   )
