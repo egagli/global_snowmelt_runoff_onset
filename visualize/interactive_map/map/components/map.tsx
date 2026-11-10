@@ -122,6 +122,22 @@ const WARNING_ZONES: {
   },
 ]
 
+/**
+ * GLSL boolean expression that is true when `x` is NaN, tested on the IEEE-754
+ * bits (exponent all ones, mantissa non-zero) rather than with `x != x`.
+ *
+ * zarr-layer turns every fill value into NaN before upload, so fill masking
+ * depends entirely on this test. `x != x` is folded to `false` by mobile GLSL
+ * compilers that assume no NaNs (fast-math; seen on iOS/Android): the NaN then
+ * reaches the colormap lookup, which on those GPUs clamps to the top texel —
+ * fill areas (Greenland ice sheet, the Great Lakes, …) drew as solid viridis
+ * yellow on phones while staying transparent on desktop. A bit-cast can't be
+ * optimized away; `isnan()` is kept alongside for drivers that honor it.
+ */
+function glslIsNan(x: string): string {
+  return `(isnan(${x}) || (floatBitsToUint(${x}) & 0x7fffffffu) > 0x7f800000u)`
+}
+
 /** '#rrggbb' → a GLSL vec3 literal in 0-1 space. */
 function hexToVec3(hex: string): string {
   const n = parseInt(hex.slice(1), 16)
@@ -136,7 +152,7 @@ function hexToVec3(hex: string): string {
 // basemap beneath shows through. A colormap texture can't express this — it
 // interpolates, which would invent colors between class codes.
 const SNOW_CLASS_FRAG = `
-  if (${SNOW_CLASS_VARIABLE} != ${SNOW_CLASS_VARIABLE}) { discard; }
+  if (${glslIsNan(`${SNOW_CLASS_VARIABLE}_tex`)}) { discard; }
   int cls = int(${SNOW_CLASS_VARIABLE} + 0.5);
   vec3 c;
 ${Object.entries(SNOW_CLASS_INFO)
@@ -983,25 +999,26 @@ export const Map = () => {
       // the band alias (verified in dist: `<band> = raw * u_scaleFactor + ...`),
       // so clim stays in physical units with no scaling here. Two discard arms,
       // both deliberate:
-      //   x!=x       portable NaN test (zarr-layer masks the *Zarr* fill_value;
-      //              this catches anything it converted to NaN).
+      //   NaN        bit-level test on the raw texel (zarr-layer masks the
+      //              *Zarr* fill_value by converting it to NaN; see glslIsNan
+      //              for why this is not `x != x` — that broke on mobile).
       //   x < -100.0 catches fill that reaches the shader unmasked (raw -9999,
       //              or -999.9 after a 0.1 scale) — insurance against a store
       //              written without the explicit zarr-level fill_value (the
       //              bug class that bit the v10 icechunk store init).
       //
       // Seasonal-snow arm (issue #9): seasonal_snow_pct is an aux band (fork
-      // auxVariables), CF-decoded to 0-100 with NaN fill. `< threshold` is
-      // false for NaN, so mask-FILL pixels (Sturm fill class 9, off-grid) are
+      // auxVariables), CF-decoded to 0-100 with NaN fill. The arm explicitly
+      // skips NaN (a no-NaN mobile compiler may not keep `NaN < t` false), so mask-FILL pixels (Sturm fill class 9, off-grid) are
       // never hidden by the toggle — the main variable's own fill discard
       // already handles pixels without data. Ocean (class 8) is pct 0, not
       // fill, so the toggle hides it — including the ~500 m MODIS
       // coastal-smear fringe of onset values past the Sturm shoreline.
       const seasonalArm = maskAvailable
-        ? `if (u_seasonal_only > 0.5 && ${SEASONAL_MASK_VARIABLE} < u_seasonal_threshold) { discard; }\n        `
+        ? `if (u_seasonal_only > 0.5 && !${glslIsNan(`${SEASONAL_MASK_VARIABLE}_tex`)} && ${SEASONAL_MASK_VARIABLE} < u_seasonal_threshold) { discard; }\n        `
         : ''
       const customFrag = `
-        ${seasonalArm}if (${varName} != ${varName} || ${varName} < -100.0) { discard; }
+        ${seasonalArm}if (${glslIsNan(`${varName}_tex`)} || ${varName} < -100.0) { discard; }
         float rescaled = (${varName} - clim.x) / (clim.y - clim.x);
         vec4 c = texture(colormap, vec2(rescaled, 0.5));
         fragColor = vec4(c.rgb, opacity);
