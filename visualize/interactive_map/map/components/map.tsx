@@ -26,6 +26,7 @@ import {
 } from '../lib/store'
 import { COLORMAP_ARRAYS } from '../lib/colormaps'
 import { initialCamera, notifyParent } from '../lib/url-hash'
+import { SHEET, SHEET_MQ, prefersReducedMotion, type SheetMode } from '../lib/sheet'
 
 const ACCENT = '#1dbd8f'
 const FILL_VALUE = -9999
@@ -343,13 +344,38 @@ function setGmbaState(
 }
 
 /** Padding that keeps a fitBounds target clear of the floating sidebar and
- *  cards on desktop (on mobile the panel sits below the map instead). */
-function viewPadding(sidebarWidth: number | null) {
-  const desktop =
-    typeof window !== 'undefined' && window.matchMedia('(min-width: 64em)').matches
-  return desktop
-    ? { top: 70, bottom: 40, left: (sidebarWidth ?? 0) + 30, right: 380 }
-    : { top: 60, bottom: 20, left: 20, right: 20 }
+ *  cards on desktop. */
+function viewPadding(sidebarWidth: number | null, sheetMode: SheetMode | null) {
+  return sheetMode
+    ? { top: 24, bottom: 24, left: 24, right: 24 }
+    : { top: 70, bottom: 40, left: (sidebarWidth ?? 0) + 30, right: 380 }
+}
+
+function sheetPadding(mode: SheetMode | null, inset: { bottom: number; left: number }) {
+  if (!mode) return { top: 0, bottom: 0, left: 0, right: 0 }
+  return { top: mode === 'land' ? 0 : SHEET.searchClearance, bottom: inset.bottom, left: inset.left, right: 0 }
+}
+
+function keepAttributionCollapsed(container: HTMLElement): () => void {
+  const el = container.querySelector<HTMLElement>('.maplibregl-ctrl-attrib')
+  if (!el) return () => {}
+  let userAt = 0
+  const collapse = () => {
+    if (performance.now() - userAt < 800) return
+    if (el.classList.contains('maplibregl-compact-show')) el.classList.remove('maplibregl-compact-show')
+    if (el.hasAttribute('open')) el.removeAttribute('open')
+  }
+  const onUser = () => { userAt = performance.now() }
+  el.addEventListener('pointerdown', onUser, true)
+  el.addEventListener('keydown', onUser, true)
+  const mo = new MutationObserver(collapse)
+  mo.observe(el, { attributes: true, attributeFilter: ['class', 'open'] })
+  collapse()
+  return () => {
+    mo.disconnect()
+    el.removeEventListener('pointerdown', onUser, true)
+    el.removeEventListener('keydown', onUser, true)
+  }
 }
 
 function setBasemapFillVisibility(map: maplibregl.Map, visible: boolean) {
@@ -400,6 +426,7 @@ export const Map = () => {
   const snowClassLayerRef = useRef<InstanceType<typeof ZarrLayer> | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
   const lastClickRef = useRef<{ lng: number; lat: number } | null>(null)
+  const revealPendingRef = useRef(false)
   // Level-0 zarrita arrays for the ACTIVE version — reopened on version switch
   // and used for zoom-independent point queries.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -589,7 +616,6 @@ export const Map = () => {
       hash: 'map',
     })
 
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left')
     mapRef.current = map
     if (process.env.NEXT_PUBLIC_BENCH === '1') (window as any).__map = map
 
@@ -853,17 +879,19 @@ export const Map = () => {
     if (!map || !isMapLoaded || !navRequest) return
     if (navRequest.seq === lastNavSeqRef.current) return
     lastNavSeqRef.current = navRequest.seq
-    const padding = viewPadding(useStore.getState().sidebarWidth)
+    const { sidebarWidth: sw, sheetMode: mode } = useStore.getState()
+    const padding = viewPadding(sw, mode)
+    const duration = prefersReducedMotion() ? 0 : 2500
     if (navRequest.kind === 'bounds') {
       const [w, s, e, n] = navRequest.bbox
-      map.fitBounds([[w, s], [e, n]], { padding, maxZoom: 9, duration: 2500 })
+      map.fitBounds([[w, s], [e, n]], { padding, maxZoom: 9, duration })
     } else {
       if (navRequest.fly) {
         map.flyTo({
           center: [navRequest.lng, navRequest.lat],
           zoom: Math.max(map.getZoom(), 10),
-          padding,
-          duration: 2500,
+          ...(mode ? {} : { padding }),
+          duration,
         })
         // A restored URL already names its range; a search jump re-pins.
         pinGmbaAt(navRequest.lng, navRequest.lat)
@@ -1066,6 +1094,7 @@ export const Map = () => {
 
     const clickHandler = (event: maplibregl.MapMouseEvent) => {
       const { lng, lat } = event.lngLat
+      revealPendingRef.current = true
       queryPoint(lng, lat)
       // With the GMBA overlay on, the same click also pins the range under
       // it (or unpins, off any range) — the data query above always runs.
@@ -1132,6 +1161,49 @@ export const Map = () => {
     })
   }, [seasonalOnly])
 
+  const sheetMode = useStore((s) => s.sheetMode)
+  const sheetInset = useStore((s) => s.sheetInset)
+  const onSheet = sheetMode !== null
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const control = new maplibregl.AttributionControl({ compact: true })
+    map.addControl(control, onSheet ? 'bottom-right' : 'bottom-left')
+    const release = onSheet ? keepAttributionCollapsed(map.getContainer()) : () => {}
+    return () => {
+      release()
+      map.removeControl(control)
+    }
+  }, [onSheet])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !isMapLoaded) return
+    const duration = prefersReducedMotion() ? 0 : SHEET.ms
+    const padding = sheetPadding(sheetMode, sheetInset)
+    const reveal = () => {
+      const pt = lastClickRef.current
+      if (!revealPendingRef.current || !pt || !sheetMode) return
+      revealPendingRef.current = false
+      const p = map.project([pt.lng, pt.lat])
+      const inside =
+        p.x > padding.left + 16 && p.x < map.getContainer().clientWidth - padding.right - 16 &&
+        p.y > padding.top + 16 && p.y < map.getContainer().clientHeight - padding.bottom - 16
+      if (!inside) map.easeTo({ center: [pt.lng, pt.lat], duration: prefersReducedMotion() ? 0 : 400 })
+    }
+    const apply = () => {
+      const cur = map.getPadding()
+      const same = (['top', 'bottom', 'left', 'right'] as const).every(
+        (k) => Math.abs((cur[k] ?? 0) - padding[k]) < 1
+      )
+      if (same) return reveal()
+      map.once('moveend', reveal)
+      map.easeTo({ padding, duration })
+    }
+    if (map.isMoving()) map.once('moveend', apply)
+    else apply()
+  }, [sheetMode, sheetInset, isMapLoaded])
+
   // Resize map when sidebar width changes
   useEffect(() => {
     if (mapRef.current) mapRef.current.resize()
@@ -1145,16 +1217,17 @@ export const Map = () => {
           position: 'absolute',
           top: 0,
           right: 0,
-          bottom: ['50vh', '50vh', 0],
+          bottom: 0,
           left: 0,
         }}
       />
       <Box
         sx={{
           position: 'absolute',
-          top: ['56px', '56px', '8px'],
+          top: '8px',
           left: (sidebarWidth ?? 0) + 10,
           pointerEvents: 'none',
+          [SHEET_MQ]: { top: '68px', left: '16px' },
         }}
       >
         {loadingState.loading && <Spinner size={40} />}

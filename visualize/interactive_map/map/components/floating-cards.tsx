@@ -10,6 +10,7 @@ import {
   type Variable,
   type Basemap,
 } from '../lib/store'
+import { SHEET, useTone } from '../lib/sheet'
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -35,6 +36,8 @@ const cardStyle: CSSProperties = {
   width: CARD_WIDTH,
 }
 
+const sheetSectionStyle: CSSProperties = { color: TEXT, fontSize: 13 }
+
 const sectionLabelStyle: CSSProperties = {
   fontSize: 10,
   letterSpacing: '0.06em',
@@ -43,14 +46,15 @@ const sectionLabelStyle: CSSProperties = {
   fontWeight: 600,
 }
 
-function chip(active: boolean): CSSProperties {
+function chip(active: boolean, sheet = false): CSSProperties {
   return {
+    minHeight: sheet ? 44 : undefined,
     flex: 1,
     padding: '5px 0',
     borderRadius: 4,
     border: `1px solid ${active ? ACCENT : BORDER}`,
     cursor: 'pointer',
-    fontSize: 12,
+    fontSize: sheet ? 14 : 12,
     textAlign: 'center' as const,
     background: active ? ACCENT : 'transparent',
     color: active ? '#fff' : TEXT,
@@ -126,9 +130,12 @@ const ZoomDisplay = ({ right, bottom }: { right: number; bottom: number }) => {
 /** Legend for the categorical snow-class basemap — the colors the shader
  *  paints, in class-code order. Classes 8 (Ocean) and 9 (Fill) are omitted:
  *  they carry no class and the shader discards them. */
-const SnowClassLegend = () => (
+const SnowClassLegend = () => {
+  const { dim, fs } = useTone(DIM)
+  const labelStyle = { ...sectionLabelStyle, fontSize: fs(10), color: dim }
+  return (
   <div style={{ marginTop: 12 }}>
-    <div style={sectionLabelStyle}>snow classes (Sturm &amp; Liston 2021)</div>
+    <div style={labelStyle}>snow classes (Sturm &amp; Liston 2021)</div>
     {Object.entries(SNOW_CLASS_INFO).map(([code, { name, color }]) => (
       <div
         key={code}
@@ -145,25 +152,28 @@ const SnowClassLegend = () => (
             display: 'inline-block',
           }}
         />
-        <span style={{ fontSize: 11 }}>{name}</span>
+        <span style={{ fontSize: fs(11) }}>{name}</span>
       </div>
     ))}
-    <div style={{ fontSize: 10, color: DIM, marginTop: 5, lineHeight: 1.5 }}>
+    <div style={{ fontSize: fs(10), color: dim, marginTop: 5, lineHeight: 1.5 }}>
       Ocean and unclassified areas fall through to the dark basemap. Coarse
       zooms decimate (nearest), so small patches can drop out.
     </div>
   </div>
-)
+  )
+}
 
-const TopRightCard = ({
-  right,
-  top,
+export const TopRightCard = ({
+  right = 0,
+  top = 0,
   innerRef,
 }: {
-  right: number
-  top: number
+  right?: number
+  top?: number
   innerRef?: React.Ref<HTMLDivElement>
 }) => {
+  const { sheet, dim, fs } = useTone(DIM)
+  const labelStyle = { ...sectionLabelStyle, fontSize: fs(10), color: dim }
   const globeProjection = useStore((s) => s.globeProjection)
   const basemap = useStore((s) => s.basemap)
   const setGlobeProjection = useStore((s) => s.setGlobeProjection)
@@ -177,19 +187,19 @@ const TopRightCard = ({
   ]
 
   return (
-    <div ref={innerRef} style={{ ...cardStyle, top, right }}>
-      <div style={sectionLabelStyle}>basemap</div>
+    <div ref={innerRef} style={sheet ? sheetSectionStyle : { ...cardStyle, top, right }}>
+      <div style={labelStyle}>basemap</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
         {BASEMAP_OPTS.map((opt) => (
-          <button key={opt.value} onClick={() => setBasemap(opt.value)} style={chip(basemap === opt.value)}>
+          <button key={opt.value} onClick={() => setBasemap(opt.value)} style={chip(basemap === opt.value, sheet)}>
             {opt.label}
           </button>
         ))}
       </div>
-      <div style={sectionLabelStyle}>projection</div>
+      <div style={labelStyle}>projection</div>
       <div style={{ display: 'flex', gap: 6 }}>
         {[{ label: 'globe', value: true }, { label: 'mercator', value: false }].map((opt) => (
-          <button key={String(opt.value)} onClick={() => setGlobeProjection(opt.value)} style={chip(globeProjection === opt.value)}>
+          <button key={String(opt.value)} onClick={() => setGlobeProjection(opt.value)} style={chip(globeProjection === opt.value, sheet)}>
             {opt.label}
           </button>
         ))}
@@ -207,7 +217,9 @@ const TopRightCard = ({
 // annual rows get the active water year prepended at render time.
 const QUERY_ROWS: Variable[] = [...COMPOSITE_VARIABLES, ...ANNUAL_VARIABLES]
 
-const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
+export const PointQueryCard = ({ right = 0, top = 0 }: { right?: number; top?: number }) => {
+  const { sheet, dim, fs } = useTone(DIM)
+  const labelStyle = { ...sectionLabelStyle, fontSize: fs(10), color: dim }
   const clickInfo = useStore((s) => s.clickInfo)
   const version = useStore((s) => s.version)
   const waterYearIndex = useStore((s) => s.waterYearIndex)
@@ -216,36 +228,40 @@ const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
   const southernHemisphere = (clickInfo?.lat ?? 0) < 0
 
   return (
-    <div style={{
+    <div style={sheet ? {
+      ...sheetSectionStyle,
+      border: `1px solid ${BORDER}`, borderRadius: 12, padding: '12px 16px',
+      background: 'rgba(255,255,255,0.03)',
+    } : {
       ...cardStyle, top, right,
       maxHeight: 'calc(100vh - 160px)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
-      <div style={{ ...sectionLabelStyle, flexShrink: 0 }}>point query</div>
+      <div style={{ ...labelStyle, flexShrink: 0 }}>point query</div>
 
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {clickInfo ? (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-              <span style={{ color: DIM, fontSize: 14 }}>latitude</span>
+              <span style={{ color: dim, fontSize: 14 }}>latitude</span>
               <span style={{ fontFamily: 'monospace', fontSize: 15 }}>{clickInfo.lat.toFixed(4)}°</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-              <span style={{ color: DIM, fontSize: 14 }}>longitude</span>
+              <span style={{ color: dim, fontSize: 14 }}>longitude</span>
               <span style={{ fontFamily: 'monospace', fontSize: 15 }}>{clickInfo.lng.toFixed(4)}°</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-              <span style={{ color: DIM, fontSize: 14 }}>water year</span>
+              <span style={{ color: dim, fontSize: 14 }}>water year</span>
               <span style={{ fontFamily: 'monospace', fontSize: 15 }}>{waterYear}</span>
             </div>
             {/* Sturm & Liston (2021) class at the point — shown regardless of
                 the seasonal-only display filter. */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
-              <span style={{ color: DIM, fontSize: 14 }}>
-                snow class <span style={{ fontSize: 11 }}>(Sturm &amp; Liston 2021)</span>
+              <span style={{ color: dim, fontSize: 14 }}>
+                snow class <span style={{ fontSize: fs(11) }}>(Sturm &amp; Liston 2021)</span>
               </span>
               {clickInfo.status === 'querying' ? (
-                <span style={{ color: DIM, fontSize: 14 }}>…</span>
+                <span style={{ color: dim, fontSize: 14 }}>…</span>
               ) : clickInfo.snowClass !== null && SNOW_CLASS_INFO[clickInfo.snowClass] ? (
                 <span style={{ fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                   <span
@@ -261,12 +277,12 @@ const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
                   {SNOW_CLASS_INFO[clickInfo.snowClass].name}
                 </span>
               ) : (
-                <span style={{ color: DIM, fontSize: 14 }}>—</span>
+                <span style={{ color: dim, fontSize: 14 }}>—</span>
               )}
             </div>
             <div style={{ borderTop: `1px solid ${BORDER}`, margin: '10px 0' }} />
             {clickInfo.status === 'querying' ? (
-              <div style={{ color: DIM, fontSize: 14 }}>querying…</div>
+              <div style={{ color: dim, fontSize: 14 }}>querying…</div>
             ) : (
               QUERY_ROWS.map((key) => {
                 const cfg = VARIABLE_CONFIGS[key]
@@ -288,7 +304,7 @@ const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
                     <span style={{
                       fontFamily: 'monospace', fontSize: 15, fontWeight: 700,
                       textAlign: 'right',
-                      color: clickInfo.values[key] === null ? DIM : ACCENT,
+                      color: clickInfo.values[key] === null ? dim : ACCENT,
                     }}>
                       {formatValue(clickInfo.values[key], key, waterYear, southernHemisphere)}
                     </span>
@@ -296,13 +312,13 @@ const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
                 )
               })
             )}
-            <div style={{ color: DIM, fontSize: 10, marginTop: 8, lineHeight: 1.5 }}>
+            <div style={{ color: dim, fontSize: fs(10), marginTop: 8, lineHeight: 1.5 }}>
               Values read from the full-resolution (~80 m) data. Yearly variables use the
               selected water year; median/MAD span all years.
             </div>
           </>
         ) : (
-          <div style={{ color: DIM, fontStyle: 'italic', fontSize: 14 }}>
+          <div style={{ color: dim, fontStyle: 'italic', fontSize: 14 }}>
             Click the map to query
           </div>
         )}
@@ -317,7 +333,7 @@ const PointQueryCard = ({ right, top }: { right: number; top: number }) => {
 // map.tsx on every moveend/zoomend; dismissible per zone.
 // ---------------------------------------------------------------------------
 
-const WarningToast = () => {
+export const WarningToast = ({ variant = 'card' }: { variant?: 'card' | 'banner' }) => {
   const activeWarning = useStore((s) => s.activeWarning)
   const sidebarWidth = useStore((s) => s.sidebarWidth)
   const [dismissed, setDismissed] = useState(false)
@@ -328,25 +344,28 @@ const WarningToast = () => {
 
   if (!activeWarning || dismissed) return null
 
-  const left = (sidebarWidth ?? 0) + 16
-  const right = CARD_WIDTH + 32 // leave room for the floating cards
+  const banner = variant === 'banner'
+  const left = banner ? 12 : (sidebarWidth ?? 0) + 16
+  const right = banner ? 12 : CARD_WIDTH + 32 // leave room for the floating cards
 
   return (
     <div style={{
-      position: 'absolute',
+      position: banner ? 'fixed' : 'absolute',
       top: 64, // below the search box
       left,
       right,
       margin: '0 auto',
-      maxWidth: 520,
+      maxWidth: banner ? 576 : 520,
+      maxHeight: banner ? '30vh' : undefined,
+      overflowY: banner ? 'auto' : undefined,
       background: BG,
       border: '1px solid rgba(251,191,36,0.55)',
       backdropFilter: 'blur(6px)',
-      borderRadius: 8,
-      padding: '10px 14px',
+      borderRadius: banner ? 12 : 8,
+      padding: banner ? '8px 12px' : '10px 14px',
       color: TEXT,
       fontSize: 12,
-      zIndex: 20,
+      zIndex: banner ? 30 : 20,
       display: 'flex',
       gap: 10,
       alignItems: 'flex-start',
@@ -356,14 +375,16 @@ const WarningToast = () => {
         <div style={{ fontWeight: 700, color: '#fbbf24', marginBottom: 3, fontSize: 12 }}>
           {activeWarning.name}
         </div>
-        <div style={{ color: DIM, lineHeight: 1.5 }}>{activeWarning.message}</div>
+        <div style={{ color: banner ? SHEET.dim : DIM, lineHeight: 1.5 }}>{activeWarning.message}</div>
       </div>
       <button
         onClick={() => setDismissed(true)}
+        aria-label='Dismiss warning'
         style={{
-          background: 'none', border: 'none', color: DIM,
-          cursor: 'pointer', fontSize: 16, lineHeight: 1,
+          background: 'none', border: 'none', color: banner ? SHEET.dim : DIM,
+          cursor: 'pointer', fontSize: banner ? 20 : 16, lineHeight: 1,
           padding: 0, flexShrink: 0,
+          ...(banner && { minWidth: 44, minHeight: 44, margin: '-12px -12px -12px 0' }),
         }}
       >
         ×
@@ -384,7 +405,9 @@ const linkButtonStyle: CSSProperties = {
   color: ACCENT, fontSize: 11, cursor: 'pointer', textDecoration: 'none',
 }
 
-const GmbaRangeCard = () => {
+export const GmbaRangeCard = () => {
+  const { sheet, dim, fs } = useTone(DIM)
+  const labelStyle = { ...sectionLabelStyle, fontSize: fs(10), color: dim }
   const gmbaOn = useStore((s) => s.gmbaOn)
   const pinnedId = useStore((s) => s.gmbaPinnedId)
   const index = useStore((s) => s.gmbaIndex)
@@ -402,7 +425,7 @@ const GmbaRangeCard = () => {
   const parents = range.path.split(' > ').slice(0, -1)
 
   return (
-    <div style={{
+    <div style={sheet ? sheetSectionStyle : {
       position: 'absolute',
       left: (sidebarWidth ?? 0) + 16,
       bottom: 24,
@@ -417,41 +440,42 @@ const GmbaRangeCard = () => {
       zIndex: 15,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <div style={sectionLabelStyle}>mountain range</div>
+        <div style={labelStyle}>mountain range</div>
         <button
           onClick={() => setGmbaPinnedId(null)}
           aria-label='Close mountain range card'
           style={{
-            background: 'none', border: 'none', color: DIM,
-            cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0,
+            background: 'none', border: 'none', color: dim,
+            cursor: 'pointer', fontSize: sheet ? 20 : 16, lineHeight: 1, padding: 0,
+            ...(sheet && { minWidth: 44, minHeight: 44, marginRight: -12 }),
           }}
         >
           ×
         </button>
       </div>
       {parents.length > 0 && (
-        <div style={{ color: DIM, fontSize: 10.5, marginBottom: 2, lineHeight: 1.4 }}>
+        <div style={{ color: dim, fontSize: fs(10.5), marginBottom: 2, lineHeight: 1.4 }}>
           {parents.join(' › ')}
         </div>
       )}
       <div style={{ fontWeight: 700, fontSize: 14, color: ACCENT, marginBottom: 2 }}>
         {range.name}
       </div>
-      <div style={{ color: DIM, fontSize: 11, marginBottom: 8, lineHeight: 1.4 }}>
+      <div style={{ color: dim, fontSize: fs(11), marginBottom: 8, lineHeight: 1.4 }}>
         {range.feature}
         {range.countries ? ` · ${range.countries}` : ''}
       </div>
       <div style={{ display: 'flex', gap: 18, fontFamily: 'monospace', fontSize: 12, marginBottom: 8 }}>
-        <span><span style={{ color: DIM }}>area </span>{fmtInt(range.area_km2)} km²</span>
+        <span><span style={{ color: dim }}>area </span>{fmtInt(range.area_km2)} km²</span>
         <span>
-          <span style={{ color: DIM }}>elev </span>
+          <span style={{ color: dim }}>elev </span>
           {fmtInt(range.elev_low)}–{fmtInt(range.elev_high)} m
         </span>
       </div>
       <div style={{ display: 'flex', gap: 14, alignItems: 'baseline' }}>
         <button
           onClick={() => requestNav({ kind: 'bounds', bbox: range.bbox })}
-          style={linkButtonStyle}
+          style={sheet ? { ...linkButtonStyle, fontSize: 14, minHeight: 44, display: 'inline-flex', alignItems: 'center' } : linkButtonStyle}
         >
           zoom to range
         </button>
@@ -460,12 +484,12 @@ const GmbaRangeCard = () => {
             href={`https://www.wikidata.org/wiki/${range.wikidata}`}
             target='_blank'
             rel='noopener noreferrer'
-            style={linkButtonStyle}
+            style={sheet ? { ...linkButtonStyle, fontSize: 14, minHeight: 44, display: 'inline-flex', alignItems: 'center' } : linkButtonStyle}
           >
             Wikidata ↗
           </a>
         )}
-        <span style={{ color: DIM, fontSize: 9.5, marginLeft: 'auto' }}>
+        <span style={{ color: dim, fontSize: fs(9.5), marginLeft: 'auto' }}>
           GMBA v2.0 (Snethlage et al., 2022)
         </span>
       </div>

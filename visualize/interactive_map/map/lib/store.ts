@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { track, trackDebounced } from './analytics'
 import type { LoadingState } from '@carbonplan/zarr-layer'
+import type { SheetMode } from './sheet'
 
 export type Variable =
   | 'runoff_onset'
@@ -272,6 +273,8 @@ interface AppState {
   basemap: Basemap
   clickInfo: ClickInfo | null
   zoomLevel: number
+  sheetMode: SheetMode | null
+  sheetInset: { bottom: number; left: number }
   setVersion: (v: DatasetVersion) => void
   setVersionAvailable: (v: DatasetVersion, ok: boolean) => void
   setVariable: (v: Variable) => void
@@ -291,6 +294,7 @@ interface AppState {
   setBasemap: (b: Basemap) => void
   setClickInfo: (info: ClickInfo | null) => void
   setZoomLevel: (z: number) => void
+  setSheet: (mode: SheetMode | null, inset: { bottom: number; left: number }) => void
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -313,6 +317,8 @@ export const useStore = create<AppState>((set) => ({
   basemap: 'dark',
   clickInfo: null,
   zoomLevel: 2.4,
+  sheetMode: null,
+  sheetInset: { bottom: 0, left: 0 },
   // Version switch keeps the same water YEAR when the target version has it
   // (v9 lacks 2025), else snaps to the target's latest year.
   setVersion: (version) =>
@@ -384,4 +390,13 @@ export const useStore = create<AppState>((set) => ({
       return { clickInfo }
     }),
   setZoomLevel: (zoomLevel) => set({ zoomLevel }),
+  setSheet: (sheetMode, sheetInset) => {
+    const cur = useStore.getState()
+    if (
+      cur.sheetMode === sheetMode &&
+      cur.sheetInset.bottom === sheetInset.bottom &&
+      cur.sheetInset.left === sheetInset.left
+    ) return
+    set({ sheetMode, sheetInset })
+  },
 }))

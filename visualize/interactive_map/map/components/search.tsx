@@ -1,6 +1,7 @@
-import React, { CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Box } from 'theme-ui'
 import { useStore, loadGmbaIndex, type GmbaInfo } from '../lib/store'
+import { SHEET, SHEET_MQ } from '../lib/sheet'
 
 // Search box (issue #36): one input, three kinds of result —
 //  - coordinates ('46.5, 8.0', '46.5N 8.0E') → fly there and run the point query
@@ -94,27 +95,13 @@ async function searchPlaces(q: string, signal: AbortSignal): Promise<Result[]> {
   })
 }
 
-const rowStyle = (active: boolean): CSSProperties => ({
-  padding: '6px 10px',
-  cursor: 'pointer',
-  background: active ? 'rgba(29,189,143,0.15)' : 'transparent',
-  borderLeft: `2px solid ${active ? ACCENT : 'transparent'}`,
-})
-
-const groupLabelStyle: CSSProperties = {
-  fontSize: 9.5,
-  letterSpacing: '0.06em',
-  color: DIM,
-  fontWeight: 600,
-  padding: '7px 10px 3px',
-}
-
 export const SearchBox = () => {
   const sidebarWidth = useStore((s) => s.sidebarWidth)
   const gmbaIndex = useStore((s) => s.gmbaIndex)
   const requestNav = useStore((s) => s.requestNav)
   const setGmbaOn = useStore((s) => s.setGmbaOn)
   const setGmbaPinnedId = useStore((s) => s.setGmbaPinnedId)
+  const sheetMode = useStore((s) => s.sheetMode)
 
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -201,69 +188,126 @@ export const SearchBox = () => {
   const firstRange = coords ? 1 : 0
   const firstPlace = firstRange + ranges.length
 
+  const pill: Record<string, unknown> = {
+    top: 'calc(12px + env(safe-area-inset-top))',
+    left: 'calc(12px + env(safe-area-inset-left))',
+    right: 'calc(12px + env(safe-area-inset-right))',
+    width: 'auto',
+    fontSize: 14,
+    ...(sheetMode === 'tablet' && {
+      left: `max(12px, calc((100% - ${SHEET.maxTabletWidth}px) / 2))`,
+      right: `max(12px, calc((100% - ${SHEET.maxTabletWidth}px) / 2))`,
+    }),
+    ...(sheetMode === 'land' && { left: 'auto', width: 'min(340px, calc(50% - 36px))' }),
+  }
+  const sub = { color: DIM, fontSize: 10.5, [SHEET_MQ]: { color: SHEET.dim, fontSize: 12 } }
+  const group = {
+    fontSize: 9.5, letterSpacing: '0.06em', color: DIM, fontWeight: 600, padding: '7px 10px 3px',
+    [SHEET_MQ]: { fontSize: 12, color: SHEET.dim, padding: '8px 16px 4px' },
+  }
+  const note = { ...group, fontWeight: 400, letterSpacing: 0, fontSize: 11, [SHEET_MQ]: { ...group[SHEET_MQ], fontSize: 13 } }
+
   return (
     <Box
       ref={boxRef}
       sx={{
         position: 'absolute',
-        // px strings: bare numbers index the theme's space scale
-        top: ['10px', '10px', '16px'],
-        left: ['10px', '10px', `${(sidebarWidth ?? 0) + 16}px`],
-        width: ['calc(100vw - 20px)', 340, 340],
+        top: '16px',
+        left: `${(sidebarWidth ?? 0) + 16}px`,
+        width: 340,
         zIndex: 25,
         fontSize: 12,
         color: TEXT,
+        [SHEET_MQ]: pill,
+        '& > input': {
+          width: '100%',
+          boxSizing: 'border-box',
+          padding: '8px 12px',
+          borderRadius: showDropdown ? '8px 8px 0 0' : '8px',
+          border: `1px solid ${BORDER}`,
+          background: BG,
+          color: TEXT,
+          fontSize: '13px',
+          outline: 'none',
+          backdropFilter: 'blur(6px)',
+          '&::placeholder': { color: DIM },
+          [SHEET_MQ]: {
+            height: '44px',
+            fontSize: '16px',
+            padding: '0 16px 0 40px',
+            borderRadius: showDropdown ? '22px 22px 0 0' : '22px',
+            background: `${SHEET.bg} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238f95a0' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='16.5' y1='16.5' x2='21' y2='21'/%3E%3C/svg%3E") no-repeat 15px 50%`,
+            boxShadow: '0 2px 8px rgba(0,0,0,.25)',
+            '&::placeholder': { color: SHEET.dim },
+            '&:focus-visible': { borderColor: SHEET.accent },
+          },
+        },
       }}
     >
       <input
         ref={inputRef}
         type='search'
         value={query}
-        placeholder='Search a place, mountain range, or lat, lon'
+        placeholder={sheetMode ? 'Search place, range, or lat, lon' : 'Search a place, mountain range, or lat, lon'}
         aria-label='Search a place, mountain range, or coordinates'
+        role='combobox'
+        aria-expanded={showDropdown}
+        aria-controls='map-search-results'
+        aria-autocomplete='list'
+        aria-activedescendant={showDropdown && results[active] ? `map-search-option-${active}` : undefined}
         onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
         onFocus={() => { setOpen(true); loadGmbaIndex() }}
         onKeyDown={onKeyDown}
-        style={{
-          width: '100%',
-          boxSizing: 'border-box',
-          padding: '8px 12px',
-          borderRadius: showDropdown ? '8px 8px 0 0' : 8,
-          border: `1px solid ${BORDER}`,
-          background: BG,
-          color: TEXT,
-          fontSize: 13,
-          outline: 'none',
-          backdropFilter: 'blur(6px)',
-        }}
       />
       {showDropdown && (
-        <div
+        <Box
+          id='map-search-results'
           role='listbox'
-          style={{
+          sx={{
             background: BG,
             border: `1px solid ${BORDER}`,
             borderTop: 'none',
             borderRadius: '0 0 8px 8px',
             maxHeight: '60vh',
             overflowY: 'auto',
-            paddingBottom: 4,
+            paddingBottom: '4px',
+            [SHEET_MQ]: {
+              background: SHEET.bg,
+              borderRadius: '0 0 16px 16px',
+              maxHeight: 'min(60vh, 420px)',
+              fontSize: 14,
+              boxShadow: '0 8px 16px rgba(0,0,0,.25)',
+            },
           }}
         >
           {results.map((r, i) => (
             <React.Fragment key={i}>
               {i === firstRange && r.kind === 'range' && (
-                <div style={groupLabelStyle}>MOUNTAIN RANGES (GMBA v2.0)</div>
+                <Box sx={group}>MOUNTAIN RANGES (GMBA v2.0)</Box>
               )}
               {i === firstPlace && r.kind === 'place' && (
-                <div style={groupLabelStyle}>PLACES</div>
+                <Box sx={group}>PLACES</Box>
               )}
-              <div
+              <Box
+                id={`map-search-option-${i}`}
                 role='option'
                 aria-selected={i === active}
                 onMouseEnter={() => setActive(i)}
-                onMouseDown={(e) => { e.preventDefault(); select(r) }}
-                style={rowStyle(i === active)}
+                onMouseDown={(e: React.MouseEvent) => { e.preventDefault(); select(r) }}
+                sx={{
+                  padding: '6px 10px',
+                  cursor: 'pointer',
+                  background: i === active ? 'rgba(29,189,143,0.15)' : 'transparent',
+                  borderLeft: `2px solid ${i === active ? ACCENT : 'transparent'}`,
+                  [SHEET_MQ]: {
+                    minHeight: '44px',
+                    boxSizing: 'border-box',
+                    padding: '8px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                  },
+                }}
               >
                 {r.kind === 'coords' && (
                   <>
@@ -272,53 +316,52 @@ export const SearchBox = () => {
                         {r.lat.toFixed(4)}°, {r.lng.toFixed(4)}°
                       </span>
                     </div>
-                    <div style={{ color: DIM, fontSize: 10.5 }}>and query this point</div>
+                    <Box sx={sub}>and query this point</Box>
                   </>
                 )}
                 {r.kind === 'range' && (
                   <>
                     <div>{r.range.name}</div>
-                    <div style={{
-                      color: DIM, fontSize: 10.5,
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
+                    <Box sx={{ ...sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {r.range.path.split(' > ').slice(-2, -1)[0] ?? ''}
                       {r.range.countries ? ` · ${r.range.countries}` : ''}
-                    </div>
+                    </Box>
                   </>
                 )}
                 {r.kind === 'place' && (
                   <>
                     <div>{r.name}</div>
-                    <div style={{ color: DIM, fontSize: 10.5 }}>{r.detail}</div>
+                    <Box sx={sub}>{r.detail}</Box>
                   </>
                 )}
-              </div>
+              </Box>
             </React.Fragment>
           ))}
           {results.length === 0 && !placesLoading && (
-            <div style={{ ...groupLabelStyle, fontWeight: 400, letterSpacing: 0, fontSize: 11 }}>
+            <Box sx={note}>
               {gmbaIndex || query.trim().length >= 3 ? 'No matches' : 'Searching…'}
-            </div>
+            </Box>
           )}
-          {placesLoading && (
-            <div style={{ ...groupLabelStyle, fontWeight: 400, letterSpacing: 0, fontSize: 11 }}>
-              Searching places…
-            </div>
-          )}
+          {placesLoading && <Box sx={note}>Searching places…</Box>}
           {!coords && query.trim().length >= 3 && (
-            <div style={{ color: DIM, fontSize: 9.5, padding: '4px 10px 2px' }}>
+            <Box
+              sx={{
+                color: DIM, fontSize: 9.5, padding: '4px 10px 2px',
+                '& a': { color: 'inherit' },
+                [SHEET_MQ]: { color: SHEET.dim, fontSize: 12, padding: '4px 16px 8px' },
+              }}
+            >
               Places by{' '}
-              <a href='https://photon.komoot.io' target='_blank' rel='noopener noreferrer' style={{ color: DIM }}>
+              <a href='https://photon.komoot.io' target='_blank' rel='noopener noreferrer'>
                 Photon
               </a>{' '}
               · ©{' '}
-              <a href='https://www.openstreetmap.org/copyright' target='_blank' rel='noopener noreferrer' style={{ color: DIM }}>
+              <a href='https://www.openstreetmap.org/copyright' target='_blank' rel='noopener noreferrer'>
                 OpenStreetMap
               </a>
-            </div>
+            </Box>
           )}
-        </div>
+        </Box>
       )}
     </Box>
   )
